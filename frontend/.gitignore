@@ -1,0 +1,66 @@
+# Dependencies
+/node_modules/
+
+# Angular build output and caches
+/dist/
+/tmp/
+/out-tsc/
+/.angular/
+/.cache/
+/bazel-out/
+
+# Test and coverage output
+/coverage/
+/playwright-report/
+/test-results/
+/cypress/screenshots/
+/cypress/videos/
+__screenshots__/
+
+# Environment and local configuration
+.env
+.env.*
+!.env.example
+*.local
+
+# Local secrets and certificates
+auth.json
+*.key
+*.pem
+
+# Package manager and tool logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+*.log
+
+# Tool caches
+.eslintcache
+.prettier-cache
+.sass-cache/
+.stylelintcache
+
+# IDEs and editors
+/.idea/
+/.vscode/*
+!/.vscode/settings.json
+!/.vscode/tasks.json
+!/.vscode/launch.json
+!/.vscode/extensions.json
+*.code-workspace
+*.suo
+*.user
+*.swp
+*.swo
+*~
+
+# Operating systems
+.DS_Store
+Thumbs.db
+Desktop.ini
+
+# Temporary files
+*.tmp
+*.temp
+*.bak

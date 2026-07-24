@@ -1,0 +1,59 @@
+:host {
+  display: block;
+  min-height: 100dvh;
+}
+
+.skip-link {
+  left: 1rem;
+  position: fixed;
+  top: 1rem;
+  z-index: 1100;
+}
+
+.tenant-shell__body {
+  display: flex;
+  min-height: calc(100dvh - 56px);
+}
+
+.tenant-sidebar {
+  flex: 0 0 16rem;
+}
+
+.tenant-content {
+  background: var(--sova-app-background);
+  flex: 1 1 auto;
+  min-width: 0;
+  padding: 2rem;
+}
+
+.tenant-name {
+  font-size: 0.875rem;
+  letter-spacing: 0.04em;
+}
+
+@media (max-width: 991.98px) {
+  .tenant-sidebar {
+    bottom: 0;
+    left: 0;
+    position: fixed;
+    top: 56px;
+    transform: translateX(-100%);
+    transition: transform 160ms ease-in-out;
+    width: min(18rem, 85vw);
+    z-index: 1040;
+  }
+
+  .tenant-sidebar--open {
+    transform: translateX(0);
+  }
+
+  .tenant-content {
+    padding: 1.25rem;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .tenant-sidebar {
+    transition: none;
+  }
+}

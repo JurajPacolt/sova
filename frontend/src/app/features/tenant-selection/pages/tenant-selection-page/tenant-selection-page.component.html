@@ -1,0 +1,52 @@
+<main class="container py-5">
+  <div class="d-flex justify-content-end mb-4">
+    <app-language-switcher />
+  </div>
+
+  <app-page-header
+    [eyebrow]="'tenant.eyebrow' | translate"
+    [title]="'tenant.title' | translate"
+    [subtitle]="'tenant.subtitle' | translate"
+  />
+
+  <div class="row g-3">
+    @for (tenant of tenants(); track tenant.slug) {
+      <div class="col-12 col-md-6">
+        <article class="card h-100" [class.opacity-75]="tenant.status === 'suspended'">
+          <div class="card-body">
+            <div class="d-flex align-items-start justify-content-between gap-3">
+              <div>
+                <h2 class="h5 mb-1">{{ tenant.nameKey | translate }}</h2>
+                <p class="text-body-secondary small mb-0">{{ tenant.role }}</p>
+              </div>
+
+              @if (tenant.status === 'active') {
+                <span class="badge text-bg-success">{{ 'common.active' | translate }}</span>
+              } @else {
+                <span class="badge text-bg-secondary">{{ 'common.suspended' | translate }}</span>
+              }
+            </div>
+          </div>
+
+          <div class="card-footer bg-transparent border-0 pt-0">
+            @if (tenant.status === 'active') {
+              <a class="btn btn-outline-primary" [routerLink]="['/t', tenant.slug, 'dashboard']">
+                {{ 'tenant.open' | translate }}
+              </a>
+            } @else {
+              <button class="btn btn-outline-secondary" type="button" disabled>
+                {{ 'common.unavailable' | translate }}
+              </button>
+            }
+          </div>
+        </article>
+      </div>
+    } @empty {
+      <p>{{ 'tenant.noMemberships' | translate }}</p>
+    }
+  </div>
+
+  <p class="text-body-secondary small mt-4 mb-0">
+    {{ 'tenant.activeCount' | translate: { count: activeTenants().length } }}
+  </p>
+</main>

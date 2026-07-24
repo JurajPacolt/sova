@@ -1,0 +1,78 @@
+<main class="login-page d-flex align-items-center py-5">
+  <div class="container">
+    <div class="d-flex justify-content-end mb-4">
+      <app-language-switcher />
+    </div>
+
+    <div class="row justify-content-center">
+      <div class="col-12 col-sm-10 col-md-7 col-lg-5 col-xl-4">
+        <div class="text-center mb-4">
+          <span class="login-page__logo" aria-hidden="true">S</span>
+          <h1 class="h2 mt-3 mb-1">{{ 'auth.title' | translate }}</h1>
+          <p class="text-body-secondary">{{ 'auth.subtitle' | translate }}</p>
+        </div>
+
+        <form class="card border-0 shadow-sm" [formGroup]="form" (ngSubmit)="submit()">
+          <div class="card-body p-4">
+            @if (formError(); as errorMessage) {
+              <div class="alert alert-danger" role="alert">{{ errorMessage }}</div>
+            }
+
+            <div class="mb-3">
+              <label class="form-label" for="email">{{ 'auth.email' | translate }}</label>
+              <input
+                id="email"
+                class="form-control"
+                type="email"
+                autocomplete="email"
+                formControlName="email"
+                [class.is-invalid]="form.controls.email.touched && form.controls.email.invalid"
+              />
+              @if (form.controls.email.touched && form.controls.email.invalid) {
+                <div class="invalid-feedback">{{ 'auth.invalidEmail' | translate }}</div>
+              }
+            </div>
+
+            <div class="mb-3">
+              <div class="d-flex justify-content-between">
+                <label class="form-label" for="password">{{ 'auth.password' | translate }}</label>
+                <a class="small" href="#" aria-disabled="true">
+                  {{ 'auth.forgotPassword' | translate }}
+                </a>
+              </div>
+              <input
+                id="password"
+                class="form-control"
+                type="password"
+                autocomplete="current-password"
+                formControlName="password"
+                [class.is-invalid]="
+                  form.controls.password.touched && form.controls.password.invalid
+                "
+              />
+              @if (form.controls.password.touched && form.controls.password.invalid) {
+                <div class="invalid-feedback">{{ 'auth.invalidPassword' | translate }}</div>
+              }
+            </div>
+
+            <button class="btn btn-primary w-100" type="submit" [disabled]="submitting()">
+              @if (submitting()) {
+                {{ 'auth.submitting' | translate }}
+              } @else {
+                {{ 'auth.submit' | translate }}
+              }
+            </button>
+
+            <p class="small text-body-secondary text-center mt-3 mb-0">
+              {{ 'auth.foundationNotice' | translate }}
+            </p>
+          </div>
+        </form>
+
+        <p class="text-center mt-3">
+          <a routerLink="/t/demo/dashboard">{{ 'auth.openDemo' | translate }}</a>
+        </p>
+      </div>
+    </div>
+  </div>
+</main>

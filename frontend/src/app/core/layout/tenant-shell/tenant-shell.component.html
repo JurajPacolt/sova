@@ -1,0 +1,53 @@
+<a class="visually-hidden-focusable skip-link" href="#main-content">
+  {{ 'nav.skipToContent' | translate }}
+</a>
+
+<div class="tenant-shell">
+  <header class="navbar navbar-dark bg-dark sticky-top px-3">
+    <button
+      class="btn btn-outline-light d-lg-none"
+      type="button"
+      [attr.aria-label]="'nav.toggle' | translate"
+      [attr.aria-expanded]="sidebarOpen()"
+      (click)="toggleSidebar()"
+    >
+      ☰
+    </button>
+
+    <a class="navbar-brand fw-bold" [routerLink]="['dashboard']">SOVA</a>
+
+    <div class="d-flex align-items-center gap-3 text-white">
+      <app-language-switcher />
+      <span class="tenant-name d-none d-sm-inline">{{ tenantName() }}</span>
+      <button class="btn btn-sm btn-outline-light" type="button">
+        {{ 'common.profile' | translate }}
+      </button>
+    </div>
+  </header>
+
+  <div class="tenant-shell__body">
+    <aside class="tenant-sidebar bg-body border-end" [class.tenant-sidebar--open]="sidebarOpen()">
+      <div class="p-3 border-bottom">
+        <span class="text-body-secondary small">{{ 'nav.activeTenant' | translate }}</span>
+        <strong class="d-block">{{ tenantName() }}</strong>
+      </div>
+
+      <nav class="nav nav-pills flex-column gap-1 p-3" [attr.aria-label]="'nav.main' | translate">
+        @for (item of navigation(); track item.path) {
+          <a
+            class="nav-link"
+            [routerLink]="[item.path]"
+            routerLinkActive="active"
+            (click)="closeSidebar()"
+          >
+            {{ item.labelKey | translate }}
+          </a>
+        }
+      </nav>
+    </aside>
+
+    <main id="main-content" class="tenant-content" tabindex="-1">
+      <router-outlet />
+    </main>
+  </div>
+</div>

@@ -1,0 +1,46 @@
+<app-page-header
+  [eyebrow]="'issue.eyebrow' | translate"
+  [title]="'issue.title' | translate: { key: issueKey() }"
+  [subtitle]="'issue.subtitle' | translate"
+>
+  <button actions class="btn btn-primary" type="button" (click)="transition()">
+    {{ nextActionKey() | translate }}
+  </button>
+</app-page-header>
+
+<div class="row g-4">
+  <div class="col-12 col-xl-8">
+    <section class="card border-0 shadow-sm mb-4">
+      <div class="card-body">
+        <h2 class="h5">{{ 'issue.description' | translate }}</h2>
+        <p class="text-body-secondary mb-0">
+          {{ 'issue.descriptionText' | translate }}
+        </p>
+      </div>
+    </section>
+
+    <section class="card border-0 shadow-sm">
+      <div class="card-body">
+        <h2 class="h5">{{ 'issue.activity' | translate }}</h2>
+        <p class="text-body-secondary mb-0">{{ 'issue.activityText' | translate }}</p>
+      </div>
+    </section>
+  </div>
+
+  <aside class="col-12 col-xl-4">
+    <section class="card border-0 shadow-sm">
+      <div class="card-body">
+        <dl class="row mb-0">
+          <dt class="col-5">{{ 'issue.status' | translate }}</dt>
+          <dd class="col-7"><app-status-badge [status]="status()" /></dd>
+
+          <dt class="col-5">{{ 'issue.assignee' | translate }}</dt>
+          <dd class="col-7">{{ 'issue.unassigned' | translate }}</dd>
+
+          <dt class="col-5">{{ 'issue.priority' | translate }}</dt>
+          <dd class="col-7">{{ 'common.normal' | translate }}</dd>
+        </dl>
+      </div>
+    </section>
+  </aside>
+</div>

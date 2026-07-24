@@ -1,0 +1,72 @@
+# Environment and local configuration
+.env
+.env.*
+!**/.env.example
+*.local
+
+# Secrets and local credentials
+auth.json
+*.key
+*.pem
+
+# PHP / Composer
+vendor/
+composer.phar
+.phpunit.cache/
+.php-cs-fixer.cache
+.phpstan.cache
+coverage/
+clover.xml
+
+# Backend runtime data
+backend/var/*
+!backend/var/.gitignore
+
+# Node / Angular
+node_modules/
+frontend/dist/
+frontend/.angular/
+frontend/.cache/
+frontend/coverage/
+.nx/
+
+# Browser and E2E tests
+playwright-report/
+test-results/
+cypress/screenshots/
+cypress/videos/
+
+# Logs
+*.log
+logs/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# Local Docker overrides
+docker-compose.override.yml
+compose.override.yml
+
+# IDEs and editors
+.idea/
+.vscode/
+.fleet/
+*.code-workspace
+*.suo
+*.user
+*.userosscache
+*.sln.docstates
+
+# Operating systems
+.DS_Store
+Thumbs.db
+Desktop.ini
+
+# Temporary and backup files
+*.tmp
+*.temp
+*.swp
+*.swo
+*~
+*.bak

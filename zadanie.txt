@@ -1,0 +1,21 @@
+SOVA ide o projekt na evidovanie a managovanie taskov, issue tracker, task manager, nieco ako JIRA, MantisBT, BugZilla.
+
+Backend:
+PHP 8.3-8.4
+Slim4 na REST API
+
+Frontend:
+Angualr 22
+Bootstrap 5
+
+V oboch pripadoch je potrebne pouzivat best practices podla pouzitych technologii.
+
+Projekt bude mat vlastne prihlasovanie. Hesla budu vyuzivat Argon2 hash algoritmus.
+
+Projekt musi mat aj ADMIN cast podla opravneni, kde sa bude dat managovat cely system.
+
+Tiez musia existovat aj pracovne skupiny.
+
+Tiez potrebujem aby to bolo multitenantne.
+
+Musi existpvat rola SUPERADMIN ktora bude uplne nad rola ktora moze managovat aj tenantov a nastavenia nad nimi.

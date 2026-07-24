@@ -1,0 +1,62 @@
+{
+    "name": "sova/backend",
+    "description": "REST API backend for the SOVA multitenant issue tracker.",
+    "type": "project",
+    "license": "proprietary",
+    "require": {
+        "php": "^8.3",
+        "ext-json": "*",
+        "ext-pdo": "*",
+        "ext-pdo_pgsql": "*",
+        "doctrine/dbal": "^4.2",
+        "doctrine/migrations": "^3.8",
+        "monolog/monolog": "^3.8",
+        "php-di/php-di": "^7.0",
+        "slim/psr7": "^1.7",
+        "slim/slim": "^4.14",
+        "vlucas/phpdotenv": "^5.6"
+    },
+    "require-dev": {
+        "friendsofphp/php-cs-fixer": "^3.70",
+        "phpstan/phpstan": "^2.1",
+        "phpunit/phpunit": "^11.5"
+    },
+    "autoload": {
+        "psr-4": {
+            "Sova\\": "src/"
+        }
+    },
+    "autoload-dev": {
+        "psr-4": {
+            "Sova\\Tests\\": "tests/"
+        }
+    },
+    "scripts": {
+        "serve": "php -S 127.0.0.1:8080 -t public public/index.php",
+        "db:migrate": "doctrine-migrations migrations:migrate --no-interaction",
+        "db:status": "doctrine-migrations migrations:status",
+        "db:generate": "doctrine-migrations migrations:generate",
+        "test": "phpunit --colors=always",
+        "analyse": "phpstan analyse --memory-limit=512M",
+        "cs:check": "php-cs-fixer fix --dry-run --diff --ansi --sequential",
+        "cs:fix": "php-cs-fixer fix --sequential",
+        "composer:validate": "composer validate --strict",
+        "check": [
+            "@composer:validate",
+            "@cs:check",
+            "@analyse",
+            "@test"
+        ]
+    },
+    "config": {
+        "allow-plugins": {},
+        "optimize-autoloader": true,
+        "platform": {
+            "php": "8.3.0"
+        },
+        "preferred-install": "dist",
+        "sort-packages": true
+    },
+    "minimum-stability": "stable",
+    "prefer-stable": true
+}

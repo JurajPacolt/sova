@@ -1,0 +1,19 @@
+:host {
+  display: block;
+}
+
+.page-header {
+  margin-bottom: 1.5rem;
+}
+
+.page-header__eyebrow {
+  color: var(--bs-primary);
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.page-header__actions:empty {
+  display: none;
+}

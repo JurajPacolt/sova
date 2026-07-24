@@ -1,0 +1,21 @@
+<app-page-header
+  [eyebrow]="'admin.eyebrow' | translate"
+  [title]="'admin.title' | translate"
+  [subtitle]="'admin.subtitle' | translate"
+/>
+
+<div class="row g-3">
+  @for (section of sections(); track section.titleKey) {
+    <div class="col-12 col-md-6">
+      <article class="card border-0 shadow-sm h-100">
+        <div class="card-body">
+          <h2 class="h5">{{ section.titleKey | translate }}</h2>
+          <p class="text-body-secondary">{{ section.descriptionKey | translate }}</p>
+          <button class="btn btn-sm btn-outline-primary" type="button">
+            {{ 'admin.open' | translate }}
+          </button>
+        </div>
+      </article>
+    </div>
+  }
+</div>

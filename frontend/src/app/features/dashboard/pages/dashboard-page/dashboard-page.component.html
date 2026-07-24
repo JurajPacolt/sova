@@ -1,0 +1,48 @@
+<app-page-header
+  [eyebrow]="'dashboard.eyebrow' | translate"
+  [title]="'dashboard.title' | translate"
+  [subtitle]="'dashboard.subtitle' | translate"
+>
+  <a actions class="btn btn-primary" routerLink="../projects">
+    {{ 'dashboard.showProjects' | translate }}
+  </a>
+</app-page-header>
+
+<div class="row g-3 mb-4">
+  <div class="col-12 col-sm-6 col-xl-3">
+    <article class="card border-0 shadow-sm h-100">
+      <div class="card-body">
+        <p class="text-body-secondary mb-2">{{ 'dashboard.activeIssues' | translate }}</p>
+        <strong class="display-6">{{ openIssueCount() }}</strong>
+      </div>
+    </article>
+  </div>
+  <div class="col-12 col-sm-6 col-xl-3">
+    <article class="card border-0 shadow-sm h-100">
+      <div class="card-body">
+        <p class="text-body-secondary mb-2">{{ 'dashboard.overdue' | translate }}</p>
+        <strong class="display-6 text-danger">0</strong>
+      </div>
+    </article>
+  </div>
+</div>
+
+<section class="card border-0 shadow-sm">
+  <div class="card-header bg-body d-flex justify-content-between align-items-center">
+    <h2 class="h5 mb-0">{{ 'dashboard.assignedToMe' | translate }}</h2>
+    <span class="badge text-bg-light">{{ assignedIssues().length }}</span>
+  </div>
+
+  <div class="list-group list-group-flush">
+    @for (issue of assignedIssues(); track issue.key) {
+      <a
+        class="list-group-item list-group-item-action d-flex align-items-center gap-3 py-3"
+        [routerLink]="['../issues', issue.key]"
+      >
+        <span class="font-monospace small">{{ issue.key }}</span>
+        <span class="flex-grow-1">{{ issue.titleKey | translate }}</span>
+        <app-status-badge [status]="issue.status" />
+      </a>
+    }
+  </div>
+</section>

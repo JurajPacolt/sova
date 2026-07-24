@@ -1,0 +1,15 @@
+:host {
+  display: block;
+}
+
+.empty-state__icon {
+  align-items: center;
+  background: var(--bs-primary-bg-subtle);
+  border-radius: 50%;
+  color: var(--bs-primary);
+  display: inline-flex;
+  font-size: 1.75rem;
+  height: 4rem;
+  justify-content: center;
+  width: 4rem;
+}

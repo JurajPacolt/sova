@@ -1,0 +1,12 @@
+<label class="visually-hidden" for="language-selector">{{ 'language.selector' | translate }}</label>
+<select
+  id="language-selector"
+  class="form-select form-select-sm"
+  [attr.aria-label]="'language.selector' | translate"
+  [value]="i18n.language()"
+  (change)="selectLanguage($event)"
+>
+  @for (language of languages; track language.code) {
+    <option [value]="language.code">{{ language.nativeName }}</option>
+  }
+</select>

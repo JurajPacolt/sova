@@ -1,0 +1,31 @@
+<app-page-header
+  [eyebrow]="'projects.eyebrow' | translate"
+  [title]="'projects.title' | translate"
+  [subtitle]="'projects.subtitle' | translate: { count: activeProjectCount() }"
+>
+  <button actions class="btn btn-primary" type="button">{{ 'projects.new' | translate }}</button>
+</app-page-header>
+
+<div class="row g-3">
+  @for (project of projects(); track project.code) {
+    <div class="col-12 col-md-6 col-xl-4">
+      <article class="card border-0 shadow-sm h-100">
+        <div class="card-body">
+          <div class="d-flex align-items-start justify-content-between gap-3">
+            <span class="project-code">{{ project.code }}</span>
+            <span class="badge text-bg-success">{{ 'projects.active' | translate }}</span>
+          </div>
+          <h2 class="h5 mt-3">{{ project.nameKey | translate }}</h2>
+          <p class="text-body-secondary mb-0">
+            {{ 'projects.openIssues' | translate: { count: project.openIssues } }}
+          </p>
+        </div>
+        <div class="card-footer bg-transparent">
+          <button class="btn btn-sm btn-outline-primary" type="button">
+            {{ 'projects.openProject' | translate }}
+          </button>
+        </div>
+      </article>
+    </div>
+  }
+</div>
