@@ -263,6 +263,7 @@ Akcie:
 - zmeniť vlastníka alebo správcu,
 - upraviť viditeľnosť,
 - spravovať skupiny a členov,
+- spravovať typy úloh, hierarchiu a workflow,
 - archivovať alebo obnoviť,
 - zobraziť projektový audit.
 
@@ -276,6 +277,72 @@ Pri zmene tenantového projektu na súkromný:
 4. potvrdiť operáciu,
 5. okamžite zneplatniť prístupové cache,
 6. auditovať zmenu.
+
+### 8.2 Projektové typy úloh
+
+Route:
+
+```text
+/t/:tenantSlug/projects/:projectKey/settings/issue-types
+```
+
+Zoznam zobrazuje ikonu, názov, nemenný kód, hierarchickú úroveň, poradie, mapované
+workflow, počet úloh a stav aktívny/archivovaný.
+
+Správca s `issue_type.manage` môže:
+
+- vytvoriť vlastný typ,
+- upraviť názov, opis, ikonu, poradie a podporované systémové polia,
+- zmeniť hierarchickú úroveň po kontrole dopadu,
+- archivovať nepoužívaný alebo používaný typ bez straty histórie.
+
+UI musí pri zmene úrovne ukázať neplatné väzby rodič/dieťa. Použitý typ sa fyzicky
+neodstraňuje a archivovaný typ sa neponúka pri vytváraní novej úlohy.
+
+### 8.3 Workflow a mapovanie
+
+Routy:
+
+```text
+/t/:tenantSlug/projects/:projectKey/settings/workflows
+/t/:tenantSlug/projects/:projectKey/settings/workflow-mapping
+```
+
+Workflow editor obsahuje minimálne:
+
+- zoznam stavov s kategóriou a počiatočným stavom,
+- zoznam prechodov so zdrojom, cieľom, oprávnením a požadovanými poľami,
+- jasné označenie draftu a publikovanej verzie,
+- validáciu grafu,
+- náhľad dopadu na typy, stavy a počty úloh,
+- migračné mapovanie odstránených stavov,
+- históriu publikovaných verzií.
+
+```mermaid
+flowchart TD
+    Open["Otvoriť workflow"] --> Draft{"Existuje draft?"}
+    Draft -->|nie| Clone["Vytvoriť draft z publikovanej verzie"]
+    Draft -->|áno| Edit["Pokračovať v úprave"]
+    Clone --> Edit
+    Edit --> Save["Uložiť draft"]
+    Save --> Validate["Validovať"]
+    Validate -->|chyby| Edit
+    Validate -->|platný| Impact["Zobraziť dopad"]
+    Impact --> Migration["Doplniť potrebné mapovanie stavov"]
+    Migration --> Permission{"Má workflow.publish?"}
+    Permission -->|nie| DraftOnly["Ponechať draft"]
+    Permission -->|áno| Confirm["Potvrdiť publikovanie"]
+    Confirm --> Publish["Atomická aktivácia a migrácia"]
+    Publish --> History["Audit a história konfigurácie"]
+```
+
+Uloženie draftu nemení správanie úloh. Publikovanie prijíma očakávanú revíziu
+projektovej konfigurácie; konflikt dvoch správcov vráti `409` a nesmie prepísať
+novšiu verziu. Mapovanie musí priradiť každému aktívnemu typu práve jedno publikované
+workflow rovnakého projektu.
+
+Podrobný doménový, databázový a API návrh je v
+[`WORKFLOW-A-TYPY-ULOH.md`](../WORKFLOW-A-TYPY-ULOH.md).
 
 ## 9. Tenantové nastavenia
 
@@ -491,10 +558,15 @@ Každá zmena:
 - deaktivácia člena s otvorenými úlohami,
 - archivácia pracovnej skupiny,
 - zmena projektu na súkromný,
+- vytvorenie a archivácia projektového typu úlohy,
+- odmietnutie neplatnej hierarchie typov,
+- vytvorenie draftu, kontrola dopadu a publikovanie workflow,
+- migrácia úloh pri odstránení používaného stavu,
+- konflikt súbežnej úpravy workflow,
+- pokus mapovať typ na workflow z iného projektu,
 - filtrovanie a export auditu,
 - vytvorenie a pozastavenie tenantu,
 - obnovenie tenantu,
 - žiadosť o odstránenie a zrušenie počas ochrannej lehoty,
 - impersonácia so začiatkom, vykonanou akciou a ukončením,
 - pokus o vstup do systémovej administrácie bez `SUPERADMIN`.
-

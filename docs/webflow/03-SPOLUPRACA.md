@@ -246,7 +246,7 @@ Počas písania sa staršia odpoveď nesmie zobraziť nad výsledkami novšej po
 
 SRC-02 obsahuje:
 
-- textový dotaz,
+- vizuálny filter builder a Jira-like textový editor `SovaQL`,
 - panel filtrov,
 - aktívne filtre ako odoberateľné chips,
 - triedenie,
@@ -254,8 +254,9 @@ SRC-02 obsahuje:
 - počet výsledkov, ak je výpočet primerane lacný,
 - uloženie filtra.
 
-URL reprezentuje filter. Napríklad hodnoty sa môžu kódovať ako opakované parametre
-alebo stabilný filter výraz. Formát musí byť verzovateľný a serverovo validovaný.
+Trvalá URL reprezentuje uložený filter nepriehľadným `savedQueryId`. Celý dotaz sa
+štandardne neposiela v URL, aby sa mená alebo iné osobné hodnoty nedostali do
+histórie a logov. Formát je verzovaný a serverovo validovaný.
 
 ### 9.1 Prázdne výsledky
 
@@ -274,9 +275,10 @@ Filter obsahuje:
 
 - názov,
 - vlastníka,
-- definíciu podmienok,
+- pôvodný a serverom kanonizovaný SovaQL dotaz,
+- verziu jazyka a záznamu,
 - triedenie a viditeľné stĺpce,
-- viditeľnosť súkromný/zdieľaný,
+- viditeľnosť súkromný/zdieľaný a explicitné granty,
 - dátum poslednej zmeny.
 
 Tok uloženia:
@@ -296,6 +298,11 @@ flowchart TD
 
 Zmena zdieľaného filtra nesmie prekvapivo zmeniť pracovný pohľad ostatných. Vhodné je
 rozlíšiť „Uložiť“ a „Uložiť ako kópiu“.
+
+Filter použitý widgetom nemožno bez vyriešenia závislostí natrvalo odstrániť.
+Zdieľanie filtra nikdy neudeľuje prístup k výsledným úlohám. Presná syntax, pravidlá
+grantov, životný cyklus, API a chybové stavy sú v
+[špecifikácii SovaQL a dashboardov](../SOVAQL-A-DASHBOARDY.md).
 
 ## 11. Centrum notifikácií
 
@@ -374,4 +381,3 @@ Bezpečnostné e-maily nemožno úplne vypnúť.
 - súkromný a zdieľaný uložený filter,
 - otvorenie platnej a zastaranej notifikácie,
 - zmena nastavení notifikácií.
-

@@ -28,7 +28,9 @@ flowchart TD
     Public --> Reset["Obnova hesla"]
     Public --> Invite["Prijatie pozvánky"]
 
-    Tenant --> Dashboard["Dashboard"]
+    Tenant --> Dashboards["Osobné dashboardy"]
+    Dashboards --> Dashboard["Aktívny dashboard"]
+    Dashboards --> DashboardManagement["Správa dashboardov"]
     Tenant --> MyWork["Moja práca"]
     Tenant --> Projects["Projekty"]
     Tenant --> Workgroups["Pracovné skupiny"]
@@ -40,6 +42,9 @@ flowchart TD
     Projects --> IssueList["Zoznam úloh"]
     Projects --> Board["Kanban"]
     Projects --> IssueDetail["Detail úlohy"]
+    Projects --> ProjectSettings["Projektové nastavenia"]
+    ProjectSettings --> IssueTypes["Typy úloh"]
+    ProjectSettings --> Workflows["Workflow a mapovanie"]
 
     TenantAdmin --> Members["Členovia a pozvánky"]
     TenantAdmin --> Roles["Roly"]
@@ -84,11 +89,17 @@ tenantu alebo na výber tenantu.
 
 ```text
 /t/:tenantSlug/dashboard
+/t/:tenantSlug/dashboards
+/t/:tenantSlug/dashboards/:dashboardId
 /t/:tenantSlug/my-work
 /t/:tenantSlug/projects
 /t/:tenantSlug/projects/:projectKey
 /t/:tenantSlug/projects/:projectKey/issues
 /t/:tenantSlug/projects/:projectKey/board
+/t/:tenantSlug/projects/:projectKey/settings
+/t/:tenantSlug/projects/:projectKey/settings/issue-types
+/t/:tenantSlug/projects/:projectKey/settings/workflows
+/t/:tenantSlug/projects/:projectKey/settings/workflow-mapping
 /t/:tenantSlug/issues/:issueKey
 /t/:tenantSlug/workgroups
 /t/:tenantSlug/workgroups/:workgroupId
@@ -292,4 +303,3 @@ hustotu. Musí však zachovať:
 - dostatok priestoru pre názvy úloh,
 - rozlíšenie stavov textom aj farbou,
 - možnosť zmenšiť alebo skryť sekundárne panely.
-

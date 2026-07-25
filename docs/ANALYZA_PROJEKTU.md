@@ -12,7 +12,9 @@
 | Hlavné oblasti | Issue tracking, task management, pracovné skupiny, administrácia |
 
 Podrobná informačná architektúra, navigácia a používateľské toky sú rozpracované v
-[dokumentácii webflow](./webflow/README.md).
+[dokumentácii webflow](./webflow/README.md). Záväzný návrh projektovo
+konfigurovateľných typov úloh, hierarchie a verzovaných workflow je v dokumente
+[Projektová konfigurácia typov úloh a workflow](./WORKFLOW-A-TYPY-ULOH.md).
 
 ## 1. Účel dokumentu
 
@@ -75,14 +77,16 @@ Prvá verzia nemá byť úplným klonom Jiry. Mala by spoľahlivo pokryť:
 - roly a oprávnenia,
 - pracovné skupiny,
 - projekty,
-- úlohy a základné workflow,
+- úlohy, projektovo konfigurovateľné typy a workflow,
 - komentáre, prílohy a históriu,
 - základné vyhľadávanie a notifikácie,
 - tenantovú a systémovú administráciu,
 - audit a prevádzkový základ.
 
-Pokročilé workflow editory, sprinty, automatizácie, SLA, SSO, fakturácia a rozsiahle
-integrácie majú byť riešené až po stabilizácii jadra.
+Grafický drag-and-drop workflow editor, sprinty, automatizácie, SLA, SSO, fakturácia
+a rozsiahle integrácie majú byť riešené až po stabilizácii jadra. Možnosť definovať
+typy, stavy, prechody a mapovanie typu na workflow cez formulárový alebo tabuľkový
+editor však patrí do jadra.
 
 ## 4. Terminológia a doménová hierarchia
 
@@ -96,7 +100,9 @@ integrácie majú byť riešené až po stabilizácii jadra.
 | Pracovná skupina | Skupina členov tenantu, napríklad Backend alebo QA |
 | Projekt | Priestor tenantu, v ktorom sa evidujú úlohy |
 | Úloha/issue | Evidovaná práca, chyba, príbeh alebo požiadavka |
-| Workflow | Povolené stavy úlohy a prechody medzi nimi |
+| Typ úlohy | Projektová klasifikácia a hierarchická úroveň úlohy |
+| Workflow | Projektová, verzovaná definícia stavov a povolených prechodov |
+| Workflow šablóna | Vzor kopírovaný pri vytvorení projektu bez živej väzby |
 | Audit | Nemenná evidencia bezpečnostne a funkčne významných operácií |
 
 ```mermaid
@@ -129,6 +135,9 @@ flowchart TD
 - Projekt patrí presne jednému tenantovi.
 - Pracovná skupina patrí presne jednému tenantovi.
 - Úloha patrí presne jednému projektu a tým aj jednému tenantovi.
+- Typ úlohy, stav a workflow patria presne jednému projektu.
+- Každý aktívny typ úlohy má práve jedno aktívne publikované workflow.
+- Publikovaná verzia workflow je nemenná; zmena sa publikuje ako nová verzia.
 - Člen skupiny musí byť aktívnym členom rovnakého tenantu.
 - Používateľ alebo skupina priradená k projektu musí patriť rovnakému tenantovi.
 - Väzba medzi úlohami nesmie v prvej verzii prepájať rozdielnych tenantov.
@@ -363,7 +372,8 @@ Projekt obsahuje:
 - viditeľnosť,
 - používateľov a pracovné skupiny,
 - dostupné typy úloh,
-- workflow,
+- stavy, workflow a mapovanie typu na workflow,
+- revíziu publikovanej konfigurácie,
 - číselný rad úloh.
 
 Odporúčané režimy viditeľnosti:
@@ -374,6 +384,10 @@ Odporúčané režimy viditeľnosti:
 Archivovaný projekt je iba na čítanie, ale jeho história zostáva dostupná oprávneným
 používateľom.
 
+Každý projekt vlastní svoju konfiguráciu. Systémová alebo tenantová šablóna sa pri
+vytvorení projektu skopíruje a jej neskoršia zmena existujúci projekt automaticky
+neupraví.
+
 ### 6.6 Úlohy a issue tracking
 
 Predvolené typy úloh:
@@ -381,7 +395,13 @@ Predvolené typy úloh:
 - `TASK` – bežná pracovná úloha,
 - `BUG` – chyba alebo regresia,
 - `STORY` – používateľská alebo produktová požiadavka,
-- `EPIC` – nadradená väčšia téma.
+- `EPIC` – nadradená väčšia téma,
+- `SUBTASK` – menšia časť štandardnej úlohy.
+
+Typy nie sú globálny enum. Sú projektové entity a projektový správca môže vytvoriť
+vlastný typ, určiť jeho poradie, podporované polia a hierarchickú úroveň `1` (Epic),
+`0` (štandardný typ) alebo `-1` (Sub-task). EPIC zostáva úlohou v rovnakej doméne a
+tabuľke ako ostatné typy.
 
 Predvolené priority:
 
@@ -397,7 +417,7 @@ Základné polia úlohy:
 | ID | Interný UUID identifikátor |
 | Kód | Čitateľný identifikátor, napríklad `SOVA-123` |
 | Projekt | Projekt, do ktorého úloha patrí |
-| Typ | Task, bug, story alebo epic |
+| Typ | Projektový typ, napríklad task, bug, story, epic alebo sub-task |
 | Názov | Stručné pomenovanie |
 | Opis | Formátovaný podrobný obsah |
 | Stav | Aktuálny stav workflow |
@@ -435,6 +455,12 @@ Prechod má definovať:
 - prípadnú validačnú podmienku,
 - udalosť zapísanú do histórie.
 
+Projekt môže mať viac workflow a každý aktívny typ úlohy je mapovaný práve na jedno
+publikované workflow. Zmeny sa pripravujú v drafte; publikovaná verzia je nemenná.
+Publikovanie musí validovať graf, zobraziť dopad a atomicky migrovať existujúce úlohy,
+ak sa odstraňuje používaný stav. Úplná špecifikácia je v
+[Projektovej konfigurácii typov úloh a workflow](./WORKFLOW-A-TYPY-ULOH.md).
+
 #### 6.6.2 Vytvorenie úlohy
 
 Pri vytváraní úlohy backend:
@@ -442,11 +468,12 @@ Pri vytváraní úlohy backend:
 1. overí aktívnu reláciu,
 2. určí a overí tenantový kontext,
 3. overí prístup k projektu a oprávnenie `issue.create`,
-4. validuje typ úlohy, riešiteľa a skupinu,
-5. v transakcii atomicky pridelí ďalšie projektové číslo,
-6. uloží úlohu a auditnú udalosť,
-7. uloží doménovú udalosť do outboxu,
-8. po commite nechá worker vytvoriť notifikácie.
+4. validuje projektový typ úlohy, hierarchiu, riešiteľa a skupinu,
+5. načíta mapované publikované workflow a nastaví jeho počiatočný stav,
+6. v transakcii atomicky pridelí ďalšie projektové číslo,
+7. uloží úlohu a auditnú udalosť,
+8. uloží doménovú udalosť do outboxu,
+9. po commite nechá worker vytvoriť notifikácie.
 
 #### 6.6.3 Súbežné úpravy
 
@@ -506,7 +533,13 @@ iba v rámci jedného tenantu.
 
 ### 6.10 Vyhľadávanie a filtre
 
-Počiatočné filtre:
+Rozšírené vyhľadávanie používa bezpečný Jira-like doménový jazyk `SovaQL`. Podporuje
+rovnakú podmienku v textovom editore aj vo vizuálnom filter builderi, serverovú
+validáciu, stabilné zoradenie a cursor stránkovanie. Jazyk sa nikdy nevykonáva ako
+SQL; backend ho parsuje do typovaného AST a kombinuje s neodstrániteľným tenantovým
+a autorizačným rozsahom.
+
+Počiatočné polia:
 
 - projekt,
 - stav,
@@ -523,11 +556,15 @@ Počiatočné filtre:
 Pre MVP postačuje PostgreSQL fulltext a vhodné databázové indexy. Samostatný
 vyhľadávací systém má význam až po reálnom meraní objemu a výkonu.
 
-Používateľ môže neskôr:
+Používateľ môže platný dotaz uložiť, kopírovať, označiť ako obľúbený a podľa
+oprávnenia explicitne zdieľať členom alebo pracovným skupinám. Zdieľaný dotaz
+neudeľuje prístup k úlohám. Uložený dotaz je opakovane použiteľný zdroj
+dashboardových widgetov.
 
-- ukladať vlastné filtre,
-- zdieľať filtre v projekte,
-- nastaviť filter ako zdroj dashboardového widgetu.
+Každý používateľ môže mať v tenantovi viac osobných dashboardov, prepínať ich,
+určiť predvolený dashboard a skladať ich z aplikáciou registrovaných widgetov.
+Úplná syntax, UX, dátový model, API, bezpečnostné pravidlá a akceptačné kritériá sú v
+[špecifikácii SovaQL a dashboardov](./SOVAQL-A-DASHBOARDY.md).
 
 ### 6.11 Notifikácie
 
@@ -893,6 +930,8 @@ zdieľaného stavu, môže sa doplniť až na základe konkrétnych scenárov.
 /select-tenant
 
 /t/:tenantSlug/dashboard
+/t/:tenantSlug/dashboards
+/t/:tenantSlug/dashboards/:dashboardId
 /t/:tenantSlug/projects
 /t/:tenantSlug/projects/:projectKey
 /t/:tenantSlug/issues/:issueKey
@@ -908,7 +947,7 @@ zdieľaného stavu, môže sa doplniť až na základe konkrétnych scenárov.
 
 - prihlásenie a obnova hesla,
 - výber aktívneho tenantu,
-- tenantový dashboard,
+- osobné tenantové dashboardy a ich správa,
 - zoznam projektov,
 - detail a nastavenia projektu,
 - tabuľkový zoznam úloh,
@@ -1011,34 +1050,57 @@ erDiagram
         uuid role_id FK
     }
 
-    ISSUE_TYPES {
+    PROJECT_ISSUE_TYPES {
         uuid id PK
         uuid tenant_id FK
+        uuid project_id FK
         string code
         string name
+        int hierarchy_level
+        datetime archived_at
     }
 
-    STATUSES {
+    PROJECT_STATUSES {
         uuid id PK
         uuid tenant_id FK
+        uuid project_id FK
         string code
         string name
         string category
     }
 
-    WORKFLOWS {
+    PROJECT_WORKFLOWS {
         uuid id PK
         uuid tenant_id FK
+        uuid project_id FK
         string name
-        boolean is_default
+        uuid active_version_id FK
+    }
+
+    WORKFLOW_VERSIONS {
+        uuid id PK
+        uuid workflow_id FK
+        int version_number
+        string state
+        uuid initial_status_id FK
+    }
+
+    WORKFLOW_VERSION_STATUSES {
+        uuid workflow_version_id FK
+        uuid status_id FK
     }
 
     WORKFLOW_TRANSITIONS {
         uuid id PK
-        uuid workflow_id FK
+        uuid workflow_version_id FK
         uuid from_status_id FK
         uuid to_status_id FK
         string permission_code
+    }
+
+    ISSUE_TYPE_WORKFLOWS {
+        uuid issue_type_id FK
+        uuid workflow_id FK
     }
 
     ISSUES {
@@ -1047,6 +1109,7 @@ erDiagram
         uuid project_id FK
         bigint sequence_number
         uuid issue_type_id FK
+        uuid workflow_version_id FK
         uuid status_id FK
         uuid reporter_id FK
         uuid assignee_id FK
@@ -1116,14 +1179,20 @@ erDiagram
     PROJECTS ||--o{ PROJECT_WORKGROUPS : grants_access
     WORKGROUPS ||--o{ PROJECT_WORKGROUPS : participates
 
-    TENANTS ||--o{ ISSUE_TYPES : defines
-    TENANTS ||--o{ STATUSES : defines
-    TENANTS ||--o{ WORKFLOWS : defines
-    WORKFLOWS ||--o{ WORKFLOW_TRANSITIONS : contains
+    PROJECTS ||--o{ PROJECT_ISSUE_TYPES : defines
+    PROJECTS ||--o{ PROJECT_STATUSES : defines
+    PROJECTS ||--o{ PROJECT_WORKFLOWS : defines
+    PROJECT_WORKFLOWS ||--o{ WORKFLOW_VERSIONS : versions
+    WORKFLOW_VERSIONS ||--o{ WORKFLOW_VERSION_STATUSES : contains
+    PROJECT_STATUSES ||--o{ WORKFLOW_VERSION_STATUSES : reused_by
+    WORKFLOW_VERSIONS ||--o{ WORKFLOW_TRANSITIONS : contains
+    PROJECT_ISSUE_TYPES ||--|| ISSUE_TYPE_WORKFLOWS : maps
+    PROJECT_WORKFLOWS ||--o{ ISSUE_TYPE_WORKFLOWS : serves
 
     PROJECTS ||--o{ ISSUES : contains
-    ISSUE_TYPES ||--o{ ISSUES : classifies
-    STATUSES ||--o{ ISSUES : current_state
+    PROJECT_ISSUE_TYPES ||--o{ ISSUES : classifies
+    WORKFLOW_VERSIONS ||--o{ ISSUES : governs
+    PROJECT_STATUSES ||--o{ ISSUES : current_state
     ISSUES ||--o{ COMMENTS : has
     ISSUES ||--o{ ATTACHMENTS : has
     ISSUES ||--o{ ISSUE_LINKS : source
@@ -1139,6 +1208,10 @@ erDiagram
 - Projektový kód úlohy skladať z kódu projektu a atomického poradového čísla.
 - Tenantové unikátne obmedzenia majú obsahovať `tenant_id`.
 - Cudzie kľúče a kompozitné obmedzenia majú chrániť tenantovú integritu.
+- Konfiguračné väzby typov, stavov a workflow majú kompozitne chrániť aj
+  `project_id`; samotné UUID nesmie umožniť cross-project referenciu.
+- Publikované verzie workflow sú nemenné a použitá konfigurácia sa archivuje namiesto
+  fyzického odstránenia.
 - Indexovať stĺpce používané na tenantové filtrovanie a bežné vyhľadávanie.
 - Soft delete používať iba tam, kde je potrebná obnova alebo historická referencia.
 - Auditné udalosti majú byť append-only.
@@ -1422,7 +1495,7 @@ Výstupy:
 - rozhodnutie o registrácii a pozvánkach,
 - model rolí a oprávnení,
 - pravidlá viditeľnosti projektov,
-- základné workflow,
+- pravidlá projektových typov, hierarchie a workflow,
 - architektonické rozhodnutia,
 - prvý ER a OpenAPI návrh.
 
@@ -1484,13 +1557,16 @@ Výstupy:
 
 Výstupy:
 
-- typy a priority,
+- projektové typy a priority,
+- hierarchia Epic → štandardná úloha → Sub-task,
 - vytvorenie, čítanie a úprava úloh,
 - atomický projektový číselný rad,
 - riešiteľ a zodpovedná skupina,
-- základné workflow a prechody,
+- verzované workflow, stavy a prechody,
+- mapovanie typu na workflow,
+- draft, validácia dopadu, publikovanie a migrácia konfigurácie,
 - história,
-- filtre a stránkovanie,
+- SovaQL parser, autorizované vyhľadávanie a cursor stránkovanie,
 - ochrana pred súbežným prepisom.
 
 ### 18.7 Fáza 6 – Spolupráca
@@ -1510,7 +1586,9 @@ Výstupy:
 
 Výstupy:
 
-- dashboard,
+- uložené a zdieľateľné SovaQL dotazy,
+- správa viacerých osobných dashboardov,
+- skladateľný layout a základné query-backed widgety,
 - zoznam a detail projektu,
 - tabuľkový a Kanban pohľad úloh,
 - detail úlohy s históriou,
@@ -1565,10 +1643,10 @@ Výstupy:
 - tenantové roly a oprávnenia,
 - pracovné skupiny,
 - projekty a ich prístup,
-- úlohy a základné workflow,
+- úlohy, projektové typy a konfigurovateľné workflow,
 - komentáre a história,
 - základné prílohy,
-- filtre a textové vyhľadávanie,
+- SovaQL vyhľadávanie, uložené filtre, osobné dashboardy a widgety,
 - in-app a základné e-mailové notifikácie,
 - systémová a tenantová administrácia,
 - audit,
@@ -1577,7 +1655,8 @@ Výstupy:
 
 ### 19.2 Odložené funkcie
 
-- plne vizuálny workflow editor,
+- grafický drag-and-drop workflow editor; formulárová alebo tabuľková konfigurácia je
+  povinná už v MVP,
 - vlastné polia a obrazovkové schémy,
 - sprinty, backlog a velocity reporty,
 - automatizačné pravidlá,
@@ -1602,13 +1681,17 @@ MVP možno považovať za pripravené na pilot, keď:
 5. nepovolený používateľ nedokáže operáciu vykonať priamo cez API,
 6. dáta rozdielnych tenantov sú izolované vo všetkých kritických scenároch,
 7. história a audit zaznamenávajú požadované operácie,
-8. komentáre, prílohy a notifikácie fungujú bez blokovania hlavnej transakcie,
-9. súbežná úprava neprepíše novšie dáta bez upozornenia,
-10. systém je nasaditeľný opakovateľným procesom,
-11. monitoring rozpozná nedostupnosť API, databázy a workerov,
-12. databázu a prílohy je možné obnoviť z otestovanej zálohy,
-13. kritické používateľské cesty prechádzajú automatizovanými testami,
-14. nie sú otvorené známe kritické bezpečnostné chyby.
+8. používateľ môže uložiť SovaQL dotaz a použiť ho vo vlastnom dashboardovom
+   widgete,
+9. používateľ môže vytvoriť viac osobných dashboardov a bezpečne medzi nimi
+   prepínať,
+10. komentáre, prílohy a notifikácie fungujú bez blokovania hlavnej transakcie,
+11. súbežná úprava neprepíše novšie dáta bez upozornenia,
+12. systém je nasaditeľný opakovateľným procesom,
+13. monitoring rozpozná nedostupnosť API, databázy a workerov,
+14. databázu a prílohy je možné obnoviť z otestovanej zálohy,
+15. kritické používateľské cesty prechádzajú automatizovanými testami,
+16. nie sú otvorené známe kritické bezpečnostné chyby.
 
 ## 21. Definition of Done
 
@@ -1656,16 +1739,18 @@ Pred implementáciou dotknutých modulov je potrebné rozhodnúť:
 6. Budú projekty tenantovo verejné, súkromné alebo oba typy?
 7. Sú pracovné skupiny nositeľom oprávnení alebo iba organizačnou jednotkou?
 8. Môže mať úloha súčasne zodpovednú skupinu aj konkrétneho riešiteľa?
-9. Bude workflow v MVP pevné alebo upraviteľné administrátorom?
-10. Majú byť typy úloh a priority tenantovo konfigurovateľné?
-11. Bude opis a komentár používať Markdown alebo WYSIWYG editor?
-12. Aké typy a maximálne veľkosti príloh sú povolené?
-13. Aká je retention politika auditov, odstránených účtov a tenantov?
-14. Má byť systém dostupný v slovenčine aj angličtine?
-15. Bude SOVA verejný SaaS alebo interná/on-premise aplikácia?
-16. Aké objemy používateľov, tenantov, projektov a úloh sa očakávajú?
-17. Aké sú požadované RPO, RTO a dostupnosť?
-18. Ktorý e-mailový a objektový storage provider sa použije?
+9. Majú byť priority pevné, projektovo konfigurovateľné alebo tenantové šablóny?
+10. Bude opis a komentár používať Markdown alebo WYSIWYG editor?
+11. Aké typy a maximálne veľkosti príloh sú povolené?
+12. Aká je retention politika auditov, odstránených účtov a tenantov?
+13. Má byť systém dostupný v slovenčine aj angličtine?
+14. Bude SOVA verejný SaaS alebo interná/on-premise aplikácia?
+15. Aké objemy používateľov, tenantov, projektov a úloh sa očakávajú?
+16. Aké sú požadované RPO, RTO a dostupnosť?
+17. Ktorý e-mailový a objektový storage provider sa použije?
+
+Rozhodnutia o workflow a typoch úloh sú uzavreté: oba sú konfigurovateľné na úrovni
+projektu podľa [samostatnej implementačnej špecifikácie](./WORKFLOW-A-TYPY-ULOH.md).
 
 ## 24. Odporúčané architektonické rozhodnutia
 

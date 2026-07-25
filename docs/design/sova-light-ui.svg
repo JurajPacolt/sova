@@ -1,0 +1,123 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="1000" viewBox="0 0 1600 1000" role="img" aria-labelledby="title desc">
+  <title id="title">SOVA svetlý režim</title>
+  <desc id="desc">Ukážka dashboardu issue trackeru SOVA v svetlom režime.</desc>
+  <defs>
+    <filter id="panelShadow" x="-20%" y="-20%" width="140%" height="160%">
+      <feDropShadow dx="0" dy="10" stdDeviation="24" flood-color="#0F172A" flood-opacity=".10"/>
+    </filter>
+    <linearGradient id="logo" x1="0" x2="1" y1="0" y2="1">
+      <stop offset="0" stop-color="#6366F1"/>
+      <stop offset="1" stop-color="#0F766E"/>
+    </linearGradient>
+  </defs>
+  <rect width="1600" height="1000" fill="#E2E8F0"/>
+  <rect x="44" y="38" width="1512" height="924" rx="26" fill="#F8FAFC" filter="url(#panelShadow)"/>
+
+  <path d="M70 38h1460a26 26 0 0 1 26 26v70H44V64a26 26 0 0 1 26-26z" fill="#0F172A"/>
+  <rect x="78" y="63" width="46" height="46" rx="14" fill="url(#logo)"/>
+  <path d="M91 80h7l4 7 4-7h7l-11 18z" fill="#FFFFFF"/>
+  <text x="140" y="95" fill="#FFFFFF" font-family="Inter, Segoe UI, sans-serif" font-size="23" font-weight="750">SOVA</text>
+  <rect x="272" y="69" width="360" height="34" rx="17" fill="#1E293B"/>
+  <circle cx="296" cy="86" r="6" fill="none" stroke="#94A3B8" stroke-width="2"/>
+  <path d="M300 90l6 6" stroke="#94A3B8" stroke-width="2" stroke-linecap="round"/>
+  <text x="318" y="92" fill="#94A3B8" font-family="Inter, Segoe UI, sans-serif" font-size="13">Hľadať úlohy, projekty a ľudí…</text>
+  <circle cx="1404" cy="86" r="18" fill="#334155"/>
+  <text x="1404" y="91" text-anchor="middle" fill="#FFFFFF" font-family="Inter, Segoe UI, sans-serif" font-size="12" font-weight="700">JM</text>
+  <text x="1440" y="84" fill="#FFFFFF" font-family="Inter, Segoe UI, sans-serif" font-size="13" font-weight="600">Juraj</text>
+  <text x="1440" y="101" fill="#94A3B8" font-family="Inter, Segoe UI, sans-serif" font-size="11">SOVA Studio</text>
+
+  <rect x="44" y="134" width="256" height="828" fill="#FFFFFF"/>
+  <line x1="300" y1="134" x2="300" y2="962" stroke="#CBD5E1"/>
+  <text x="78" y="176" fill="#64748B" font-family="Inter, Segoe UI, sans-serif" font-size="11" font-weight="700" letter-spacing="1.2">PRACOVNÝ PRIESTOR</text>
+  <g font-family="Inter, Segoe UI, sans-serif" font-size="14" font-weight="600">
+    <g transform="translate(66 198)">
+      <rect width="212" height="46" rx="10" fill="#EEF2FF"/>
+      <rect width="3" height="46" rx="2" fill="#4F46E5"/>
+      <path d="M21 16h16v14H21zM25 12h8v4" fill="none" stroke="#4338CA" stroke-width="2" stroke-linejoin="round"/>
+      <text x="52" y="29" fill="#3730A3">Dashboard</text>
+    </g>
+    <g transform="translate(66 252)"><rect width="212" height="46" rx="10" fill="#FFFFFF"/><path d="M21 15h16v16H21zM25 11h8v4" fill="none" stroke="#64748B" stroke-width="2"/><text x="52" y="29" fill="#475569">Projekty</text><text x="186" y="29" fill="#94A3B8">12</text></g>
+    <g transform="translate(66 306)"><rect width="212" height="46" rx="10" fill="#FFFFFF"/><path d="M21 13h16v20H21zM25 18h8m-8 6h8" fill="none" stroke="#64748B" stroke-width="2"/><text x="52" y="29" fill="#475569">Úlohy</text><text x="178" y="29" fill="#94A3B8">128</text></g>
+    <g transform="translate(66 360)"><rect width="212" height="46" rx="10" fill="#FFFFFF"/><circle cx="29" cy="23" r="9" fill="none" stroke="#64748B" stroke-width="2"/><path d="M29 18v6l4 3" fill="none" stroke="#64748B" stroke-width="2" stroke-linecap="round"/><text x="52" y="29" fill="#475569">Aktivita</text></g>
+  </g>
+  <text x="78" y="466" fill="#64748B" font-family="Inter, Segoe UI, sans-serif" font-size="11" font-weight="700" letter-spacing="1.2">SPRÁVA</text>
+  <g font-family="Inter, Segoe UI, sans-serif" font-size="14" font-weight="600" fill="#475569">
+    <text x="118" y="514">Tímy</text><circle cx="94" cy="508" r="9" fill="none" stroke="#64748B" stroke-width="2"/>
+    <text x="118" y="564">Administrácia</text><path d="M85 552h18v18H85z" fill="none" stroke="#64748B" stroke-width="2"/>
+  </g>
+  <rect x="66" y="838" width="212" height="92" rx="14" fill="#F0FDFA"/>
+  <text x="84" y="869" fill="#134E4A" font-family="Inter, Segoe UI, sans-serif" font-size="13" font-weight="700">Potrebujete pomoc?</text>
+  <text x="84" y="893" fill="#0F766E" font-family="Inter, Segoe UI, sans-serif" font-size="12">Otvoriť centrum podpory</text>
+  <path d="M239 887h16m-6-6 6 6-6 6" fill="none" stroke="#0F766E" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+
+  <g font-family="Inter, Segoe UI, sans-serif">
+    <text x="348" y="190" fill="#4338CA" font-size="12" font-weight="750" letter-spacing="1.4">PREHĽAD</text>
+    <text x="348" y="232" fill="#0F172A" font-size="30" font-weight="750">Dobré ráno, Juraj</text>
+    <text x="348" y="262" fill="#475569" font-size="15">Tu je dnešný prehľad práce v SOVA Studio.</text>
+    <g transform="translate(1320 199)"><rect width="188" height="46" rx="10" fill="#4F46E5"/><path d="M28 15v16m-8-8h16" stroke="#FFFFFF" stroke-width="2" stroke-linecap="round"/><text x="112" y="29" text-anchor="middle" fill="#FFFFFF" font-size="14" font-weight="700">Vytvoriť úlohu</text></g>
+
+    <g transform="translate(348 310)">
+      <rect width="270" height="138" rx="16" fill="#FFFFFF" stroke="#CBD5E1"/>
+      <text x="22" y="34" fill="#475569" font-size="13" font-weight="600">Otvorené úlohy</text>
+      <text x="22" y="86" fill="#0F172A" font-size="38" font-weight="750">128</text>
+      <rect x="190" y="22" width="56" height="30" rx="15" fill="#E0F2FE"/><text x="218" y="42" text-anchor="middle" fill="#075985" font-size="12" font-weight="700">+8 %</text>
+      <text x="22" y="116" fill="#64748B" font-size="12">oproti minulému týždňu</text>
+    </g>
+    <g transform="translate(636 310)">
+      <rect width="270" height="138" rx="16" fill="#FFFFFF" stroke="#CBD5E1"/>
+      <text x="22" y="34" fill="#475569" font-size="13" font-weight="600">Prebieha</text>
+      <text x="22" y="86" fill="#0F172A" font-size="38" font-weight="750">34</text>
+      <circle cx="224" cy="38" r="18" fill="#EEF2FF"/><path d="M220 31l10 7-10 7z" fill="#3730A3"/>
+      <text x="22" y="116" fill="#64748B" font-size="12">12 čaká na kontrolu</text>
+    </g>
+    <g transform="translate(924 310)">
+      <rect width="270" height="138" rx="16" fill="#FFFFFF" stroke="#CBD5E1"/>
+      <text x="22" y="34" fill="#475569" font-size="13" font-weight="600">Vyriešené tento týždeň</text>
+      <text x="22" y="86" fill="#0F172A" font-size="38" font-weight="750">62</text>
+      <circle cx="224" cy="38" r="18" fill="#DCFCE7"/><path d="M215 38l6 6 12-14" fill="none" stroke="#166534" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+      <text x="22" y="116" fill="#64748B" font-size="12">stabilné tempo tímu</text>
+    </g>
+    <g transform="translate(1212 310)">
+      <rect width="296" height="138" rx="16" fill="#FFFFFF" stroke="#CBD5E1"/>
+      <text x="22" y="34" fill="#475569" font-size="13" font-weight="600">Po termíne</text>
+      <text x="22" y="86" fill="#991B1B" font-size="38" font-weight="750">5</text>
+      <circle cx="248" cy="38" r="18" fill="#FEE2E2"/><path d="M248 26l11 20h-22z" fill="none" stroke="#991B1B" stroke-width="2"/><path d="M248 33v6m0 3h.1" stroke="#991B1B" stroke-width="2" stroke-linecap="round"/>
+      <text x="22" y="116" fill="#64748B" font-size="12">vyžadujú pozornosť</text>
+    </g>
+
+    <g transform="translate(348 478)">
+      <rect width="828" height="428" rx="16" fill="#FFFFFF" stroke="#CBD5E1"/>
+      <text x="24" y="38" fill="#0F172A" font-size="18" font-weight="700">Priradené mne</text>
+      <text x="780" y="38" text-anchor="end" fill="#4338CA" font-size="13" font-weight="650">Zobraziť všetky</text>
+      <rect y="62" width="828" height="42" fill="#F8FAFC"/>
+      <text x="24" y="89" fill="#64748B" font-size="11" font-weight="700">KÓD</text><text x="126" y="89" fill="#64748B" font-size="11" font-weight="700">ÚLOHA</text><text x="608" y="89" fill="#64748B" font-size="11" font-weight="700">STAV</text><text x="728" y="89" fill="#64748B" font-size="11" font-weight="700">TERMÍN</text>
+      <g font-size="13">
+        <g transform="translate(0 104)"><line y1="64" x2="828" y2="64" stroke="#E2E8F0"/><text x="24" y="38" fill="#4338CA" font-family="ui-monospace, Consolas" font-weight="700">SOVA-128</text><text x="126" y="38" fill="#0F172A" font-weight="600">Opraviť filtráciu tenantových rolí</text><rect x="594" y="17" width="102" height="30" rx="15" fill="#EEF2FF"/><text x="645" y="37" text-anchor="middle" fill="#3730A3" font-size="12" font-weight="700">Prebieha</text><text x="728" y="38" fill="#475569">Dnes</text></g>
+        <g transform="translate(0 168)"><line y1="64" x2="828" y2="64" stroke="#E2E8F0"/><text x="24" y="38" fill="#4338CA" font-family="ui-monospace, Consolas" font-weight="700">SOVA-121</text><text x="126" y="38" fill="#0F172A" font-weight="600">Pridať audit pre zmenu oprávnení</text><rect x="594" y="17" width="102" height="30" rx="15" fill="#E0F2FE"/><text x="645" y="37" text-anchor="middle" fill="#075985" font-size="12" font-weight="700">Otvorená</text><text x="728" y="38" fill="#475569">28. júl</text></g>
+        <g transform="translate(0 232)"><line y1="64" x2="828" y2="64" stroke="#E2E8F0"/><text x="24" y="38" fill="#4338CA" font-family="ui-monospace, Consolas" font-weight="700">SOVA-117</text><text x="126" y="38" fill="#0F172A" font-weight="600">Dark mode pre administračné obrazovky</text><rect x="594" y="17" width="102" height="30" rx="15" fill="#DCFCE7"/><text x="645" y="37" text-anchor="middle" fill="#166534" font-size="12" font-weight="700">Vyriešená</text><text x="728" y="38" fill="#475569">30. júl</text></g>
+        <g transform="translate(0 296)"><text x="24" y="38" fill="#4338CA" font-family="ui-monospace, Consolas" font-weight="700">SOVA-109</text><text x="126" y="38" fill="#0F172A" font-weight="600">Empty state pre zoznam projektov</text><rect x="594" y="17" width="102" height="30" rx="15" fill="#F1F5F9"/><text x="645" y="37" text-anchor="middle" fill="#334155" font-size="12" font-weight="700">Uzavretá</text><text x="728" y="38" fill="#475569">2. aug</text></g>
+      </g>
+    </g>
+
+    <g transform="translate(1200 478)">
+      <rect width="308" height="204" rx="16" fill="#FFFFFF" stroke="#CBD5E1"/>
+      <text x="22" y="38" fill="#0F172A" font-size="17" font-weight="700">Rozloženie práce</text>
+      <circle cx="98" cy="116" r="53" fill="none" stroke="#E2E8F0" stroke-width="18"/>
+      <path d="M98 63a53 53 0 0 1 49 33" fill="none" stroke="#4F46E5" stroke-width="18" stroke-linecap="round"/>
+      <path d="M147 96a53 53 0 0 1-12 54" fill="none" stroke="#0F766E" stroke-width="18" stroke-linecap="round"/>
+      <text x="98" y="112" text-anchor="middle" fill="#0F172A" font-size="23" font-weight="750">128</text><text x="98" y="132" text-anchor="middle" fill="#64748B" font-size="10">ÚLOH</text>
+      <circle cx="188" cy="92" r="5" fill="#4F46E5"/><text x="202" y="97" fill="#475569" font-size="12">Aktívne 46 %</text>
+      <circle cx="188" cy="122" r="5" fill="#0F766E"/><text x="202" y="127" fill="#475569" font-size="12">Hotové 31 %</text>
+      <circle cx="188" cy="152" r="5" fill="#CBD5E1"/><text x="202" y="157" fill="#475569" font-size="12">Ostatné 23 %</text>
+    </g>
+    <g transform="translate(1200 706)">
+      <rect width="308" height="200" rx="16" fill="#1E1B4B"/>
+      <text x="22" y="40" fill="#C7D2FE" font-size="12" font-weight="750" letter-spacing="1">TIP TÝŽDŇA</text>
+      <text x="22" y="76" fill="#FFFFFF" font-size="18" font-weight="700">Sústredený prehľad</text>
+      <text x="22" y="106" fill="#C7D2FE" font-size="13">Filtre si môžete uložiť</text>
+      <text x="22" y="128" fill="#C7D2FE" font-size="13">ako osobný pohľad.</text>
+      <rect x="22" y="150" width="128" height="34" rx="9" fill="#FFFFFF"/><text x="86" y="172" text-anchor="middle" fill="#3730A3" font-size="12" font-weight="700">Vyskúšať filtre</text>
+      <circle cx="266" cy="52" r="26" fill="#312E81"/><path d="M253 45l13 20 13-20-7 3-6-9-6 9z" fill="#A5B4FC"/>
+    </g>
+  </g>
+</svg>

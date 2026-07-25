@@ -12,13 +12,17 @@ nie službu Webflow.com.
 |---|---|
 | [00 – Informačná architektúra](./00-INFORMACNA-ARCHITEKTURA.md) | Mapa aplikácie, routy, layouty, navigácia a route guards |
 | [01 – Autentifikácia a onboarding](./01-AUTENTIFIKACIA-A-ONBOARDING.md) | Prihlásenie, heslá, pozvánky, výber tenantu a prvé spustenie |
-| [02 – Projekty a úlohy](./02-PROJEKTY-A-ULOHY.md) | Dashboard, projekty, zoznamy, Kanban, detail a workflow úlohy |
+| [02 – Projekty a úlohy](./02-PROJEKTY-A-ULOHY.md) | Dashboard, projekty, typy úloh, hierarchia, Kanban, detail a workflow úlohy |
 | [03 – Spolupráca](./03-SPOLUPRACA.md) | Komentáre, prílohy, vyhľadávanie, filtre a notifikácie |
 | [04 – Administrácia](./04-ADMINISTRACIA.md) | Tenant admin, projekt admin, SUPERADMIN a impersonácia |
 | [05 – Stavy rozhrania](./05-STAVY-ROZHRANIA.md) | Loading, empty, error, forbidden, konflikt, offline a responzivita |
 
 Nadradená produktová a technická analýza je v
-[ANALYZA_PROJEKTU.md](../ANALYZA_PROJEKTU.md).
+[ANALYZA_PROJEKTU.md](../ANALYZA_PROJEKTU.md). Záväzné pravidlá projektovej
+konfigurácie sú v dokumente
+[Typy úloh a workflow](../WORKFLOW-A-TYPY-ULOH.md). Query jazyk, uložené filtre,
+osobné dashboardy a widgety definuje
+[SovaQL a dashboardy](../SOVAQL-A-DASHBOARDY.md).
 
 ## Ako dokumentáciu používať
 
@@ -83,4 +87,3 @@ flowchart LR
     Dashboard --> SystemAdmin{"Je<br/>SUPERADMIN?"}
     SystemAdmin -->|áno| System["Systémová administrácia"]
 ```
-

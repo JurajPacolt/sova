@@ -174,15 +174,16 @@ Prvá použiteľná verzia má obsahovať:
 - `SUPERADMIN` a tenantovú administráciu,
 - pracovné skupiny,
 - projekty a projektový prístup,
-- úlohy a základné workflow,
+- úlohy, projektové typy a konfigurovateľné workflow,
 - komentáre, históriu a základné prílohy,
-- filtre a textové vyhľadávanie,
+- SovaQL vyhľadávanie, uložené filtre, osobné dashboardy a widgety,
 - in-app a základné e-mailové notifikácie,
 - bezpečnostný audit,
 - monitoring, zálohy a opakovateľné nasadenie.
 
-Pokročilé workflow editory, vlastné polia, sprinty, SLA, automatizácie, SSO, billing,
-verejné integrácie a mobilná aplikácia nie sú súčasťou počiatočného MVP.
+Grafický drag-and-drop workflow editor, vlastné polia, sprinty, SLA, automatizácie,
+SSO, billing, verejné integrácie a mobilná aplikácia nie sú súčasťou počiatočného
+MVP. Typy, stavy, prechody a mapovanie workflow musia byť konfigurovateľné už v MVP.
 
 ## Dokumentácia
 
@@ -190,9 +191,12 @@ verejné integrácie a mobilná aplikácia nie sú súčasťou počiatočného M
 
 | Dokument | Popis |
 |---|---|
-| [Základné zadanie](./zadanie.txt) | Pôvodné stručné požiadavky |
+| [Základné zadanie](./docs/zadanie.txt) | Pôvodné stručné požiadavky |
 | [Analýza projektu](./docs/ANALYZA_PROJEKTU.md) | Funkčné moduly, architektúra, bezpečnosť, dáta, testovanie a realizácia |
+| [Typy úloh a workflow](./docs/WORKFLOW-A-TYPY-ULOH.md) | Projektová konfigurácia, hierarchia, verzie, API, dáta a akceptačné testy |
+| [SovaQL a dashboardy](./docs/SOVAQL-A-DASHBOARDY.md) | Jira-like dotazy, uložené filtre, osobné dashboardy, widgety, API, dáta a bezpečnosť |
 | [Projektová pamäť](./docs/PROJECT_MEMORY.md) | Záväzné technické rozhodnutia vrátane lokalizácie |
+| [ADR 0001](./docs/adr/0001-project-owned-issue-types-and-versioned-workflows.md) | Rozhodnutie o projektových typoch a verzovaných workflow |
 
 ### Webflow a používateľské toky
 
@@ -216,11 +220,13 @@ sova/
 ├── frontend/                # Angular webová aplikácia
 ├── docs/
 │   ├── ANALYZA_PROJEKTU.md  # Hlavná analýza
+│   ├── WORKFLOW-A-TYPY-ULOH.md # Implementačná špecifikácia workflow
+│   ├── SOVAQL-A-DASHBOARDY.md # Query jazyk, uložené dotazy a dashboardy
 │   ├── PROJECT_MEMORY.md     # Trvalé rozhodnutia a pravidlá projektu
 │   ├── webflow/             # Navigácia, obrazovky a používateľské toky
-│   └── adr/                 # Budúce architektonické rozhodnutia
+│   └── adr/                 # Architektonické rozhodnutia
 ├── README.md
-└── zadanie.txt
+└── docker-compose.yml
 ```
 
 Podrobnejšia štruktúra backendu a frontendu je navrhnutá v

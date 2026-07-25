@@ -4,11 +4,12 @@
 
 Dokument opisuje hlavný pracovný tok aplikácie:
 
-- tenantový dashboard,
+- osobné tenantové dashboardy,
 - „Moja práca“,
 - zoznam a vytvorenie projektov,
 - detail projektu,
 - zoznam a Kanban úloh,
+- projektové typy úloh, hierarchiu a workflow,
 - vytvorenie a úpravu úlohy,
 - priradenie a zmenu stavu,
 - archiváciu a ostatné životné cykly.
@@ -17,11 +18,15 @@ Dokument opisuje hlavný pracovný tok aplikácie:
 
 | ID | Obrazovka | Route | Typický prístup |
 |---|---|---|---|
-| WORK-01 | Dashboard | `/t/:tenantSlug/dashboard` | Člen tenantu |
+| WORK-01 | Dashboard | `/t/:tenantSlug/dashboards/:dashboardId` | Vlastník dashboardu |
+| WORK-01A | Správa dashboardov | `/t/:tenantSlug/dashboards` | Člen tenantu |
 | WORK-02 | Moja práca | `/t/:tenantSlug/my-work` | Člen tenantu |
 | PRJ-01 | Projekty | `/t/:tenantSlug/projects` | `project.view` |
 | PRJ-02 | Nový projekt | modal alebo admin route | `project.create` |
 | PRJ-03 | Prehľad projektu | `/t/:tenantSlug/projects/:projectKey` | Prístup k projektu |
+| PRJ-04 | Typy úloh | `.../:projectKey/settings/issue-types` | `issue_type.manage` |
+| PRJ-05 | Workflow | `.../:projectKey/settings/workflows` | `workflow.manage` |
+| PRJ-06 | Mapovanie workflow | `.../:projectKey/settings/workflow-mapping` | `workflow.manage` |
 | ISS-01 | Zoznam úloh | `.../:projectKey/issues` | `issue.view` |
 | ISS-02 | Kanban | `.../:projectKey/board` | `issue.view` |
 | ISS-03 | Nová úloha | modal alebo `.../issues/new` | `issue.create` |
@@ -57,33 +62,45 @@ flowchart LR
 
 ### 4.1 Účel
 
-Dashboard má používateľovi po vstupe do tenantu odpovedať:
+Dashboard nie je statická systémová stránka. Každý používateľ si v tenantovi vytvára
+viac osobných dashboardov, medzi ktorými sa prepína. Jeden je predvolený a aplikácia
+si pamätá posledný aktívny dashboard osobitne pre každý tenant.
+
+Konkrétny dashboard má používateľovi odpovedať napríklad:
 
 - Čomu sa mám venovať?
 - Čo sa nedávno zmenilo?
 - Ktoré úlohy sú po termíne?
 - Ktoré projekty používam najčastejšie?
 
-### 4.2 Obsah WORK-01
+### 4.2 Obsah a správa WORK-01
 
-Odporúčané widgety pre MVP:
+Používateľ môže:
 
-- „Pridelené mne“,
-- „Po termíne“,
-- „Nedávno zobrazené“,
-- „Aktivita mojich projektov“,
-- „Moje projekty“,
-- rýchla akcia „Vytvoriť úlohu“.
+- vytvoriť prázdny dashboard, použiť systémovú predlohu alebo duplikovať svoj,
+- dashboard premenovať, zoradiť, nastaviť ako predvolený a odstrániť,
+- pridať widget z katalógu,
+- vybrať pre widget uložený SovaQL dotaz,
+- widget konfigurovať, presúvať a meniť jeho veľkosť,
+- z widgetu otvoriť úplný filtrovaný zoznam.
 
 Každý widget:
 
+- čerpá dáta cez odkaz na uložený dotaz, nie cez inline kópiu podmienky,
 - rešpektuje tenantový a projektový prístup,
 - má vlastný loading a error stav,
 - zobrazuje len obmedzený počet položiek,
 - poskytuje odkaz na úplný filtrovaný zoznam.
 
+Základný katalóg obsahuje počet úloh, zoznam úloh, rozdelenie podľa poľa,
+dvojrozmernú maticu a časový priebeh. „Pridelené mne“, „Po termíne“, „Podľa stavu“
+alebo „Zaťaženie riešiteľov“ sú prednastavenia týchto všeobecných typov.
+
 Dashboard nemá načítavať všetky dáta jednou obrovskou požiadavkou. Jednotlivé bloky
 môžu zlyhať nezávisle.
+
+Úplný návrh správy, layoutu, widgetov, responzivity, konfliktov a API je v
+[špecifikácii SovaQL a dashboardov](../SOVAQL-A-DASHBOARDY.md).
 
 ## 5. Moja práca
 
@@ -132,14 +149,18 @@ Minimálny formulár:
 - opis,
 - viditeľnosť,
 - vedúci projektu,
-- predvolené workflow.
+- konfiguračná šablóna typov a workflow.
 
 Validácia:
 
 - názov je povinný,
 - kód je povinný, normalizovaný a unikátny v tenantovi,
-- používateľ a workflow patria rovnakému tenantovi,
+- používateľ a šablóna patria rovnakému tenantovi alebo ide o systémovú šablónu,
 - súkromný projekt musí mať aspoň jedného správcu.
+
+Typy, stavy a workflow sa zo šablóny skopírujú do nového projektu v rovnakej
+transakcii. Vytvorenie nesmie skončiť projektom bez aktívnych typov alebo bez
+publikovaného workflow.
 
 ```mermaid
 flowchart TD
@@ -175,6 +196,8 @@ Projektová navigácia:
 
 ```text
 Prehľad | Úlohy | Kanban | Aktivita | Členovia | Nastavenia
+
+Nastavenia: Všeobecné | Typy úloh | Workflow | Mapovanie workflow | História
 ```
 
 „Členovia“ a „Nastavenia“ sa zobrazia iba podľa prístupu. Ak používateľ otvorí priamu
@@ -304,6 +327,16 @@ Voliteľné:
 - štítky,
 - prílohy.
 
+Po výbere projektu klient načíta jeho publikovanú revíziu konfigurácie. Výber typu
+obsahuje iba aktívne projektové typy a následne upraví viditeľné a povinné polia.
+Výber rodiča rešpektuje hierarchiu:
+
+- Epic nemá rodiča,
+- Story, Task, Bug alebo vlastný štandardný typ môže patriť pod Epic,
+- Sub-task musí patriť pod štandardnú úlohu rovnakého projektu.
+
+Backend tieto pravidlá overuje nezávisle od zobrazenia formulára.
+
 ### 10.3 Rýchly a plný režim
 
 Rýchly dialóg obsahuje najčastejšie polia. Ak používateľ potrebuje viac priestoru,
@@ -418,7 +451,8 @@ flowchart TD
 ```
 
 Frontend neposiela iba cieľový stav, ale identifikátor konkrétneho povoleného
-prechodu. Backend vždy znovu overí aktuálny stav.
+prechodu a očakávanú verziu úlohy. Backend vždy znovu overí aktuálny stav, konkrétnu
+publikovanú verziu workflow, pravidlá prechodu a oprávnenie aktéra.
 
 ## 14. Konflikt súbežnej úpravy
 
@@ -458,10 +492,16 @@ Pre MVP sa odporúča:
 ## 16. E2E scenáre
 
 - dashboard s úplnými, prázdnymi a čiastočne chybnými widgetmi,
+- vytvorenie, premenovanie, duplikovanie a prepínanie viacerých dashboardov,
+- nastavenie predvoleného dashboardu a zákaz odstránenia posledného,
+- pridanie, konfigurácia, presun a zmena veľkosti query-backed widgetu,
 - vytvorenie verejného a súkromného projektu,
+- vytvorenie projektu s nezávislou kópiou konfiguračnej šablóny,
 - odmietnutie duplicitného projektového kódu,
 - filtrovanie zoznamu a návrat z detailu bez straty filtra,
 - vytvorenie úlohy z globálnej akcie aj projektu,
+- vytvorenie Epicu, Story pod Epicom a Sub-tasku pod Story,
+- odmietnutie rodiča z iného projektu alebo nesprávnej hierarchickej úrovne,
 - priradenie používateľovi a pracovnej skupine,
 - zmena stavu cez detail aj Kanban,
 - prechod vyžadujúci doplňujúce pole,
@@ -469,4 +509,3 @@ Pre MVP sa odporúča:
 - konflikt dvoch súbežných úprav,
 - archivácia projektu,
 - priama URL úlohy bez projektového oprávnenia.
-
