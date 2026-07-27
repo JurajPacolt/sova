@@ -1,0 +1,48 @@
+:host {
+  display: block;
+  min-height: 100dvh;
+}
+
+.skip-link {
+  left: var(--sova-space-4);
+  position: fixed;
+  top: var(--sova-space-4);
+  z-index: 1100;
+}
+
+.system-shell__header {
+  background: var(--sova-slate-950);
+  border-bottom: 0.25rem solid var(--sova-teal-500);
+}
+
+.system-shell__body {
+  display: flex;
+  min-height: calc(100dvh - 60px);
+}
+
+.system-sidebar {
+  background: var(--sova-color-surface);
+  flex: 0 0 17rem;
+}
+
+.system-content {
+  background: var(--sova-color-canvas);
+  flex: 1 1 auto;
+  min-width: 0;
+  padding: var(--sova-space-8);
+}
+
+@media (max-width: 767.98px) {
+  .system-shell__body {
+    display: block;
+  }
+
+  .system-sidebar {
+    border-bottom: 1px solid var(--sova-color-border);
+    border-right: 0 !important;
+  }
+
+  .system-content {
+    padding: var(--sova-space-4);
+  }
+}

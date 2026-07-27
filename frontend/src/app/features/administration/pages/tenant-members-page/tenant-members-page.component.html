@@ -1,0 +1,229 @@
+<app-page-header
+  [eyebrow]="'admin.eyebrow' | translate"
+  [title]="'tenantMembers.title' | translate"
+  [subtitle]="'tenantMembers.subtitle' | translate: { count: activeCount() }"
+/>
+
+<section class="card border-0 shadow-sm mb-4" aria-labelledby="invite-member-title">
+  <div class="card-body">
+    <h2 id="invite-member-title" class="h5">{{ 'tenantMembers.invite' | translate }}</h2>
+    <p class="text-body-secondary">{{ 'tenantMembers.inviteHelp' | translate }}</p>
+
+    @if (invitedEmail(); as email) {
+      <div class="alert alert-success" role="status">
+        {{ 'tenantMembers.invitationCreated' | translate: { email } }}
+      </div>
+    }
+    @if (inviteError()) {
+      <div class="alert alert-danger" role="alert">
+        {{ 'tenantMembers.inviteError' | translate }}
+      </div>
+    }
+
+    <form class="row g-3" [formGroup]="inviteForm" (ngSubmit)="invite()">
+      <div class="col-12 col-lg-6">
+        <label class="form-label" for="invite-email">
+          {{ 'tenantMembers.inviteEmail' | translate }}
+        </label>
+        <input
+          id="invite-email"
+          class="form-control"
+          type="email"
+          formControlName="email"
+          autocomplete="email"
+        />
+      </div>
+      <div class="col-12">
+        <button class="btn btn-primary" type="submit" [disabled]="inviting()">
+          @if (inviting()) {
+            {{ 'tenantMembers.inviting' | translate }}
+          } @else {
+            {{ 'tenantMembers.invite' | translate }}
+          }
+        </button>
+      </div>
+    </form>
+  </div>
+</section>
+
+@if (loadError()) {
+  <div class="alert alert-danger d-flex align-items-center justify-content-between gap-3">
+    <span>{{ 'tenantMembers.loadError' | translate }}</span>
+    <button class="btn btn-sm btn-outline-danger" type="button" (click)="refresh()">
+      {{ 'common.retry' | translate }}
+    </button>
+  </div>
+}
+
+@if (loading() && memberships().length === 0) {
+  <div class="d-flex align-items-center gap-2 text-body-secondary" role="status">
+    <span class="spinner-border spinner-border-sm" aria-hidden="true"></span>
+    <span>{{ 'common.loading' | translate }}</span>
+  </div>
+}
+
+<div class="card border-0 shadow-sm">
+  <div class="card-header bg-transparent">
+    <strong>{{ 'tenantMembers.allMembers' | translate }}</strong>
+  </div>
+
+  <div class="list-group list-group-flush">
+    @for (membership of memberships(); track membership.id) {
+      <article class="list-group-item py-3">
+        <div class="d-flex flex-column flex-md-row justify-content-between gap-3">
+          <div>
+            <div class="d-flex align-items-center gap-2 flex-wrap">
+              <h2 class="h6 mb-0">{{ membership.user.display_name }}</h2>
+              <span
+                class="badge"
+                [class.text-bg-success]="membership.status === 'ACTIVE'"
+                [class.text-bg-secondary]="membership.status !== 'ACTIVE'"
+              >
+                {{ statusKey(membership.status) | translate }}
+              </span>
+              @if (isOwnMembership(membership)) {
+                <span class="badge text-bg-info">{{ 'tenantMembers.you' | translate }}</span>
+              }
+            </div>
+            <p class="text-body-secondary small mb-0 mt-1">{{ membership.user.email }}</p>
+            <div class="d-flex align-items-center gap-1 flex-wrap mt-2">
+              @for (role of membership.roles; track role.id) {
+                <span class="badge text-bg-light border d-inline-flex align-items-center gap-1">
+                  {{ role.name }}
+                  <button
+                    class="btn-close"
+                    type="button"
+                    [attr.aria-label]="'tenantMembers.removeRole' | translate: { role: role.name }"
+                    [disabled]="roleActionMembershipId() === membership.id"
+                    (click)="removeRole(membership, role.id)"
+                  ></button>
+                </span>
+              } @empty {
+                <span class="text-body-secondary small">
+                  {{ 'tenantMembers.noRoles' | translate }}
+                </span>
+              }
+            </div>
+          </div>
+
+          <div class="d-flex flex-wrap align-items-start gap-2">
+            @if (availableRolesFor(membership).length > 0) {
+              <button
+                class="btn btn-sm btn-outline-primary"
+                type="button"
+                [disabled]="roleActionMembershipId() !== null"
+                (click)="openRoleSelection(membership)"
+              >
+                {{ 'tenantMembers.addRole' | translate }}
+              </button>
+            }
+            @if (!isOwnMembership(membership)) {
+              @for (target of transitions(membership.status); track target) {
+                <button
+                  class="btn btn-sm btn-outline-secondary"
+                  type="button"
+                  [disabled]="lifecycleMembershipId() !== null"
+                  (click)="selectLifecycle(membership, target)"
+                >
+                  {{ statusKey(target) | translate }}
+                </button>
+              }
+            }
+          </div>
+        </div>
+
+        @if (roleSelection(); as selection) {
+          @if (selection.membership.id === membership.id) {
+            <form
+              class="lifecycle-panel border rounded p-3 mt-3"
+              [formGroup]="roleForm"
+              (ngSubmit)="addRole()"
+            >
+              <label class="form-label" [for]="'role-select-' + membership.id">
+                {{ 'tenantMembers.chooseRole' | translate }}
+              </label>
+              <select
+                class="form-select"
+                [id]="'role-select-' + membership.id"
+                formControlName="role_id"
+              >
+                <option value="">{{ 'tenantMembers.chooseRolePlaceholder' | translate }}</option>
+                @for (role of availableRolesFor(membership); track role.id) {
+                  <option [value]="role.id">{{ role.name }}</option>
+                }
+              </select>
+              @if (roleError()) {
+                <div class="alert alert-danger mt-3 mb-0" role="alert">
+                  {{ 'tenantMembers.roleActionError' | translate }}
+                </div>
+              }
+              <div class="d-flex gap-2 mt-3">
+                <button
+                  class="btn btn-sm btn-primary"
+                  type="submit"
+                  [disabled]="roleActionMembershipId() !== null"
+                >
+                  {{ 'common.confirm' | translate }}
+                </button>
+                <button
+                  class="btn btn-sm btn-outline-secondary"
+                  type="button"
+                  [disabled]="roleActionMembershipId() !== null"
+                  (click)="cancelRoleSelection()"
+                >
+                  {{ 'common.cancel' | translate }}
+                </button>
+              </div>
+            </form>
+          }
+        }
+
+        @if (lifecycleSelection(); as selection) {
+          @if (selection.membership.id === membership.id) {
+            <div class="lifecycle-panel border rounded p-3 mt-3">
+              <p class="mb-2">
+                {{
+                  'tenantMembers.lifecycleConfirmation'
+                    | translate
+                      : {
+                          name: selection.membership.user.display_name,
+                          status: statusKey(selection.target) | translate,
+                        }
+                }}
+              </p>
+              @if (lifecycleError()) {
+                <div class="alert alert-danger mb-0" role="alert">
+                  {{ 'tenantMembers.lifecycleError' | translate }}
+                </div>
+              }
+              <div class="d-flex gap-2 mt-3">
+                <button
+                  class="btn btn-sm btn-danger"
+                  type="button"
+                  [disabled]="lifecycleMembershipId() !== null"
+                  (click)="confirmLifecycle()"
+                >
+                  {{ 'common.confirm' | translate }}
+                </button>
+                <button
+                  class="btn btn-sm btn-outline-secondary"
+                  type="button"
+                  [disabled]="lifecycleMembershipId() !== null"
+                  (click)="cancelLifecycle()"
+                >
+                  {{ 'common.cancel' | translate }}
+                </button>
+              </div>
+            </div>
+          }
+        }
+      </article>
+    } @empty {
+      @if (!loading() && !loadError()) {
+        <div class="list-group-item text-body-secondary py-4">
+          {{ 'tenantMembers.noMembers' | translate }}
+        </div>
+      }
+    }
+  </div>
+</div>

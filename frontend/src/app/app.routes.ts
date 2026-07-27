@@ -1,4 +1,6 @@
 import { Routes } from '@angular/router';
+import { authChildGuard, authGuard, superadminGuard } from './core/auth/auth.guards';
+import { tenantChildGuard, tenantGuard } from './core/tenancy/tenant.guard';
 
 export const routes = [
   {
@@ -7,7 +9,7 @@ export const routes = [
     redirectTo: 'login',
   },
   {
-    path: 'login',
+    path: '',
     loadChildren: () =>
       import('./features/authentication/authentication.routes').then(
         (routesModule) => routesModule.AUTHENTICATION_ROUTES,
@@ -15,6 +17,7 @@ export const routes = [
   },
   {
     path: 'select-tenant',
+    canActivate: [authGuard],
     loadChildren: () =>
       import('./features/tenant-selection/tenant-selection.routes').then(
         (routesModule) => routesModule.TENANT_SELECTION_ROUTES,
@@ -22,6 +25,8 @@ export const routes = [
   },
   {
     path: 't/:tenantSlug',
+    canActivate: [authGuard, tenantGuard],
+    canActivateChild: [authChildGuard, tenantChildGuard],
     loadComponent: () =>
       import('./core/layout/tenant-shell/tenant-shell.component').then(
         (componentModule) => componentModule.TenantShellComponent,
@@ -58,6 +63,43 @@ export const routes = [
         loadChildren: () =>
           import('./features/administration/administration.routes').then(
             (routesModule) => routesModule.ADMINISTRATION_ROUTES,
+          ),
+      },
+    ],
+  },
+  {
+    path: 'system',
+    canActivate: [superadminGuard],
+    canActivateChild: [superadminGuard],
+    loadComponent: () =>
+      import('./core/layout/system-shell/system-shell.component').then(
+        (componentModule) => componentModule.SystemShellComponent,
+      ),
+    children: [
+      {
+        path: '',
+        pathMatch: 'full',
+        redirectTo: 'tenants',
+      },
+      {
+        path: 'tenants',
+        loadChildren: () =>
+          import('./features/system-administration/system-administration.routes').then(
+            (routesModule) => routesModule.SYSTEM_ADMINISTRATION_ROUTES,
+          ),
+      },
+      {
+        path: 'audit',
+        loadComponent: () =>
+          import('./features/system-administration/pages/system-security-audit-page/system-security-audit-page.component').then(
+            (componentModule) => componentModule.SystemSecurityAuditPageComponent,
+          ),
+      },
+      {
+        path: 'users',
+        loadComponent: () =>
+          import('./features/system-administration/pages/system-user-list-page/system-user-list-page.component').then(
+            (componentModule) => componentModule.SystemUserListPageComponent,
           ),
       },
     ],

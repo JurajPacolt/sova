@@ -7,6 +7,8 @@
   (change)="selectLanguage($event)"
 >
   @for (language of languages; track language.code) {
-    <option [value]="language.code">{{ language.nativeName }}</option>
+    <option [value]="language.code" [selected]="language.code === i18n.language()">
+      {{ language.nativeName }}
+    </option>
   }
 </select>

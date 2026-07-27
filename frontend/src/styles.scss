@@ -1,5 +1,131 @@
 :root {
-  --sova-app-background: #f5f7fb;
+  color-scheme: light;
+
+  --sova-indigo-50: #eef2ff;
+  --sova-indigo-100: #e0e7ff;
+  --sova-indigo-200: #c7d2fe;
+  --sova-indigo-300: #a5b4fc;
+  --sova-indigo-400: #818cf8;
+  --sova-indigo-500: #6366f1;
+  --sova-indigo-600: #4f46e5;
+  --sova-indigo-700: #4338ca;
+  --sova-indigo-800: #3730a3;
+  --sova-indigo-900: #312e81;
+  --sova-indigo-950: #1e1b4b;
+  --sova-teal-50: #f0fdfa;
+  --sova-teal-100: #ccfbf1;
+  --sova-teal-200: #99f6e4;
+  --sova-teal-300: #5eead4;
+  --sova-teal-400: #2dd4bf;
+  --sova-teal-500: #14b8a6;
+  --sova-teal-600: #0d9488;
+  --sova-teal-700: #0f766e;
+  --sova-teal-800: #115e59;
+  --sova-teal-900: #134e4a;
+  --sova-teal-950: #042f2e;
+  --sova-slate-50: #f8fafc;
+  --sova-slate-100: #f1f5f9;
+  --sova-slate-200: #e2e8f0;
+  --sova-slate-300: #cbd5e1;
+  --sova-slate-400: #94a3b8;
+  --sova-slate-500: #64748b;
+  --sova-slate-600: #475569;
+  --sova-slate-700: #334155;
+  --sova-slate-800: #1e293b;
+  --sova-slate-900: #0f172a;
+  --sova-slate-950: #020617;
+
+  --sova-space-1: 0.25rem;
+  --sova-space-2: 0.5rem;
+  --sova-space-3: 0.75rem;
+  --sova-space-4: 1rem;
+  --sova-space-6: 1.5rem;
+  --sova-space-8: 2rem;
+  --sova-space-10: 2.5rem;
+  --sova-space-12: 3rem;
+  --sova-space-16: 4rem;
+  --sova-radius-sm: 0.375rem;
+  --sova-radius-md: 0.625rem;
+  --sova-radius-lg: 0.875rem;
+  --sova-radius-xl: 1.25rem;
+  --sova-radius-pill: 999rem;
+  --sova-motion-fast: 120ms;
+  --sova-motion-base: 180ms;
+  --sova-motion-slow: 240ms;
+  --sova-ease-standard: cubic-bezier(0.2, 0, 0, 1);
+}
+
+:root,
+[data-bs-theme='light'] {
+  color-scheme: light;
+
+  --sova-color-canvas: var(--sova-slate-50);
+  --sova-color-surface: #ffffff;
+  --sova-color-surface-subtle: var(--sova-slate-100);
+  --sova-color-surface-strong: var(--sova-slate-200);
+  --sova-color-text: var(--sova-slate-900);
+  --sova-color-text-muted: var(--sova-slate-600);
+  --sova-color-text-subtle: var(--sova-slate-500);
+  --sova-color-border: var(--sova-slate-300);
+  --sova-color-border-strong: var(--sova-slate-400);
+  --sova-color-control-border: var(--sova-slate-500);
+  --sova-color-header: var(--sova-slate-900);
+  --sova-color-action-primary: var(--sova-indigo-600);
+  --sova-color-action-primary-rgb: 79 70 229;
+  --sova-color-action-primary-hover: var(--sova-indigo-700);
+  --sova-color-action-primary-pressed: var(--sova-indigo-800);
+  --sova-color-on-primary: #ffffff;
+  --sova-color-link: var(--sova-indigo-700);
+  --sova-color-focus: var(--sova-indigo-500);
+  --sova-color-selection: var(--sova-indigo-100);
+
+  --bs-primary: var(--sova-color-action-primary);
+  --bs-primary-rgb: 79, 70, 229;
+  --bs-body-color: var(--sova-color-text);
+  --bs-body-color-rgb: 15, 23, 42;
+  --bs-body-bg: var(--sova-color-canvas);
+  --bs-body-bg-rgb: 248, 250, 252;
+  --bs-secondary-color: var(--sova-color-text-muted);
+  --bs-border-color: var(--sova-color-border);
+  --bs-link-color: var(--sova-color-link);
+  --bs-link-color-rgb: 67, 56, 202;
+  --bs-focus-ring-color: rgb(var(--sova-color-action-primary-rgb) / 35%);
+}
+
+[data-bs-theme='dark'] {
+  color-scheme: dark;
+
+  --sova-color-canvas: #0b1220;
+  --sova-color-surface: #111827;
+  --sova-color-surface-subtle: var(--sova-slate-800);
+  --sova-color-surface-strong: var(--sova-slate-700);
+  --sova-color-text: var(--sova-slate-50);
+  --sova-color-text-muted: var(--sova-slate-300);
+  --sova-color-text-subtle: var(--sova-slate-400);
+  --sova-color-border: var(--sova-slate-700);
+  --sova-color-border-strong: var(--sova-slate-600);
+  --sova-color-control-border: var(--sova-slate-500);
+  --sova-color-header: var(--sova-slate-950);
+  --sova-color-action-primary: var(--sova-indigo-400);
+  --sova-color-action-primary-rgb: 129 140 248;
+  --sova-color-action-primary-hover: var(--sova-indigo-300);
+  --sova-color-action-primary-pressed: var(--sova-indigo-200);
+  --sova-color-on-primary: var(--sova-slate-900);
+  --sova-color-link: var(--sova-indigo-300);
+  --sova-color-focus: var(--sova-indigo-400);
+  --sova-color-selection: var(--sova-indigo-950);
+
+  --bs-primary: var(--sova-color-action-primary);
+  --bs-primary-rgb: 129, 140, 248;
+  --bs-body-color: var(--sova-color-text);
+  --bs-body-color-rgb: 248, 250, 252;
+  --bs-body-bg: var(--sova-color-canvas);
+  --bs-body-bg-rgb: 11, 18, 32;
+  --bs-secondary-color: var(--sova-color-text-muted);
+  --bs-border-color: var(--sova-color-border);
+  --bs-link-color: var(--sova-color-link);
+  --bs-link-color-rgb: 165, 180, 252;
+  --bs-focus-ring-color: rgb(var(--sova-color-action-primary-rgb) / 40%);
 }
 
 html {
@@ -7,8 +133,46 @@ html {
 }
 
 body {
-  background: var(--sova-app-background);
+  background: var(--sova-color-canvas);
+  color: var(--sova-color-text);
   min-height: 100dvh;
+}
+
+.btn-primary {
+  --bs-btn-color: var(--sova-color-on-primary);
+  --bs-btn-bg: var(--sova-color-action-primary);
+  --bs-btn-border-color: var(--sova-color-action-primary);
+  --bs-btn-hover-color: var(--sova-color-on-primary);
+  --bs-btn-hover-bg: var(--sova-color-action-primary-hover);
+  --bs-btn-hover-border-color: var(--sova-color-action-primary-hover);
+  --bs-btn-active-color: var(--sova-color-on-primary);
+  --bs-btn-active-bg: var(--sova-color-action-primary-pressed);
+  --bs-btn-active-border-color: var(--sova-color-action-primary-pressed);
+  --bs-btn-disabled-color: var(--sova-color-on-primary);
+  --bs-btn-disabled-bg: var(--sova-color-action-primary);
+  --bs-btn-disabled-border-color: var(--sova-color-action-primary);
+}
+
+.btn-outline-primary {
+  --bs-btn-color: var(--sova-color-link);
+  --bs-btn-border-color: var(--sova-color-action-primary);
+  --bs-btn-hover-color: var(--sova-color-on-primary);
+  --bs-btn-hover-bg: var(--sova-color-action-primary);
+  --bs-btn-hover-border-color: var(--sova-color-action-primary);
+  --bs-btn-active-color: var(--sova-color-on-primary);
+  --bs-btn-active-bg: var(--sova-color-action-primary-pressed);
+  --bs-btn-active-border-color: var(--sova-color-action-primary-pressed);
+}
+
+.card {
+  --bs-card-bg: var(--sova-color-surface);
+  --bs-card-border-color: var(--sova-color-border);
+}
+
+.form-control,
+.form-select {
+  border-color: var(--sova-color-control-border);
+  min-height: 2.75rem;
 }
 
 button,
@@ -17,7 +181,16 @@ input,
 select,
 textarea {
   &:focus-visible {
-    outline: 0.2rem solid rgb(13 110 253 / 35%);
+    outline: 0.1875rem solid var(--sova-color-focus);
     outline-offset: 0.125rem;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    scroll-behavior: auto !important;
+    transition-duration: 0.01ms !important;
   }
 }

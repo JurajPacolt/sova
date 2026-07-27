@@ -1,0 +1,14 @@
+:host {
+  display: block;
+  margin-inline: auto;
+  max-width: 90rem;
+}
+
+.list-group-item {
+  background: var(--sova-color-surface);
+}
+
+.members-panel {
+  background: var(--sova-color-canvas);
+  border-color: var(--sova-color-border) !important;
+}

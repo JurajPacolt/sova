@@ -15,12 +15,22 @@
   min-height: calc(100dvh - 56px);
 }
 
+.tenant-shell__header {
+  background: var(--sova-color-header);
+}
+
+.impersonation-banner {
+  background: #ffca2c;
+  border-bottom: 2px solid #997404;
+  color: #332701;
+}
+
 .tenant-sidebar {
   flex: 0 0 16rem;
 }
 
 .tenant-content {
-  background: var(--sova-app-background);
+  background: var(--sova-color-canvas);
   flex: 1 1 auto;
   min-width: 0;
   padding: 2rem;

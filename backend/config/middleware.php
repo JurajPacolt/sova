@@ -7,6 +7,7 @@ use Slim\App;
 use Sova\Shared\Infrastructure\Http\Middleware\ApiErrorMiddleware;
 use Sova\Shared\Infrastructure\Http\Middleware\CorsMiddleware;
 use Sova\Shared\Infrastructure\Http\Middleware\RequestIdMiddleware;
+use Sova\Shared\Infrastructure\Http\Middleware\SecurityHeadersMiddleware;
 
 /**
  * @param App<Container> $app
@@ -14,9 +15,10 @@ use Sova\Shared\Infrastructure\Http\Middleware\RequestIdMiddleware;
 return static function (App $app): void {
     /*
      * Slim middleware is executed in last-in, first-out order:
-     * Request ID -> CORS -> API errors -> routing -> body parsing -> action.
+     * Request ID -> security headers -> API errors -> CORS -> routing -> body parsing -> action.
      */
-    $app->add(ApiErrorMiddleware::class);
     $app->add(CorsMiddleware::class);
+    $app->add(ApiErrorMiddleware::class);
+    $app->add(SecurityHeadersMiddleware::class);
     $app->add(RequestIdMiddleware::class);
 };

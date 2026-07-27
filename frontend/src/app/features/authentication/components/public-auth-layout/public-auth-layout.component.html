@@ -1,0 +1,30 @@
+<main class="public-auth-layout d-flex align-items-center py-5">
+  <div class="container">
+    <div class="d-flex justify-content-end gap-2 mb-4">
+      <app-language-switcher />
+      <app-theme-switcher />
+    </div>
+
+    <div class="row justify-content-center">
+      <div
+        class="col-12 col-sm-10 col-md-8"
+        [class.col-lg-5]="!wide()"
+        [class.col-xl-4]="!wide()"
+        [class.col-lg-7]="wide()"
+        [class.col-xl-6]="wide()"
+      >
+        <div class="text-center mb-4">
+          <span class="public-auth-layout__logo" aria-hidden="true">S</span>
+          <h1 class="h2 mt-3 mb-1">{{ title() | translate }}</h1>
+          <p class="text-body-secondary">{{ subtitle() | translate }}</p>
+        </div>
+
+        <div class="card border-0 shadow-sm">
+          <div class="card-body p-4">
+            <ng-content />
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</main>

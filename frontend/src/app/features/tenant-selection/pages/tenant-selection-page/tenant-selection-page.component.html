@@ -1,6 +1,7 @@
 <main class="container py-5">
-  <div class="d-flex justify-content-end mb-4">
+  <div class="d-flex justify-content-end gap-2 mb-4">
     <app-language-switcher />
+    <app-theme-switcher />
   </div>
 
   <app-page-header
@@ -9,40 +10,56 @@
     [subtitle]="'tenant.subtitle' | translate"
   />
 
+  @if (loadError()) {
+    <div class="alert alert-danger d-flex align-items-center justify-content-between gap-3">
+      <span>{{ 'tenant.loadError' | translate }}</span>
+      <button class="btn btn-sm btn-outline-danger" type="button" (click)="refresh()">
+        {{ 'common.retry' | translate }}
+      </button>
+    </div>
+  }
+
+  @if (loading() && tenants().length === 0) {
+    <div class="d-flex align-items-center gap-2 text-body-secondary" role="status">
+      <span class="spinner-border spinner-border-sm" aria-hidden="true"></span>
+      <span>{{ 'common.loading' | translate }}</span>
+    </div>
+  }
+
   <div class="row g-3">
-    @for (tenant of tenants(); track tenant.slug) {
+    @for (tenant of tenants(); track tenant.id) {
       <div class="col-12 col-md-6">
-        <article class="card h-100" [class.opacity-75]="tenant.status === 'suspended'">
+        <article class="card h-100">
           <div class="card-body">
             <div class="d-flex align-items-start justify-content-between gap-3">
               <div>
-                <h2 class="h5 mb-1">{{ tenant.nameKey | translate }}</h2>
-                <p class="text-body-secondary small mb-0">{{ tenant.role }}</p>
+                <h2 class="h5 mb-1">{{ tenant.name }}</h2>
+                <p class="text-body-secondary small mb-0">
+                  {{ accessKey(tenant.access.type) | translate }}
+                </p>
               </div>
 
-              @if (tenant.status === 'active') {
-                <span class="badge text-bg-success">{{ 'common.active' | translate }}</span>
-              } @else {
-                <span class="badge text-bg-secondary">{{ 'common.suspended' | translate }}</span>
-              }
+              <span
+                class="badge"
+                [class.text-bg-success]="tenant.status === 'ACTIVE'"
+                [class.text-bg-secondary]="tenant.status !== 'ACTIVE'"
+              >
+                {{ statusKey(tenant.status) | translate }}
+              </span>
             </div>
           </div>
 
           <div class="card-footer bg-transparent border-0 pt-0">
-            @if (tenant.status === 'active') {
-              <a class="btn btn-outline-primary" [routerLink]="['/t', tenant.slug, 'dashboard']">
-                {{ 'tenant.open' | translate }}
-              </a>
-            } @else {
-              <button class="btn btn-outline-secondary" type="button" disabled>
-                {{ 'common.unavailable' | translate }}
-              </button>
-            }
+            <a class="btn btn-outline-primary" [routerLink]="['/t', tenant.slug, 'dashboard']">
+              {{ 'tenant.open' | translate }}
+            </a>
           </div>
         </article>
       </div>
     } @empty {
-      <p>{{ 'tenant.noMemberships' | translate }}</p>
+      @if (!loading() && !loadError()) {
+        <p>{{ 'tenant.noMemberships' | translate }}</p>
+      }
     }
   </div>
 

@@ -404,6 +404,10 @@ Systémová administrácia:
 - tenantové dáta otvára len cez explicitnú akciu,
 - má prísnejšie pravidlá relácie a MFA.
 
+`SUPERADMIN` má plné oprávnenie ku každému tenantovi a jeho obsahu bez tenantového
+členstva. Explicitný vstup, audit a oddelený layout chránia pred omylom a
+zneužitím; neobmedzujú rozsah systémovej roly.
+
 ### 11.2 Zoznam tenantov
 
 Stĺpce:
@@ -488,11 +492,13 @@ flowchart TD
     Delete --> Verify["Overiť výsledok a audit"]
 ```
 
-Pred implementáciou treba určiť správanie záloh a zákonnú retention politiku.
+Ochranná lehota je 30 dní. Po jej uplynutí sa primárne dáta a objekty odstránia do
+7 dní a kópie zo záloh vypršia najneskôr v 35-dňovom backup okne. Legal hold môže
+mazanie pozastaviť iba ako explicitne auditované rozhodnutie.
 
 ## 13. Impersonácia
 
-Impersonácia je voliteľná vysoko privilegovaná funkcia. Nemá byť jediným spôsobom
+Impersonácia je súčasťou MVP a je vysoko privilegovaná. Nemá byť jediným spôsobom
 podpory používateľov.
 
 ### 13.1 Tok
@@ -529,6 +535,10 @@ sequenceDiagram
 - tlačidlo okamžitého ukončenia,
 - zostávajúci čas relácie,
 - blokovanie osobitne citlivých operácií podľa politiky.
+
+Kontext expiruje najneskôr po 15 minútach. V impersonácii sa používajú oprávnenia
+cieľového používateľa; ak chce `SUPERADMIN` použiť plné systémové oprávnenie, musí
+impersonáciu ukončiť a vstúpiť do tenantu vo vlastnom explicitnom kontexte.
 
 ## 14. Systémové nastavenia
 

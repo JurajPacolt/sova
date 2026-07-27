@@ -6,6 +6,7 @@ namespace Sova\Tests\Api;
 
 use DI\Container;
 use PHPUnit\Framework\TestCase;
+use Psr\Http\Message\ResponseInterface;
 use Slim\App;
 use Slim\Psr7\Factory\ServerRequestFactory;
 use Sova\Shared\Infrastructure\Bootstrap\ApplicationFactory;
@@ -49,6 +50,7 @@ final class HealthEndpointTest extends TestCase
             '/^[a-f0-9]{32}$/',
             $response->getHeaderLine('X-Request-ID'),
         );
+        $this->assertSecurityHeaders($response);
 
         $payload = $this->decodeResponse($response->getBody()->__toString());
 
@@ -70,8 +72,44 @@ final class HealthEndpointTest extends TestCase
 
         self::assertSame(404, $payload['status']);
         self::assertSame(
+            'urn:sova:problem:resource-not-found',
+            $payload['type'],
+        );
+        self::assertSame('RESOURCE_NOT_FOUND', $payload['code']);
+        self::assertSame(
             $response->getHeaderLine('X-Request-ID'),
             $payload['request_id'],
+        );
+        $this->assertSecurityHeaders($response);
+    }
+
+    public function testHttpsResponseEnablesTransportSecurity(): void
+    {
+        $request = (new ServerRequestFactory())->createServerRequest(
+            'GET',
+            'https://api.sova.test/api/v1/health/live',
+        );
+        $response = $this->app->handle($request);
+
+        self::assertSame(
+            'max-age=31536000; includeSubDomains',
+            $response->getHeaderLine('Strict-Transport-Security'),
+        );
+    }
+
+    public function testDeniedCorsOriginUsesProblemDetails(): void
+    {
+        $request = (new ServerRequestFactory())
+            ->createServerRequest('GET', '/api/v1/health/live')
+            ->withHeader('Origin', 'https://untrusted.example');
+        $response = $this->app->handle($request);
+        $payload = $this->decodeResponse($response->getBody()->__toString());
+
+        self::assertSame(403, $response->getStatusCode());
+        self::assertSame('CORS_ORIGIN_DENIED', $payload['code']);
+        self::assertSame(
+            'urn:sova:problem:permission-denied',
+            $payload['type'],
         );
     }
 
@@ -97,5 +135,17 @@ final class HealthEndpointTest extends TestCase
         }
 
         return $payload;
+    }
+
+    private function assertSecurityHeaders(ResponseInterface $response): void
+    {
+        self::assertSame('no-store', $response->getHeaderLine('Cache-Control'));
+        self::assertSame('nosniff', $response->getHeaderLine('X-Content-Type-Options'));
+        self::assertSame('DENY', $response->getHeaderLine('X-Frame-Options'));
+        self::assertSame('no-referrer', $response->getHeaderLine('Referrer-Policy'));
+        self::assertStringContainsString(
+            "default-src 'none'",
+            $response->getHeaderLine('Content-Security-Policy'),
+        );
     }
 }

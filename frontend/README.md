@@ -11,8 +11,10 @@ Angular 22 klient pre multitenantný issue tracker SOVA.
 - lazy-loaded feature routes,
 - runtime lokalizácia pre SK, CS, EN, DE, PL a HU,
 - Bootstrap 5,
+- sémantické light/dark UI tokeny a voľba Systém/Svetlá/Tmavá,
 - SCSS,
-- Vitest.
+- Vitest,
+- Playwright browser E2E testy.
 
 ## Požiadavky
 
@@ -34,21 +36,32 @@ npm install
 
 ## Spustenie
 
+Najskôr spustite backend na `http://127.0.0.1:8080`, potom frontend:
+
 ```powershell
 npm start
 ```
 
-Aplikácia bude dostupná na `http://localhost:4200`.
+Aplikácia bude dostupná na `http://localhost:4200`. Vývojový server používa
+`proxy.conf.json`, takže relatívne požiadavky na `/api` smeruje na lokálny backend a
+prehliadač môže bezpečne používať session a CSRF cookies bez vývojového CORS
+workaroundu.
 
-Ukážkové routy:
+Hlavné routy:
 
 ```text
 /login
+/forgot-password
+/reset-password/:token
+/verify-email/:token
+/accept-invitation/:token
 /select-tenant
-/t/demo/dashboard
-/t/demo/projects
-/t/demo/issues/SOVA-1
-/t/demo/admin
+/t/:tenantSlug/dashboard
+/t/:tenantSlug/projects
+/t/:tenantSlug/issues/:issueKey
+/t/:tenantSlug/admin
+/system/tenants
+/system/audit
 ```
 
 ## Kontroly
@@ -59,6 +72,8 @@ npm test
 npm run build
 npm run format:check
 npm run check
+npx playwright install chromium
+npm run e2e
 ```
 
 Automatické formátovanie:
@@ -72,7 +87,11 @@ npm run format
 ```text
 src/app/
 ├── core/
-│   └── layout/                 # Aplikačné layouty používané jednou časťou aplikácie
+│   ├── api/                    # Typovaný REST klient a HTTP interceptory
+│   ├── auth/                   # Obnova relácie, auth stav a route guards
+│   ├── layout/                 # Aplikačné layouty
+│   ├── navigation/             # Bezpečná navigácia po prihlásení
+│   └── tenancy/                # Dostupné tenanty, aktívny tenant a guard
 ├── shared/
 │   └── components/             # Zdieľateľné prezentačné komponenty
 ├── features/
@@ -82,6 +101,7 @@ src/app/
 │   ├── projects/
 │   ├── issues/
 │   └── administration/
+│   └── system-administration/
 ├── app.config.ts
 ├── app.routes.ts
 └── app.ts
@@ -133,13 +153,48 @@ ktoré koreňový router načíta cez dynamický import:
 }
 ```
 
+### Impersonácia
+
+Systémová správa tenantu načíta aktívnych členov, vyžiada dôvod a aktuálne heslo a
+po úspešnom serverovom prepnutí otvorí pripnutý tenant. `AuthSessionStore` drží
+efektívneho používateľa a samostatný impersonačný kontext. Tenantový shell počas
+celej impersonácie zobrazuje aktéra, efektívneho používateľa, dôvod, odpočet a
+tlačidlo ukončenia; po ukončení obnoví pôvodnú identitu zo servera a vyčistí
+tenantovú cache.
+
 ### Shared a core
 
 - `shared` obsahuje znovupoužiteľné komponenty bez závislosti od konkrétnej feature,
-- `core` obsahuje aplikačný shell a budúcu singleton infraštruktúru,
+- `core` obsahuje aplikačný shell a singleton infraštruktúru,
 - `features` obsahuje samostatné funkčné oblasti,
 - feature nesmie importovať interné súbory inej feature; spoločný kód sa presunie do
   `shared` alebo vhodnej zdieľanej doménovej vrstvy.
+
+### API, relácia a tenantový kontext
+
+Klient volá relatívne `/api/v1` endpointy typovanými modelmi odvodenými z
+`docs/openapi.json`. API interceptor posiela cookies iba pre `/api/` požiadavky a
+pri stav meniacich metódach kopíruje cookie `sova_csrf` do hlavičky
+`X-CSRF-Token`. Session token je `HttpOnly` a frontend ho nečíta ani neukladá do
+`localStorage`.
+
+Pri prvom chránenom route guard obnoví stav relácie cez `GET /api/v1/tenants`.
+Tenantový guard pri každej navigácii na `/t/:tenantSlug` znova načíta zoznam
+dostupných tenantov a potvrdí konkrétny tenant cez
+`GET /api/v1/tenants/{tenantId}`. Frontendový stav je iba UX cache; autoritatívnu
+kontrolu členstva a tenantového stavu vždy vykonáva backend.
+
+`returnUrl` po prihlásení prijíma iba interný `/select-tenant` alebo
+`/t/:tenantSlug/...` cieľ, ku ktorému má aktuálna relácia prístup. Odpoveď
+`401 SESSION_REQUIRED` vyčistí autentifikačný aj tenantový stav a presmeruje na
+login. Úspešné odhlásenie vyčistí tenantovú cache.
+
+Verejné obrazovky obnovy hesla, overenia e-mailu a prijatia pozvánky držia
+jednorazový token iba v pamäti komponentu. Hneď po načítaní ho odstránia z adresného
+riadku a browser histórie cez `Location.replaceState`; do API ho posielajú iba
+v JSON tele. Token sa neukladá do `localStorage`, `sessionStorage` ani cookies.
+Globálny session-expiry handler tieto verejné routy nepresmeruje na login pri
+anonymnom `401 SESSION_REQUIRED`.
 
 ### Lokalizácia
 
@@ -168,5 +223,14 @@ Angular stav a signály alebo cez Angular-kompatibilný komponentový wrapper.
 
 ## Aktuálny rozsah
 
-Frontend zatiaľ obsahuje architektonický a vizuálny základ s ukážkovými dátami.
-Autentifikácia, načítanie tenantov, projekty a úlohy ešte nie sú napojené na REST API.
+Prihlásenie, obnova session, odhlásenie, výber tenantu, ochrana tenantových rout,
+forgot/reset hesla, overenie e-mailu a invite-only prijatie novým aj existujúcim
+účtom sú napojené na REST API. Verejné access toky pokrývajú komponentové aj
+Playwright Chromium E2E testy.
+
+`SUPERADMIN` má samostatný lazy `/system` layout s dynamickým session guardom.
+Systémový zoznam tenantov podporuje idempotentné vytvorenie, pozvánku prvého
+vlastníka a lifecycle zmeny s revision a dôvodom. `/system/audit` zobrazuje
+filtrované append-only bezpečnostné udalosti a postupne načítava keyset stránky.
+Tenantová auditná obrazovka, členovia, roly a ostatná tenantová administrácia
+zostávajú rozpracované. Dashboard, projekty a úlohy zatiaľ obsahujú ukážkové dáta.

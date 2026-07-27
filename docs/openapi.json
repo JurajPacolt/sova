@@ -1,0 +1,4791 @@
+{
+  "openapi": "3.1.0",
+  "jsonSchemaDialect": "https://spec.openapis.org/oas/3.1/dialect/base",
+  "info": {
+    "title": "SOVA API",
+    "summary": "REST API for the SOVA multitenant issue tracker.",
+    "description": "The contract starts with the technical foundation endpoints and is extended together with every API implementation checkpoint.",
+    "version": "0.1.0"
+  },
+  "servers": [
+    {
+      "url": "http://127.0.0.1:8080",
+      "description": "Local development"
+    }
+  ],
+  "tags": [
+    {
+      "name": "API",
+      "description": "API metadata"
+    },
+    {
+      "name": "Health",
+      "description": "Liveness and readiness probes"
+    },
+    {
+      "name": "Authentication",
+      "description": "Cookie-based authentication and revocable server sessions"
+    },
+    {
+      "name": "Tenancy",
+      "description": "Authenticated tenant discovery and tenant context"
+    },
+    {
+      "name": "System administration",
+      "description": "SUPERADMIN-only installation administration"
+    },
+    {
+      "name": "Security audit",
+      "description": "Immutable, permission-checked system and tenant security events"
+    }
+  ],
+  "paths": {
+    "/api/v1": {
+      "get": {
+        "operationId": "getApiInfo",
+        "summary": "Get API metadata",
+        "tags": ["API"],
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "API metadata",
+            "headers": {
+              "X-Request-ID": {
+                "$ref": "#/components/headers/RequestId"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiInfo"
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/Problem"
+          }
+        }
+      }
+    },
+    "/api/v1/auth/login": {
+      "post": {
+        "operationId": "login",
+        "summary": "Create an authenticated server session",
+        "tags": ["Authentication"],
+        "security": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LoginRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The credentials were verified and session cookies were issued.",
+            "headers": {
+              "X-Request-ID": {
+                "$ref": "#/components/headers/RequestId"
+              },
+              "Set-Cookie": {
+                "description": "The HttpOnly session and readable CSRF cookies.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LoginResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "422": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "429": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "default": {
+            "$ref": "#/components/responses/Problem"
+          }
+        }
+      }
+    },
+    "/api/v1/auth/session": {
+      "get": {
+        "operationId": "getCurrentSession",
+        "summary": "Get the current authenticated identity",
+        "description": "Restores the effective user profile, explicit SUPERADMIN context and optional session-bound impersonation. No credential or session token is returned.",
+        "tags": ["Authentication"],
+        "security": [
+          {
+            "sessionCookie": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The current authenticated identity.",
+            "headers": {
+              "X-Request-ID": {
+                "$ref": "#/components/headers/RequestId"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CurrentSessionResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "default": {
+            "$ref": "#/components/responses/Problem"
+          }
+        }
+      }
+    },
+    "/api/v1/auth/password/forgot": {
+      "post": {
+        "operationId": "requestPasswordReset",
+        "summary": "Request password reset instructions",
+        "description": "Always returns the same accepted response for a syntactically valid email, regardless of account existence or recovery throttling.",
+        "tags": ["Authentication"],
+        "security": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ForgotPasswordRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "202": {
+            "description": "The recovery request was accepted without disclosing account existence.",
+            "headers": {
+              "X-Request-ID": {
+                "$ref": "#/components/headers/RequestId"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PasswordResetRequestAccepted"
+                }
+              }
+            }
+          },
+          "422": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "default": {
+            "$ref": "#/components/responses/Problem"
+          }
+        }
+      }
+    },
+    "/api/v1/auth/password/reset": {
+      "post": {
+        "operationId": "resetPassword",
+        "summary": "Set a new password using a one-time token",
+        "tags": ["Authentication"],
+        "security": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ResetPasswordRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "204": {
+            "description": "The password was replaced and all existing sessions were revoked."
+          },
+          "410": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "422": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "default": {
+            "$ref": "#/components/responses/Problem"
+          }
+        }
+      }
+    },
+    "/api/v1/auth/email/verification/request": {
+      "post": {
+        "operationId": "requestEmailVerification",
+        "summary": "Request email verification instructions",
+        "description": "Always returns the same accepted response for a syntactically valid email, regardless of account existence, account state, or throttling.",
+        "tags": ["Authentication"],
+        "security": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/EmailVerificationRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "202": {
+            "description": "The request was accepted without disclosing account existence or state.",
+            "headers": {
+              "X-Request-ID": {
+                "$ref": "#/components/headers/RequestId"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EmailVerificationRequestAccepted"
+                }
+              }
+            }
+          },
+          "422": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "default": {
+            "$ref": "#/components/responses/Problem"
+          }
+        }
+      }
+    },
+    "/api/v1/auth/email/verify": {
+      "post": {
+        "operationId": "verifyEmail",
+        "summary": "Verify an email using a one-time token",
+        "tags": ["Authentication"],
+        "security": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/VerifyEmailRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The email is verified. Reusing the same consumed token is idempotent.",
+            "headers": {
+              "X-Request-ID": {
+                "$ref": "#/components/headers/RequestId"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EmailVerificationResponse"
+                }
+              }
+            }
+          },
+          "410": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "default": {
+            "$ref": "#/components/responses/Problem"
+          }
+        }
+      }
+    },
+    "/api/v1/auth/invitations/inspect": {
+      "post": {
+        "operationId": "inspectInvitation",
+        "summary": "Inspect a usable tenant invitation",
+        "description": "The token is sent in the request body so reverse-proxy access logs do not contain it.",
+        "tags": ["Authentication"],
+        "security": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/InvitationTokenRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Safe invitation details for the token holder.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InvitationPreviewResponse"
+                }
+              }
+            }
+          },
+          "410": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "default": {
+            "$ref": "#/components/responses/Problem"
+          }
+        }
+      }
+    },
+    "/api/v1/auth/invitations/accept": {
+      "post": {
+        "operationId": "acceptInvitationWithNewAccount",
+        "summary": "Create a verified account from an invitation",
+        "description": "This is the only public account-creation operation. User, verified email, active membership, and consumed invitation are committed atomically.",
+        "tags": ["Authentication"],
+        "security": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AcceptNewAccountInvitationRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "The verified user and active membership were created.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InvitationAcceptanceResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "410": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "422": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "default": {
+            "$ref": "#/components/responses/Problem"
+          }
+        }
+      }
+    },
+    "/api/v1/auth/invitations/accept-existing": {
+      "post": {
+        "operationId": "acceptInvitationWithExistingAccount",
+        "summary": "Accept an invitation with the authenticated account",
+        "tags": ["Authentication"],
+        "security": [
+          {
+            "sessionCookie": [],
+            "csrfHeader": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/InvitationTokenRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The invitation was accepted for the matching account.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InvitationAcceptanceResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "409": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "410": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "default": {
+            "$ref": "#/components/responses/Problem"
+          }
+        }
+      }
+    },
+    "/api/v1/auth/logout": {
+      "post": {
+        "operationId": "logout",
+        "summary": "Revoke the current session",
+        "tags": ["Authentication"],
+        "security": [
+          {
+            "sessionCookie": [],
+            "csrfHeader": []
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "The current session was revoked and its cookies were cleared.",
+            "headers": {
+              "X-Request-ID": {
+                "$ref": "#/components/headers/RequestId"
+              },
+              "Set-Cookie": {
+                "description": "Expired authentication cookies.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "default": {
+            "$ref": "#/components/responses/Problem"
+          }
+        }
+      }
+    },
+    "/api/v1/auth/sessions": {
+      "get": {
+        "operationId": "listSessions",
+        "summary": "List active sessions for the current user",
+        "tags": ["Authentication"],
+        "security": [
+          {
+            "sessionCookie": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Active, non-revoked sessions.",
+            "headers": {
+              "X-Request-ID": {
+                "$ref": "#/components/headers/RequestId"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SessionList"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "default": {
+            "$ref": "#/components/responses/Problem"
+          }
+        }
+      }
+    },
+    "/api/v1/auth/sessions/{sessionId}": {
+      "delete": {
+        "operationId": "revokeSession",
+        "summary": "Revoke one session owned by the current user",
+        "tags": ["Authentication"],
+        "security": [
+          {
+            "sessionCookie": [],
+            "csrfHeader": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "sessionId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "The session was revoked."
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "404": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "default": {
+            "$ref": "#/components/responses/Problem"
+          }
+        }
+      }
+    },
+    "/api/v1/system/tenants": {
+      "get": {
+        "operationId": "listSystemTenants",
+        "summary": "List tenants for system administration",
+        "description": "Requires the current separate SUPERADMIN system role. Returns every non-deleted tenant with lifecycle revision and administrative metadata.",
+        "tags": ["System administration"],
+        "security": [
+          {
+            "sessionCookie": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The system tenant catalog.",
+            "headers": {
+              "X-Request-ID": {
+                "$ref": "#/components/headers/RequestId"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SystemTenantList"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "default": {
+            "$ref": "#/components/responses/Problem"
+          }
+        }
+      },
+      "post": {
+        "operationId": "createSystemTenant",
+        "summary": "Create a pending tenant and invite its first owner",
+        "description": "Requires SUPERADMIN. Creates the tenant, provisions immutable default roles and publishes a TENANT_OWNER invitation atomically. The tenant becomes ACTIVE when that invitation is accepted. Reusing the same Idempotency-Key and body safely replays the result.",
+        "tags": ["System administration"],
+        "security": [
+          {
+            "sessionCookie": [],
+            "csrfHeader": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateSystemTenantRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "An earlier successful request with the same idempotency key was replayed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CreateSystemTenantResponse"
+                }
+              }
+            }
+          },
+          "201": {
+            "description": "The pending tenant and owner invitation were created.",
+            "headers": {
+              "X-Request-ID": {
+                "$ref": "#/components/headers/RequestId"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CreateSystemTenantResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "409": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "422": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "default": {
+            "$ref": "#/components/responses/Problem"
+          }
+        }
+      }
+    },
+    "/api/v1/system/tenants/{tenantId}": {
+      "patch": {
+        "operationId": "changeSystemTenantStatus",
+        "summary": "Change a tenant lifecycle status",
+        "description": "Requires SUPERADMIN, a reason and the current optimistic revision. Direct transition to DELETED is unavailable; DELETION_PENDING starts a 30-day grace period and can be cancelled back to ARCHIVED.",
+        "tags": ["System administration"],
+        "security": [
+          {
+            "sessionCookie": [],
+            "csrfHeader": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "tenantId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ChangeSystemTenantStatusRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The tenant is in the requested status.",
+            "headers": {
+              "X-Request-ID": {
+                "$ref": "#/components/headers/RequestId"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SystemTenantResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "404": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "409": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "422": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "default": {
+            "$ref": "#/components/responses/Problem"
+          }
+        }
+      }
+    },
+    "/api/v1/system/users": {
+      "get": {
+        "operationId": "listSystemUsers",
+        "summary": "List every global user account",
+        "description": "Requires system.users.manage. Access itself is appended to the security audit.",
+        "tags": ["System administration"],
+        "security": [
+          {
+            "sessionCookie": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Every global user account.",
+            "headers": {
+              "X-Request-ID": {
+                "$ref": "#/components/headers/RequestId"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SystemUserList"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "default": {
+            "$ref": "#/components/responses/Problem"
+          }
+        }
+      }
+    },
+    "/api/v1/system/users/{userId}": {
+      "patch": {
+        "operationId": "changeSystemUserStatus",
+        "summary": "Change a global user account status",
+        "description": "Requires system.users.manage. Only ACTIVE and DISABLED are accepted as targets; PENDING_VERIFICATION and LOCKED may still transition into either through the existing account state machine. Own account changes are rejected, and disabling the last active superadmin's account is rejected.",
+        "tags": ["System administration"],
+        "security": [
+          {
+            "sessionCookie": [],
+            "csrfHeader": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "userId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ChangeSystemUserStatusRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The user account is in the requested status.",
+            "headers": {
+              "X-Request-ID": {
+                "$ref": "#/components/headers/RequestId"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SystemUserResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "404": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "409": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "422": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "default": {
+            "$ref": "#/components/responses/Problem"
+          }
+        }
+      }
+    },
+    "/api/v1/system/users/{userId}/superadmin": {
+      "put": {
+        "operationId": "grantSystemSuperadmin",
+        "summary": "Grant the SUPERADMIN system role",
+        "description": "Requires system.superadmins.manage. Repeating an existing grant is idempotent.",
+        "tags": ["System administration"],
+        "security": [
+          {
+            "sessionCookie": [],
+            "csrfHeader": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "userId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The user holds the SUPERADMIN role.",
+            "headers": {
+              "X-Request-ID": {
+                "$ref": "#/components/headers/RequestId"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SystemUserResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "404": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "default": {
+            "$ref": "#/components/responses/Problem"
+          }
+        }
+      },
+      "delete": {
+        "operationId": "revokeSystemSuperadmin",
+        "summary": "Revoke the SUPERADMIN system role",
+        "description": "Requires system.superadmins.manage. Rejects revoking your own role and rejects removing the last active superadmin. Repeating a missing grant is idempotent.",
+        "tags": ["System administration"],
+        "security": [
+          {
+            "sessionCookie": [],
+            "csrfHeader": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "userId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The user no longer holds the SUPERADMIN role.",
+            "headers": {
+              "X-Request-ID": {
+                "$ref": "#/components/headers/RequestId"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SystemUserResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "404": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "409": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "default": {
+            "$ref": "#/components/responses/Problem"
+          }
+        }
+      }
+    },
+    "/api/v1/system/audit": {
+      "get": {
+        "operationId": "listSystemSecurityAudit",
+        "summary": "List immutable system security audit events",
+        "description": "Requires system.audit.view. SUPERADMIN receives a newest-first keyset page across system and tenant contexts. Access to this endpoint is itself appended to the audit.",
+        "tags": ["System administration", "Security audit"],
+        "security": [
+          {
+            "sessionCookie": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/AuditLimit"
+          },
+          {
+            "$ref": "#/components/parameters/AuditCursor"
+          },
+          {
+            "$ref": "#/components/parameters/AuditFrom"
+          },
+          {
+            "$ref": "#/components/parameters/AuditTo"
+          },
+          {
+            "$ref": "#/components/parameters/AuditActor"
+          },
+          {
+            "$ref": "#/components/parameters/AuditEventType"
+          },
+          {
+            "$ref": "#/components/parameters/AuditOutcome"
+          },
+          {
+            "$ref": "#/components/parameters/AuditRequestId"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "A newest-first page of immutable security audit events.",
+            "headers": {
+              "X-Request-ID": {
+                "$ref": "#/components/headers/RequestId"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SecurityAuditPage"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "422": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "default": {
+            "$ref": "#/components/responses/Problem"
+          }
+        }
+      }
+    },
+    "/api/v1/system/impersonations": {
+      "post": {
+        "operationId": "startSystemImpersonation",
+        "summary": "Start a controlled tenant-user impersonation",
+        "description": "Requires system.impersonate through the non-impersonated SUPERADMIN context, the current administrator password, a support reason, an active target membership and an active tenant. The context is bound to the current server session and expires after at most 15 minutes.",
+        "tags": ["System administration", "Security audit"],
+        "security": [
+          {
+            "sessionCookie": [],
+            "csrfHeader": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/StartImpersonationRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "The effective identity was switched to the selected tenant user.",
+            "headers": {
+              "X-Request-ID": {
+                "$ref": "#/components/headers/RequestId"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StartImpersonationResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "404": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "409": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "422": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "default": {
+            "$ref": "#/components/responses/Problem"
+          }
+        }
+      }
+    },
+    "/api/v1/system/impersonations/current": {
+      "delete": {
+        "operationId": "endCurrentSystemImpersonation",
+        "summary": "End the current impersonation immediately",
+        "description": "Ends an active, expired or invalidated impersonation on the current server session and restores the real actor identity.",
+        "tags": ["System administration", "Security audit"],
+        "security": [
+          {
+            "sessionCookie": [],
+            "csrfHeader": []
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "The current impersonation was ended."
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "409": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "default": {
+            "$ref": "#/components/responses/Problem"
+          }
+        }
+      }
+    },
+    "/api/v1/tenants": {
+      "get": {
+        "operationId": "listAccessibleTenants",
+        "summary": "List tenants accessible to the current user",
+        "description": "Regular users receive only active tenants backed by an active membership. SUPERADMIN receives every non-deleted tenant without requiring membership.",
+        "tags": ["Tenancy"],
+        "security": [
+          {
+            "sessionCookie": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Tenants available to the authenticated session.",
+            "headers": {
+              "X-Request-ID": {
+                "$ref": "#/components/headers/RequestId"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TenantList"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "default": {
+            "$ref": "#/components/responses/Problem"
+          }
+        }
+      }
+    },
+    "/api/v1/tenants/{tenantId}": {
+      "get": {
+        "operationId": "getAccessibleTenant",
+        "summary": "Resolve an authorized tenant context",
+        "description": "The tenant identifier comes from the route. A foreign, inactive, deleted, or otherwise inaccessible tenant is returned as not found. SUPERADMIN may explicitly enter every non-deleted tenant and that access is audited.",
+        "tags": ["Tenancy"],
+        "security": [
+          {
+            "sessionCookie": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "tenantId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The requested tenant context is accessible.",
+            "headers": {
+              "X-Request-ID": {
+                "$ref": "#/components/headers/RequestId"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TenantResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "404": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "default": {
+            "$ref": "#/components/responses/Problem"
+          }
+        }
+      }
+    },
+    "/api/v1/tenants/{tenantId}/invitations": {
+      "post": {
+        "operationId": "createTenantInvitation",
+        "summary": "Create and queue a tenant invitation",
+        "description": "Requires tenant.members.invite or the SUPERADMIN bypass. The plaintext token is never returned by the API.",
+        "tags": ["Tenancy"],
+        "security": [
+          {
+            "sessionCookie": [],
+            "csrfHeader": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "tenantId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateInvitationRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "The invitation and encrypted delivery event were created.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CreatedInvitationResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "404": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "409": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "422": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "default": {
+            "$ref": "#/components/responses/Problem"
+          }
+        }
+      }
+    },
+    "/api/v1/tenants/{tenantId}/audit": {
+      "get": {
+        "operationId": "listTenantSecurityAudit",
+        "summary": "List immutable security events for one tenant",
+        "description": "Requires tenant.audit.view in the route-derived tenant context. Events from every other tenant are excluded in the repository query. Access to this endpoint is itself appended to the tenant audit.",
+        "tags": ["Tenancy", "Security audit"],
+        "security": [
+          {
+            "sessionCookie": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "tenantId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "$ref": "#/components/parameters/AuditLimit"
+          },
+          {
+            "$ref": "#/components/parameters/AuditCursor"
+          },
+          {
+            "$ref": "#/components/parameters/AuditFrom"
+          },
+          {
+            "$ref": "#/components/parameters/AuditTo"
+          },
+          {
+            "$ref": "#/components/parameters/AuditActor"
+          },
+          {
+            "$ref": "#/components/parameters/AuditEventType"
+          },
+          {
+            "$ref": "#/components/parameters/AuditOutcome"
+          },
+          {
+            "$ref": "#/components/parameters/AuditRequestId"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "A newest-first page containing only this tenant's immutable security events.",
+            "headers": {
+              "X-Request-ID": {
+                "$ref": "#/components/headers/RequestId"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SecurityAuditPage"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "404": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "422": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "default": {
+            "$ref": "#/components/responses/Problem"
+          }
+        }
+      }
+    },
+    "/api/v1/tenants/{tenantId}/audit/export": {
+      "get": {
+        "operationId": "exportTenantSecurityAudit",
+        "summary": "Export immutable security events for one tenant as CSV",
+        "description": "Requires tenant.audit.export in the route-derived tenant context. Applies the same filters and redaction as the list endpoint, internally follows the keyset cursor up to a bounded row cap, and returns a single CSV attachment instead of a paginated JSON page. The export itself is appended to the tenant audit.",
+        "tags": ["Tenancy", "Security audit"],
+        "security": [
+          {
+            "sessionCookie": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "tenantId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "$ref": "#/components/parameters/AuditCursor"
+          },
+          {
+            "$ref": "#/components/parameters/AuditFrom"
+          },
+          {
+            "$ref": "#/components/parameters/AuditTo"
+          },
+          {
+            "$ref": "#/components/parameters/AuditActor"
+          },
+          {
+            "$ref": "#/components/parameters/AuditEventType"
+          },
+          {
+            "$ref": "#/components/parameters/AuditOutcome"
+          },
+          {
+            "$ref": "#/components/parameters/AuditRequestId"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "A CSV attachment containing up to 5000 newest-first matching events.",
+            "headers": {
+              "X-Request-ID": {
+                "$ref": "#/components/headers/RequestId"
+              },
+              "Content-Disposition": {
+                "description": "Attachment filename for the CSV export.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "text/csv": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "404": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "422": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "default": {
+            "$ref": "#/components/responses/Problem"
+          }
+        }
+      }
+    },
+    "/api/v1/tenants/{tenantId}/workgroups": {
+      "get": {
+        "operationId": "listWorkgroups",
+        "summary": "List every workgroup in a tenant",
+        "description": "Requires tenant.workgroups.manage.",
+        "tags": ["Workgroups"],
+        "security": [
+          {
+            "sessionCookie": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "tenantId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Every workgroup in the tenant.",
+            "headers": {
+              "X-Request-ID": {
+                "$ref": "#/components/headers/RequestId"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WorkgroupList"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "404": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "default": {
+            "$ref": "#/components/responses/Problem"
+          }
+        }
+      },
+      "post": {
+        "operationId": "createWorkgroup",
+        "summary": "Create a tenant workgroup",
+        "description": "Requires tenant.workgroups.manage.",
+        "tags": ["Workgroups"],
+        "security": [
+          {
+            "sessionCookie": [],
+            "csrfHeader": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "tenantId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateWorkgroupRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "The workgroup was created.",
+            "headers": {
+              "X-Request-ID": {
+                "$ref": "#/components/headers/RequestId"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WorkgroupResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "404": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "422": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "default": {
+            "$ref": "#/components/responses/Problem"
+          }
+        }
+      }
+    },
+    "/api/v1/tenants/{tenantId}/workgroups/{workgroupId}": {
+      "patch": {
+        "operationId": "changeWorkgroupStatus",
+        "summary": "Change a workgroup lifecycle status",
+        "description": "Requires tenant.workgroups.manage, or workgroup.manage on this specific workgroup. ACTIVE and ARCHIVED toggle in either direction; repeating the current status is idempotent.",
+        "tags": ["Workgroups"],
+        "security": [
+          {
+            "sessionCookie": [],
+            "csrfHeader": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "tenantId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "workgroupId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ChangeWorkgroupStatusRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The workgroup is in the requested status.",
+            "headers": {
+              "X-Request-ID": {
+                "$ref": "#/components/headers/RequestId"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WorkgroupResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "404": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "409": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "422": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "default": {
+            "$ref": "#/components/responses/Problem"
+          }
+        }
+      }
+    },
+    "/api/v1/tenants/{tenantId}/workgroups/{workgroupId}/members": {
+      "get": {
+        "operationId": "listWorkgroupMembers",
+        "summary": "List the members of a workgroup",
+        "description": "Requires tenant.workgroups.manage, or workgroup.view on this specific workgroup.",
+        "tags": ["Workgroups"],
+        "security": [
+          {
+            "sessionCookie": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "tenantId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "workgroupId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Every member of the workgroup.",
+            "headers": {
+              "X-Request-ID": {
+                "$ref": "#/components/headers/RequestId"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WorkgroupMemberList"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "404": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "default": {
+            "$ref": "#/components/responses/Problem"
+          }
+        }
+      }
+    },
+    "/api/v1/tenants/{tenantId}/workgroups/{workgroupId}/members/{membershipId}": {
+      "put": {
+        "operationId": "upsertWorkgroupMember",
+        "summary": "Add a workgroup member or change their role",
+        "description": "Requires tenant.workgroups.manage, or workgroup.members.manage on this specific workgroup. The tenant membership must be active. Idempotent when the member already holds the requested role.",
+        "tags": ["Workgroups"],
+        "security": [
+          {
+            "sessionCookie": [],
+            "csrfHeader": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "tenantId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "workgroupId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "membershipId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpsertWorkgroupMemberRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The membership holds the requested workgroup role.",
+            "headers": {
+              "X-Request-ID": {
+                "$ref": "#/components/headers/RequestId"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WorkgroupMemberResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "404": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "409": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "422": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "default": {
+            "$ref": "#/components/responses/Problem"
+          }
+        }
+      },
+      "delete": {
+        "operationId": "removeWorkgroupMember",
+        "summary": "Remove a workgroup member",
+        "description": "Requires tenant.workgroups.manage, or workgroup.members.manage on this specific workgroup. Repeating a missing membership is idempotent.",
+        "tags": ["Workgroups"],
+        "security": [
+          {
+            "sessionCookie": [],
+            "csrfHeader": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "tenantId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "workgroupId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "membershipId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "The membership is no longer part of the workgroup."
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "404": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "default": {
+            "$ref": "#/components/responses/Problem"
+          }
+        }
+      }
+    },
+    "/api/v1/tenants/{tenantId}/projects": {
+      "get": {
+        "operationId": "listProjects",
+        "summary": "List every project in a tenant",
+        "description": "Requires tenant.projects.manage.",
+        "tags": ["Projects"],
+        "security": [
+          {
+            "sessionCookie": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "tenantId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Every project in the tenant.",
+            "headers": {
+              "X-Request-ID": {
+                "$ref": "#/components/headers/RequestId"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProjectList"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "404": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "default": {
+            "$ref": "#/components/responses/Problem"
+          }
+        }
+      },
+      "post": {
+        "operationId": "createProject",
+        "summary": "Create a tenant project",
+        "description": "Requires tenant.projects.create. A private project requires lead_membership_id, which is assigned PROJECT_MANAGER.",
+        "tags": ["Projects"],
+        "security": [
+          {
+            "sessionCookie": [],
+            "csrfHeader": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "tenantId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateProjectRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "The project was created.",
+            "headers": {
+              "X-Request-ID": {
+                "$ref": "#/components/headers/RequestId"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProjectResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "404": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "409": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "422": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "default": {
+            "$ref": "#/components/responses/Problem"
+          }
+        }
+      }
+    },
+    "/api/v1/tenants/{tenantId}/projects/{projectId}": {
+      "patch": {
+        "operationId": "changeProjectStatus",
+        "summary": "Change a project lifecycle status",
+        "description": "Requires tenant.projects.manage, or project.settings.manage on this specific project. ACTIVE and ARCHIVED toggle in either direction; repeating the current status is idempotent.",
+        "tags": ["Projects"],
+        "security": [
+          {
+            "sessionCookie": [],
+            "csrfHeader": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "tenantId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "projectId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ChangeProjectStatusRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The project is in the requested status.",
+            "headers": {
+              "X-Request-ID": {
+                "$ref": "#/components/headers/RequestId"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProjectResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "404": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "409": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "422": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "default": {
+            "$ref": "#/components/responses/Problem"
+          }
+        }
+      }
+    },
+    "/api/v1/tenants/{tenantId}/projects/{projectId}/roles": {
+      "get": {
+        "operationId": "listProjectRoles",
+        "summary": "List the roles defined for a project",
+        "description": "Requires tenant.projects.manage, or project.view on this specific project.",
+        "tags": ["Projects"],
+        "security": [
+          {
+            "sessionCookie": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "tenantId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "projectId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Every role defined for the project.",
+            "headers": {
+              "X-Request-ID": {
+                "$ref": "#/components/headers/RequestId"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProjectRoleList"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "404": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "default": {
+            "$ref": "#/components/responses/Problem"
+          }
+        }
+      }
+    },
+    "/api/v1/tenants/{tenantId}/projects/{projectId}/members": {
+      "get": {
+        "operationId": "listProjectMembers",
+        "summary": "List the members of a project",
+        "description": "Requires tenant.projects.manage, or project.view on this specific project.",
+        "tags": ["Projects"],
+        "security": [
+          {
+            "sessionCookie": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "tenantId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "projectId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Every member of the project, with their assigned roles.",
+            "headers": {
+              "X-Request-ID": {
+                "$ref": "#/components/headers/RequestId"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProjectMemberList"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "404": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "default": {
+            "$ref": "#/components/responses/Problem"
+          }
+        }
+      }
+    },
+    "/api/v1/tenants/{tenantId}/projects/{projectId}/members/{membershipId}/roles/{roleId}": {
+      "put": {
+        "operationId": "assignProjectRole",
+        "summary": "Assign a project role to a tenant membership",
+        "description": "Requires tenant.projects.manage, or project.members.manage on this specific project. The tenant membership and the project role must both be active. Idempotent when the membership already holds the role.",
+        "tags": ["Projects"],
+        "security": [
+          {
+            "sessionCookie": [],
+            "csrfHeader": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "tenantId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "projectId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "membershipId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "roleId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "The membership holds the project role."
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "404": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "409": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "default": {
+            "$ref": "#/components/responses/Problem"
+          }
+        }
+      },
+      "delete": {
+        "operationId": "unassignProjectRole",
+        "summary": "Remove a project role from a tenant membership",
+        "description": "Requires tenant.projects.manage, or project.members.manage on this specific project. Repeating a missing assignment is idempotent.",
+        "tags": ["Projects"],
+        "security": [
+          {
+            "sessionCookie": [],
+            "csrfHeader": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "tenantId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "projectId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "membershipId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "roleId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "The membership no longer holds the project role."
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "404": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "default": {
+            "$ref": "#/components/responses/Problem"
+          }
+        }
+      }
+    },
+    "/api/v1/tenants/{tenantId}/projects/{projectId}/workgroups": {
+      "get": {
+        "operationId": "listProjectWorkgroups",
+        "summary": "List the workgroups linked to a project",
+        "description": "Requires tenant.projects.manage, or project.view on this specific project.",
+        "tags": ["Projects"],
+        "security": [
+          {
+            "sessionCookie": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "tenantId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "projectId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Every workgroup linked to the project, with its granted role.",
+            "headers": {
+              "X-Request-ID": {
+                "$ref": "#/components/headers/RequestId"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProjectWorkgroupLinkList"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "404": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "default": {
+            "$ref": "#/components/responses/Problem"
+          }
+        }
+      }
+    },
+    "/api/v1/tenants/{tenantId}/projects/{projectId}/workgroups/{workgroupId}": {
+      "put": {
+        "operationId": "linkProjectWorkgroup",
+        "summary": "Link a workgroup to a project or change its role",
+        "description": "Requires tenant.projects.manage, or project.members.manage on this specific project. The workgroup and the project role must both be active. Upserts the role when the workgroup is already linked.",
+        "tags": ["Projects"],
+        "security": [
+          {
+            "sessionCookie": [],
+            "csrfHeader": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "tenantId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "projectId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "workgroupId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpsertProjectWorkgroupRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "204": {
+            "description": "The workgroup is linked to the project with the requested role."
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "404": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "409": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "422": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "default": {
+            "$ref": "#/components/responses/Problem"
+          }
+        }
+      },
+      "delete": {
+        "operationId": "unlinkProjectWorkgroup",
+        "summary": "Unlink a workgroup from a project",
+        "description": "Requires tenant.projects.manage, or project.members.manage on this specific project. Repeating a missing link is idempotent.",
+        "tags": ["Projects"],
+        "security": [
+          {
+            "sessionCookie": [],
+            "csrfHeader": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "tenantId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "projectId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "workgroupId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "The workgroup is no longer linked to the project."
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "404": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "default": {
+            "$ref": "#/components/responses/Problem"
+          }
+        }
+      }
+    },
+    "/api/v1/tenants/{tenantId}/roles": {
+      "get": {
+        "operationId": "listTenantRoles",
+        "summary": "List tenant roles and assignable permission definitions",
+        "description": "Requires tenant.roles.view. System-scoped permissions are never returned as tenant-role options.",
+        "tags": ["Authorization"],
+        "security": [
+          {
+            "sessionCookie": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "tenantId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Tenant roles and the non-system permission catalog.",
+            "headers": {
+              "X-Request-ID": {
+                "$ref": "#/components/headers/RequestId"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TenantRoleList"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "404": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "default": {
+            "$ref": "#/components/responses/Problem"
+          }
+        }
+      },
+      "post": {
+        "operationId": "createTenantRole",
+        "summary": "Create a custom tenant role",
+        "description": "Requires tenant.roles.manage. The immutable role code must be unique within the tenant. Only non-system permissions may be selected and all catalog dependencies must be included.",
+        "tags": ["Authorization"],
+        "security": [
+          {
+            "sessionCookie": [],
+            "csrfHeader": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "tenantId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateTenantRoleRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "The custom tenant role was created.",
+            "headers": {
+              "X-Request-ID": {
+                "$ref": "#/components/headers/RequestId"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TenantRoleResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "404": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "409": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "422": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "default": {
+            "$ref": "#/components/responses/Problem"
+          }
+        }
+      }
+    },
+    "/api/v1/tenants/{tenantId}/roles/{roleId}": {
+      "put": {
+        "operationId": "updateTenantRole",
+        "summary": "Update a custom tenant role",
+        "description": "Requires tenant.roles.manage. The role code and system roles are immutable. The complete non-system permission set is replaced after validating dependencies, and revision provides optimistic concurrency control.",
+        "tags": ["Authorization"],
+        "security": [
+          {
+            "sessionCookie": [],
+            "csrfHeader": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "tenantId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "roleId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateTenantRoleRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The custom tenant role was updated.",
+            "headers": {
+              "X-Request-ID": {
+                "$ref": "#/components/headers/RequestId"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TenantRoleResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "404": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "409": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "422": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "default": {
+            "$ref": "#/components/responses/Problem"
+          }
+        }
+      },
+      "delete": {
+        "operationId": "archiveTenantRole",
+        "summary": "Archive an unassigned custom tenant role",
+        "description": "Requires tenant.roles.manage. System roles cannot be archived, and a custom role must first be removed from every membership. Repeating the archive of an already archived custom role is idempotent.",
+        "tags": ["Authorization"],
+        "security": [
+          {
+            "sessionCookie": [],
+            "csrfHeader": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "tenantId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "roleId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "The custom tenant role is archived."
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "404": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "409": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "default": {
+            "$ref": "#/components/responses/Problem"
+          }
+        }
+      }
+    },
+    "/api/v1/tenants/{tenantId}/memberships": {
+      "get": {
+        "operationId": "listTenantMemberships",
+        "summary": "List tenant memberships and their tenant roles",
+        "description": "Requires tenant.members.view. The administrative list includes active, disabled, and removed memberships; it never exposes password data.",
+        "tags": ["Tenancy", "Authorization"],
+        "security": [
+          {
+            "sessionCookie": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "tenantId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Tenant memberships with user identity and assigned tenant roles.",
+            "headers": {
+              "X-Request-ID": {
+                "$ref": "#/components/headers/RequestId"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TenantMembershipList"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "404": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "default": {
+            "$ref": "#/components/responses/Problem"
+          }
+        }
+      }
+    },
+    "/api/v1/tenants/{tenantId}/memberships/{membershipId}": {
+      "patch": {
+        "operationId": "changeTenantMembershipStatus",
+        "summary": "Change a tenant membership lifecycle status",
+        "description": "Requires tenant.members.manage. ACTIVE may transition to DISABLED or REMOVED, DISABLED may transition to ACTIVE or REMOVED, and REMOVED is terminal. Own membership changes are blocked. Any membership holding TENANT_OWNER additionally requires tenant.roles.manage and the last active owner can never be deactivated or removed.",
+        "tags": ["Tenancy", "Authorization"],
+        "security": [
+          {
+            "sessionCookie": [],
+            "csrfHeader": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "tenantId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "membershipId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ChangeTenantMembershipStatusRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The membership is in the requested status. Repeating the current status is idempotent.",
+            "headers": {
+              "X-Request-ID": {
+                "$ref": "#/components/headers/RequestId"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TenantMembershipResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "404": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "409": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "422": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "default": {
+            "$ref": "#/components/responses/Problem"
+          }
+        }
+      }
+    },
+    "/api/v1/tenants/{tenantId}/memberships/{membershipId}/roles/{roleId}": {
+      "put": {
+        "operationId": "assignTenantRole",
+        "summary": "Assign a tenant role to an active membership",
+        "description": "Requires tenant.roles.assign. Assigning TENANT_OWNER additionally requires tenant.roles.manage. Repeating an existing assignment is idempotent.",
+        "tags": ["Authorization"],
+        "security": [
+          {
+            "sessionCookie": [],
+            "csrfHeader": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "tenantId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "membershipId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "roleId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "The tenant role is assigned."
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "404": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "409": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "default": {
+            "$ref": "#/components/responses/Problem"
+          }
+        }
+      },
+      "delete": {
+        "operationId": "unassignTenantRole",
+        "summary": "Remove a tenant role from a membership",
+        "description": "Requires tenant.roles.assign. Removing TENANT_OWNER additionally requires tenant.roles.manage and cannot remove the last active tenant owner. Repeating a missing assignment is idempotent.",
+        "tags": ["Authorization"],
+        "security": [
+          {
+            "sessionCookie": [],
+            "csrfHeader": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "tenantId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "membershipId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "roleId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "The tenant role is not assigned to the membership."
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "404": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "409": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "default": {
+            "$ref": "#/components/responses/Problem"
+          }
+        }
+      }
+    },
+    "/api/v1/health": {
+      "get": {
+        "operationId": "getHealth",
+        "summary": "Check API liveness",
+        "description": "Alias of the dedicated liveness endpoint. It does not check external dependencies.",
+        "tags": ["Health"],
+        "security": [],
+        "responses": {
+          "200": {
+            "$ref": "#/components/responses/Liveness"
+          },
+          "default": {
+            "$ref": "#/components/responses/Problem"
+          }
+        }
+      }
+    },
+    "/api/v1/health/live": {
+      "get": {
+        "operationId": "getLiveness",
+        "summary": "Check API liveness",
+        "tags": ["Health"],
+        "security": [],
+        "responses": {
+          "200": {
+            "$ref": "#/components/responses/Liveness"
+          },
+          "default": {
+            "$ref": "#/components/responses/Problem"
+          }
+        }
+      }
+    },
+    "/api/v1/health/ready": {
+      "get": {
+        "operationId": "getReadiness",
+        "summary": "Check API and PostgreSQL readiness",
+        "tags": ["Health"],
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "The API and all required dependencies are ready.",
+            "headers": {
+              "X-Request-ID": {
+                "$ref": "#/components/headers/RequestId"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Readiness"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "At least one required dependency is not ready.",
+            "headers": {
+              "X-Request-ID": {
+                "$ref": "#/components/headers/RequestId"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Readiness"
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/Problem"
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "sessionCookie": {
+        "type": "apiKey",
+        "in": "cookie",
+        "name": "sova_session",
+        "description": "Opaque server-session token. The cookie is HttpOnly."
+      },
+      "csrfHeader": {
+        "type": "apiKey",
+        "in": "header",
+        "name": "X-CSRF-Token",
+        "description": "Token copied from the readable sova_csrf cookie for unsafe requests."
+      }
+    },
+    "parameters": {
+      "AuditLimit": {
+        "name": "limit",
+        "in": "query",
+        "required": false,
+        "schema": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 100,
+          "default": 50
+        }
+      },
+      "AuditCursor": {
+        "name": "cursor",
+        "in": "query",
+        "required": false,
+        "description": "Opaque keyset cursor returned as next_cursor by the previous page.",
+        "schema": {
+          "type": "string",
+          "maxLength": 512
+        }
+      },
+      "AuditFrom": {
+        "name": "from",
+        "in": "query",
+        "required": false,
+        "schema": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "AuditTo": {
+        "name": "to",
+        "in": "query",
+        "required": false,
+        "schema": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "AuditActor": {
+        "name": "actor_user_id",
+        "in": "query",
+        "required": false,
+        "schema": {
+          "type": "string",
+          "format": "uuid"
+        }
+      },
+      "AuditEventType": {
+        "name": "event_type",
+        "in": "query",
+        "required": false,
+        "schema": {
+          "type": "string",
+          "pattern": "^[A-Z][A-Z0-9_]{0,63}$"
+        }
+      },
+      "AuditOutcome": {
+        "name": "outcome",
+        "in": "query",
+        "required": false,
+        "schema": {
+          "type": "string",
+          "enum": ["SUCCESS", "FAILURE"]
+        }
+      },
+      "AuditRequestId": {
+        "name": "request_id",
+        "in": "query",
+        "required": false,
+        "schema": {
+          "type": "string",
+          "minLength": 8,
+          "maxLength": 128,
+          "pattern": "^[A-Za-z0-9._-]+$"
+        }
+      }
+    },
+    "headers": {
+      "RequestId": {
+        "description": "Correlation identifier for the request.",
+        "schema": {
+          "type": "string",
+          "minLength": 8,
+          "maxLength": 128,
+          "pattern": "^[A-Za-z0-9._-]+$"
+        }
+      }
+    },
+    "responses": {
+      "Liveness": {
+        "description": "The API process is alive.",
+        "headers": {
+          "X-Request-ID": {
+            "$ref": "#/components/headers/RequestId"
+          }
+        },
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Liveness"
+            }
+          }
+        }
+      },
+      "Problem": {
+        "description": "A request error represented as RFC 9457 Problem Details.",
+        "headers": {
+          "X-Request-ID": {
+            "$ref": "#/components/headers/RequestId"
+          }
+        },
+        "content": {
+          "application/problem+json": {
+            "schema": {
+              "$ref": "#/components/schemas/ProblemDetails"
+            }
+          }
+        }
+      }
+    },
+    "schemas": {
+      "LoginRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["email", "password"],
+        "properties": {
+          "email": {
+            "type": "string",
+            "format": "email",
+            "maxLength": 254
+          },
+          "password": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 1024,
+            "writeOnly": true
+          }
+        }
+      },
+      "LoginResponse": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["user", "session"],
+        "properties": {
+          "user": {
+            "$ref": "#/components/schemas/AuthenticatedUser"
+          },
+          "session": {
+            "$ref": "#/components/schemas/CreatedSession"
+          }
+        }
+      },
+      "CurrentSessionResponse": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["user", "impersonation"],
+        "properties": {
+          "user": {
+            "$ref": "#/components/schemas/AuthenticatedUser"
+          },
+          "impersonation": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/ImpersonationContext"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        }
+      },
+      "StartImpersonationRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["tenant_id", "effective_user_id", "reason", "password"],
+        "properties": {
+          "tenant_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "effective_user_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "reason": {
+            "type": "string",
+            "minLength": 10,
+            "maxLength": 500
+          },
+          "password": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 1024,
+            "writeOnly": true
+          }
+        }
+      },
+      "StartImpersonationResponse": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["user", "impersonation"],
+        "properties": {
+          "user": {
+            "$ref": "#/components/schemas/AuthenticatedUser"
+          },
+          "impersonation": {
+            "$ref": "#/components/schemas/ImpersonationContext"
+          }
+        }
+      },
+      "ImpersonationContext": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "status",
+          "actor",
+          "effective_user",
+          "tenant",
+          "reason",
+          "reauthenticated_at",
+          "started_at",
+          "expires_at"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "status": {
+            "type": "string",
+            "enum": ["ACTIVE", "EXPIRED", "INVALIDATED"]
+          },
+          "actor": {
+            "$ref": "#/components/schemas/ImpersonationActor"
+          },
+          "effective_user": {
+            "$ref": "#/components/schemas/ImpersonationActor"
+          },
+          "tenant": {
+            "$ref": "#/components/schemas/ImpersonationTenant"
+          },
+          "reason": {
+            "type": "string",
+            "minLength": 10,
+            "maxLength": 500
+          },
+          "reauthenticated_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "started_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "expires_at": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "ImpersonationActor": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["id", "email", "display_name"],
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "email": {
+            "type": "string",
+            "format": "email"
+          },
+          "display_name": {
+            "type": "string"
+          }
+        }
+      },
+      "ImpersonationTenant": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["id", "name", "slug"],
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "name": {
+            "type": "string"
+          },
+          "slug": {
+            "type": "string"
+          }
+        }
+      },
+      "ForgotPasswordRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["email"],
+        "properties": {
+          "email": {
+            "type": "string",
+            "format": "email",
+            "maxLength": 254
+          }
+        }
+      },
+      "PasswordResetRequestAccepted": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["message"],
+        "properties": {
+          "message": {
+            "type": "string"
+          }
+        }
+      },
+      "ResetPasswordRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["token", "password", "password_confirmation"],
+        "properties": {
+          "token": {
+            "type": "string",
+            "minLength": 43,
+            "maxLength": 43,
+            "pattern": "^[A-Za-z0-9_-]{43}$",
+            "writeOnly": true
+          },
+          "password": {
+            "type": "string",
+            "minLength": 15,
+            "maxLength": 1024,
+            "writeOnly": true
+          },
+          "password_confirmation": {
+            "type": "string",
+            "minLength": 15,
+            "maxLength": 1024,
+            "writeOnly": true
+          }
+        }
+      },
+      "EmailVerificationRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["email"],
+        "properties": {
+          "email": {
+            "type": "string",
+            "format": "email",
+            "maxLength": 254
+          }
+        }
+      },
+      "EmailVerificationRequestAccepted": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["message"],
+        "properties": {
+          "message": {
+            "type": "string"
+          }
+        }
+      },
+      "VerifyEmailRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["token"],
+        "properties": {
+          "token": {
+            "type": "string",
+            "minLength": 43,
+            "maxLength": 43,
+            "pattern": "^[A-Za-z0-9_-]{43}$",
+            "writeOnly": true
+          }
+        }
+      },
+      "EmailVerificationResponse": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["status"],
+        "properties": {
+          "status": {
+            "type": "string",
+            "enum": ["VERIFIED", "ALREADY_VERIFIED"]
+          }
+        }
+      },
+      "InvitationTokenRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["token"],
+        "properties": {
+          "token": {
+            "type": "string",
+            "minLength": 43,
+            "maxLength": 43,
+            "pattern": "^[A-Za-z0-9_-]{43}$",
+            "writeOnly": true
+          }
+        }
+      },
+      "InvitationPreviewResponse": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["invitation"],
+        "properties": {
+          "invitation": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "tenant_name",
+              "tenant_slug",
+              "email",
+              "invited_by_display_name",
+              "expires_at"
+            ],
+            "properties": {
+              "tenant_name": {
+                "type": "string"
+              },
+              "tenant_slug": {
+                "type": "string"
+              },
+              "email": {
+                "type": "string",
+                "format": "email"
+              },
+              "invited_by_display_name": {
+                "type": "string"
+              },
+              "expires_at": {
+                "type": "string",
+                "format": "date-time"
+              }
+            }
+          }
+        }
+      },
+      "AcceptNewAccountInvitationRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "token",
+          "display_name",
+          "password",
+          "password_confirmation"
+        ],
+        "properties": {
+          "token": {
+            "type": "string",
+            "minLength": 43,
+            "maxLength": 43,
+            "pattern": "^[A-Za-z0-9_-]{43}$",
+            "writeOnly": true
+          },
+          "display_name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 160
+          },
+          "preferred_locale": {
+            "type": "string",
+            "default": "sk",
+            "enum": ["sk", "cs", "en", "de", "pl", "hu"]
+          },
+          "password": {
+            "type": "string",
+            "minLength": 15,
+            "maxLength": 1024,
+            "writeOnly": true
+          },
+          "password_confirmation": {
+            "type": "string",
+            "minLength": 15,
+            "maxLength": 1024,
+            "writeOnly": true
+          }
+        }
+      },
+      "InvitationAcceptanceResponse": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "user_id",
+          "tenant_id",
+          "tenant_slug",
+          "membership_created"
+        ],
+        "properties": {
+          "user_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "tenant_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "tenant_slug": {
+            "type": "string"
+          },
+          "membership_created": {
+            "type": "boolean"
+          }
+        }
+      },
+      "CreateInvitationRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["email"],
+        "properties": {
+          "email": {
+            "type": "string",
+            "format": "email",
+            "maxLength": 254
+          }
+        }
+      },
+      "CreatedInvitationResponse": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["invitation"],
+        "properties": {
+          "invitation": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["id", "tenant_id", "email", "status", "expires_at"],
+            "properties": {
+              "id": {
+                "type": "string",
+                "format": "uuid"
+              },
+              "tenant_id": {
+                "type": "string",
+                "format": "uuid"
+              },
+              "email": {
+                "type": "string",
+                "format": "email"
+              },
+              "status": {
+                "type": "string",
+                "const": "PENDING"
+              },
+              "expires_at": {
+                "type": "string",
+                "format": "date-time"
+              }
+            }
+          }
+        }
+      },
+      "AuthenticatedUser": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "email",
+          "display_name",
+          "preferred_locale",
+          "is_superadmin"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "email": {
+            "type": "string",
+            "format": "email"
+          },
+          "display_name": {
+            "type": "string"
+          },
+          "preferred_locale": {
+            "type": "string",
+            "enum": ["sk", "cs", "en", "de", "pl", "hu"]
+          },
+          "is_superadmin": {
+            "type": "boolean",
+            "description": "True only when the user currently holds the separate SUPERADMIN system role."
+          }
+        }
+      },
+      "CreatedSession": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["id", "expires_at"],
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "expires_at": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "SessionList": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["sessions"],
+        "properties": {
+          "sessions": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Session"
+            }
+          }
+        }
+      },
+      "Session": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "ip_address",
+          "user_agent",
+          "created_at",
+          "last_seen_at",
+          "expires_at",
+          "current"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "ip_address": {
+            "type": ["string", "null"]
+          },
+          "user_agent": {
+            "type": ["string", "null"]
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "last_seen_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "expires_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "current": {
+            "type": "boolean"
+          }
+        }
+      },
+      "TenantList": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["tenants"],
+        "properties": {
+          "tenants": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AccessibleTenant"
+            }
+          }
+        }
+      },
+      "TenantResponse": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["tenant"],
+        "properties": {
+          "tenant": {
+            "$ref": "#/components/schemas/AccessibleTenant"
+          }
+        }
+      },
+      "CreateSystemTenantRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["name", "slug", "owner_email"],
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200
+          },
+          "slug": {
+            "type": "string",
+            "pattern": "^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$"
+          },
+          "owner_email": {
+            "type": "string",
+            "format": "email",
+            "maxLength": 254
+          }
+        }
+      },
+      "CreateSystemTenantResponse": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["tenant", "owner_invitation", "replayed"],
+        "properties": {
+          "tenant": {
+            "$ref": "#/components/schemas/SystemTenant"
+          },
+          "owner_invitation": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["email", "status"],
+            "properties": {
+              "email": {
+                "type": "string",
+                "format": "email"
+              },
+              "status": {
+                "type": "string",
+                "const": "PENDING"
+              }
+            }
+          },
+          "replayed": {
+            "type": "boolean"
+          }
+        }
+      },
+      "ChangeSystemTenantStatusRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["status", "revision", "reason"],
+        "properties": {
+          "status": {
+            "type": "string",
+            "enum": [
+              "PENDING",
+              "ACTIVE",
+              "SUSPENDED",
+              "ARCHIVED",
+              "DELETION_PENDING"
+            ]
+          },
+          "revision": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "reason": {
+            "type": "string",
+            "minLength": 10,
+            "maxLength": 500
+          }
+        }
+      },
+      "SystemTenantList": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["tenants"],
+        "properties": {
+          "tenants": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/SystemTenant"
+            }
+          }
+        }
+      },
+      "SystemTenantResponse": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["tenant"],
+        "properties": {
+          "tenant": {
+            "$ref": "#/components/schemas/SystemTenant"
+          }
+        }
+      },
+      "SystemTenant": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "name",
+          "slug",
+          "status",
+          "revision",
+          "owner_email",
+          "active_member_count",
+          "created_at",
+          "updated_at",
+          "deletion_effective_at"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "name": {
+            "type": "string"
+          },
+          "slug": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "PENDING",
+              "ACTIVE",
+              "SUSPENDED",
+              "ARCHIVED",
+              "DELETION_PENDING"
+            ]
+          },
+          "revision": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "owner_email": {
+            "type": ["string", "null"],
+            "format": "email"
+          },
+          "active_member_count": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "deletion_effective_at": {
+            "type": ["string", "null"],
+            "format": "date-time"
+          }
+        }
+      },
+      "ChangeSystemUserStatusRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["status"],
+        "properties": {
+          "status": {
+            "type": "string",
+            "enum": ["ACTIVE", "DISABLED"]
+          }
+        }
+      },
+      "SystemUserList": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["users"],
+        "properties": {
+          "users": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/SystemUser"
+            }
+          }
+        }
+      },
+      "SystemUserResponse": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["user"],
+        "properties": {
+          "user": {
+            "$ref": "#/components/schemas/SystemUser"
+          }
+        }
+      },
+      "SystemUser": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "email",
+          "display_name",
+          "status",
+          "preferred_locale",
+          "email_verified_at",
+          "failed_login_count",
+          "locked_until",
+          "is_superadmin",
+          "created_at",
+          "updated_at"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "email": {
+            "type": "string",
+            "format": "email"
+          },
+          "display_name": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "PENDING_VERIFICATION",
+              "ACTIVE",
+              "LOCKED",
+              "DISABLED",
+              "EXPIRED",
+              "DELETED"
+            ]
+          },
+          "preferred_locale": {
+            "type": "string",
+            "enum": ["sk", "cs", "en", "de", "pl", "hu"]
+          },
+          "email_verified_at": {
+            "type": ["string", "null"],
+            "format": "date-time"
+          },
+          "failed_login_count": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "locked_until": {
+            "type": ["string", "null"],
+            "format": "date-time"
+          },
+          "is_superadmin": {
+            "type": "boolean"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "CreateWorkgroupRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["name"],
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 160
+          },
+          "description": {
+            "type": "string",
+            "maxLength": 500,
+            "default": ""
+          }
+        }
+      },
+      "ChangeWorkgroupStatusRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["status"],
+        "properties": {
+          "status": {
+            "type": "string",
+            "enum": ["ACTIVE", "ARCHIVED"]
+          }
+        }
+      },
+      "WorkgroupList": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["workgroups"],
+        "properties": {
+          "workgroups": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Workgroup"
+            }
+          }
+        }
+      },
+      "WorkgroupResponse": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["workgroup"],
+        "properties": {
+          "workgroup": {
+            "$ref": "#/components/schemas/Workgroup"
+          }
+        }
+      },
+      "Workgroup": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "tenant_id",
+          "name",
+          "description",
+          "status",
+          "member_count",
+          "created_at",
+          "updated_at"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "tenant_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "name": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string",
+            "enum": ["ACTIVE", "ARCHIVED"]
+          },
+          "member_count": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "UpsertWorkgroupMemberRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["role"],
+        "properties": {
+          "role": {
+            "type": "string",
+            "enum": ["MEMBER", "MANAGER"]
+          }
+        }
+      },
+      "WorkgroupMemberList": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["members"],
+        "properties": {
+          "members": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/WorkgroupMember"
+            }
+          }
+        }
+      },
+      "WorkgroupMemberResponse": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["member"],
+        "properties": {
+          "member": {
+            "$ref": "#/components/schemas/WorkgroupMember"
+          }
+        }
+      },
+      "WorkgroupMember": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["membership_id", "user", "role", "joined_at"],
+        "properties": {
+          "membership_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "user": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["id", "email", "display_name"],
+            "properties": {
+              "id": {
+                "type": "string",
+                "format": "uuid"
+              },
+              "email": {
+                "type": "string",
+                "format": "email"
+              },
+              "display_name": {
+                "type": "string"
+              }
+            }
+          },
+          "role": {
+            "type": "string",
+            "enum": ["MEMBER", "MANAGER"]
+          },
+          "joined_at": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "SecurityAuditPage": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["events", "next_cursor"],
+        "properties": {
+          "events": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/SecurityAuditEvent"
+            }
+          },
+          "next_cursor": {
+            "type": ["string", "null"],
+            "description": "Opaque keyset cursor for the next page, or null at the end."
+          }
+        }
+      },
+      "SecurityAuditEvent": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "actor",
+          "effective_user",
+          "tenant",
+          "event_type",
+          "outcome",
+          "reason_code",
+          "request_id",
+          "ip_address",
+          "metadata",
+          "occurred_at"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "actor": {
+            "$ref": "#/components/schemas/SecurityAuditActor"
+          },
+          "effective_user": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/SecurityAuditActor"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "tenant": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/SecurityAuditTenant"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "event_type": {
+            "type": "string",
+            "pattern": "^[A-Z][A-Z0-9_]*$"
+          },
+          "outcome": {
+            "type": "string",
+            "enum": ["SUCCESS", "FAILURE"]
+          },
+          "reason_code": {
+            "type": "string",
+            "pattern": "^[A-Z][A-Z0-9_]*$"
+          },
+          "request_id": {
+            "type": "string"
+          },
+          "ip_address": {
+            "type": ["string", "null"],
+            "format": "ip"
+          },
+          "metadata": {
+            "type": "object",
+            "additionalProperties": {
+              "type": ["boolean", "integer", "string", "null"]
+            }
+          },
+          "occurred_at": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "SecurityAuditActor": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["id", "email", "display_name"],
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "email": {
+            "type": "string",
+            "format": "email"
+          },
+          "display_name": {
+            "type": "string"
+          }
+        }
+      },
+      "SecurityAuditTenant": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["id", "name", "slug"],
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "name": {
+            "type": "string"
+          },
+          "slug": {
+            "type": "string"
+          }
+        }
+      },
+      "AccessibleTenant": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["id", "name", "slug", "status", "access"],
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+          },
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200
+          },
+          "slug": {
+            "type": "string",
+            "pattern": "^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?$"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "PENDING",
+              "ACTIVE",
+              "SUSPENDED",
+              "ARCHIVED",
+              "DELETION_PENDING"
+            ]
+          },
+          "access": {
+            "$ref": "#/components/schemas/TenantAccess"
+          }
+        }
+      },
+      "TenantAccess": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["type", "membership_id"],
+        "properties": {
+          "type": {
+            "type": "string",
+            "enum": ["MEMBERSHIP", "SUPERADMIN"]
+          },
+          "membership_id": {
+            "type": ["string", "null"],
+            "format": "uuid",
+            "description": "Active membership identifier, or null when access is granted by SUPERADMIN."
+          }
+        }
+      },
+      "TenantRoleList": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["roles", "permissions"],
+        "properties": {
+          "roles": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/TenantRole"
+            }
+          },
+          "permissions": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/TenantPermissionDefinition"
+            }
+          }
+        }
+      },
+      "CreateTenantRoleRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["code", "name", "permissions"],
+        "properties": {
+          "code": {
+            "type": "string",
+            "minLength": 2,
+            "maxLength": 64,
+            "pattern": "^[A-Z][A-Z0-9_]{1,63}$",
+            "description": "Stable tenant-local role identifier. It cannot be changed or reused after archival."
+          },
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 160
+          },
+          "description": {
+            "type": "string",
+            "maxLength": 500,
+            "default": ""
+          },
+          "permissions": {
+            "type": "array",
+            "uniqueItems": true,
+            "description": "Complete set of non-system permission codes, including every declared dependency.",
+            "items": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "UpdateTenantRoleRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["name", "description", "permissions", "revision"],
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 160
+          },
+          "description": {
+            "type": "string",
+            "maxLength": 500
+          },
+          "permissions": {
+            "type": "array",
+            "uniqueItems": true,
+            "description": "Complete replacement set of non-system permission codes, including every declared dependency.",
+            "items": {
+              "type": "string"
+            }
+          },
+          "revision": {
+            "type": "integer",
+            "minimum": 1,
+            "description": "Revision returned by the most recent role read."
+          }
+        }
+      },
+      "TenantRoleResponse": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["role"],
+        "properties": {
+          "role": {
+            "$ref": "#/components/schemas/TenantRole"
+          }
+        }
+      },
+      "TenantRole": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "code",
+          "name",
+          "description",
+          "status",
+          "is_system",
+          "is_editable",
+          "revision",
+          "permissions",
+          "assignment_count"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "code": {
+            "type": "string",
+            "pattern": "^[A-Z][A-Z0-9_]{1,63}$"
+          },
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 160
+          },
+          "description": {
+            "type": "string",
+            "maxLength": 500
+          },
+          "status": {
+            "type": "string",
+            "enum": ["ACTIVE", "ARCHIVED"]
+          },
+          "is_system": {
+            "type": "boolean"
+          },
+          "is_editable": {
+            "type": "boolean"
+          },
+          "revision": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "permissions": {
+            "type": "array",
+            "uniqueItems": true,
+            "items": {
+              "type": "string"
+            }
+          },
+          "assignment_count": {
+            "type": "integer",
+            "minimum": 0
+          }
+        }
+      },
+      "TenantPermissionDefinition": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "code",
+          "scope",
+          "label",
+          "description",
+          "sensitive",
+          "dependencies"
+        ],
+        "properties": {
+          "code": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9-]*(\\.[a-z][a-z0-9-]*)+$"
+          },
+          "scope": {
+            "type": "string",
+            "enum": ["TENANT", "PROJECT", "WORKGROUP"]
+          },
+          "label": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          },
+          "sensitive": {
+            "type": "boolean"
+          },
+          "dependencies": {
+            "type": "array",
+            "uniqueItems": true,
+            "items": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "ChangeTenantMembershipStatusRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["status"],
+        "properties": {
+          "status": {
+            "type": "string",
+            "enum": ["ACTIVE", "DISABLED", "REMOVED"]
+          }
+        }
+      },
+      "TenantMembershipList": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["memberships"],
+        "properties": {
+          "memberships": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/TenantMembership"
+            }
+          }
+        }
+      },
+      "TenantMembershipResponse": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["membership"],
+        "properties": {
+          "membership": {
+            "$ref": "#/components/schemas/TenantMembership"
+          }
+        }
+      },
+      "TenantMembership": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["id", "user", "status", "joined_at", "roles"],
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "user": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["id", "email", "display_name"],
+            "properties": {
+              "id": {
+                "type": "string",
+                "format": "uuid"
+              },
+              "email": {
+                "type": "string",
+                "format": "email"
+              },
+              "display_name": {
+                "type": "string"
+              }
+            }
+          },
+          "status": {
+            "type": "string",
+            "enum": ["ACTIVE", "DISABLED", "REMOVED"]
+          },
+          "joined_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "roles": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/TenantMembershipRole"
+            }
+          }
+        }
+      },
+      "TenantMembershipRole": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["id", "code", "name", "status"],
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "code": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string",
+            "enum": ["ACTIVE", "ARCHIVED"]
+          }
+        }
+      },
+      "ApiInfo": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["name", "version", "api_version"],
+        "properties": {
+          "name": {
+            "type": "string",
+            "examples": ["SOVA API"]
+          },
+          "version": {
+            "type": "string",
+            "examples": ["dev"]
+          },
+          "api_version": {
+            "type": "string",
+            "const": "v1"
+          }
+        }
+      },
+      "Liveness": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["status", "service", "version"],
+        "properties": {
+          "status": {
+            "type": "string",
+            "const": "ok"
+          },
+          "service": {
+            "type": "string"
+          },
+          "version": {
+            "type": "string"
+          }
+        }
+      },
+      "Readiness": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["status", "checks"],
+        "properties": {
+          "status": {
+            "type": "string",
+            "enum": ["ready", "not_ready"]
+          },
+          "checks": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["database"],
+            "properties": {
+              "database": {
+                "type": "string",
+                "enum": ["ok", "failed"]
+              }
+            }
+          }
+        }
+      },
+      "ProblemDetails": {
+        "type": "object",
+        "additionalProperties": true,
+        "required": [
+          "type",
+          "title",
+          "status",
+          "detail",
+          "instance",
+          "request_id",
+          "code"
+        ],
+        "properties": {
+          "type": {
+            "type": "string",
+            "format": "uri-reference",
+            "pattern": "^urn:sova:problem:[a-z][a-z0-9-]*$",
+            "examples": ["urn:sova:problem:validation-failed"]
+          },
+          "title": {
+            "type": "string"
+          },
+          "status": {
+            "type": "integer",
+            "minimum": 400,
+            "maximum": 599
+          },
+          "detail": {
+            "type": "string"
+          },
+          "instance": {
+            "type": "string"
+          },
+          "request_id": {
+            "type": "string",
+            "description": "Correlation identifier matching the X-Request-ID header."
+          },
+          "code": {
+            "type": "string",
+            "description": "Stable machine-readable generic or domain error code.",
+            "pattern": "^[A-Z][A-Z0-9_]*$",
+            "examples": ["VALIDATION_FAILED"]
+          },
+          "errors": {
+            "type": "object",
+            "description": "Optional field error map for validation problems.",
+            "minProperties": 1,
+            "additionalProperties": {
+              "type": "array",
+              "minItems": 1,
+              "items": {
+                "type": "string"
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

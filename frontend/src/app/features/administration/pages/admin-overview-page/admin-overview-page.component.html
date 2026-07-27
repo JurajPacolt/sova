@@ -11,9 +11,15 @@
         <div class="card-body">
           <h2 class="h5">{{ section.titleKey | translate }}</h2>
           <p class="text-body-secondary">{{ section.descriptionKey | translate }}</p>
-          <button class="btn btn-sm btn-outline-primary" type="button">
-            {{ 'admin.open' | translate }}
-          </button>
+          @if (section.path === null) {
+            <button class="btn btn-sm btn-outline-primary" type="button" disabled>
+              {{ 'admin.comingSoon' | translate }}
+            </button>
+          } @else {
+            <a class="btn btn-sm btn-outline-primary" [routerLink]="[section.path]">
+              {{ 'admin.open' | translate }}
+            </a>
+          }
         </div>
       </article>
     </div>

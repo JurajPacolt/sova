@@ -1,0 +1,66 @@
+<a class="visually-hidden-focusable skip-link" href="#system-main-content">
+  {{ 'nav.skipToContent' | translate }}
+</a>
+
+<div class="system-shell">
+  <header class="system-shell__header navbar navbar-dark sticky-top px-3">
+    <a class="navbar-brand fw-bold" routerLink="/system/tenants">SOVA · SYSTEM</a>
+
+    <div class="d-flex align-items-center gap-3 text-white">
+      <app-language-switcher />
+      <app-theme-switcher />
+      <span class="d-none d-md-inline">{{ session.user()?.display_name }}</span>
+      <button
+        class="btn btn-sm btn-outline-light"
+        type="button"
+        [disabled]="loggingOut()"
+        (click)="logout()"
+      >
+        @if (loggingOut()) {
+          {{ 'auth.loggingOut' | translate }}
+        } @else {
+          {{ 'auth.logout' | translate }}
+        }
+      </button>
+    </div>
+  </header>
+
+  <div class="system-shell__body">
+    <aside class="system-sidebar border-end">
+      <div class="p-3 border-bottom">
+        <strong class="d-block">{{ 'system.contextTitle' | translate }}</strong>
+        <span class="text-body-secondary small">{{ 'system.contextSubtitle' | translate }}</span>
+      </div>
+
+      <nav class="nav nav-pills flex-column gap-1 p-3" [attr.aria-label]="'nav.main' | translate">
+        <a class="nav-link" routerLink="/system/tenants" routerLinkActive="active">
+          {{ 'system.tenantsTitle' | translate }}
+        </a>
+        <a class="nav-link" routerLink="/system/audit" routerLinkActive="active">
+          {{ 'audit.title' | translate }}
+        </a>
+        <a class="nav-link" routerLink="/system/users" routerLinkActive="active">
+          {{ 'systemUsers.title' | translate }}
+        </a>
+        <a class="nav-link" routerLink="/select-tenant">
+          {{ 'system.tenantContexts' | translate }}
+        </a>
+      </nav>
+    </aside>
+
+    <main id="system-main-content" class="system-content" tabindex="-1">
+      <div class="alert alert-warning d-flex gap-2" role="status">
+        <strong>{{ 'system.warningTitle' | translate }}</strong>
+        <span>{{ 'system.warningText' | translate }}</span>
+      </div>
+
+      @if (logoutError()) {
+        <div class="alert alert-danger" role="alert">
+          {{ 'auth.logoutError' | translate }}
+        </div>
+      }
+
+      <router-outlet />
+    </main>
+  </div>
+</div>

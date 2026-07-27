@@ -2,13 +2,13 @@
 
 > Multitenantný systém na evidenciu a riadenie úloh, chýb a požiadaviek
 
-| Vlastnosť | Hodnota |
-|---|---|
-| Stav dokumentu | Návrh na diskusiu |
-| Zdroj | `zadanie.txt` |
-| Backend | PHP 8.3–8.4, Slim 4, REST API |
-| Frontend | Angular 22, Bootstrap 5 |
-| Typ systému | Multitenantná webová aplikácia |
+| Vlastnosť      | Hodnota                                                          |
+| -------------- | ---------------------------------------------------------------- |
+| Stav dokumentu | Návrh na diskusiu                                                |
+| Zdroj          | `zadanie.txt`                                                    |
+| Backend        | PHP 8.3–8.4, Slim 4, REST API                                    |
+| Frontend       | Angular 22, Bootstrap 5                                          |
+| Typ systému    | Multitenantná webová aplikácia                                   |
 | Hlavné oblasti | Issue tracking, task management, pracovné skupiny, administrácia |
 
 Podrobná informačná architektúra, navigácia a používateľské toky sú rozpracované v
@@ -90,20 +90,20 @@ editor však patrí do jadra.
 
 ## 4. Terminológia a doménová hierarchia
 
-| Pojem | Význam |
-|---|---|
-| Systém | Celá inštalácia SOVA vrátane všetkých tenantov |
-| Tenant | Samostatná organizácia alebo zákazník |
-| Používateľ | Globálna identita, ktorá môže patriť do viacerých tenantov |
-| Členstvo | Väzba používateľa na konkrétneho tenanta |
-| Rola | Pomenovaná sada oprávnení v určitom rozsahu |
-| Pracovná skupina | Skupina členov tenantu, napríklad Backend alebo QA |
-| Projekt | Priestor tenantu, v ktorom sa evidujú úlohy |
-| Úloha/issue | Evidovaná práca, chyba, príbeh alebo požiadavka |
-| Typ úlohy | Projektová klasifikácia a hierarchická úroveň úlohy |
-| Workflow | Projektová, verzovaná definícia stavov a povolených prechodov |
-| Workflow šablóna | Vzor kopírovaný pri vytvorení projektu bez živej väzby |
-| Audit | Nemenná evidencia bezpečnostne a funkčne významných operácií |
+| Pojem            | Význam                                                        |
+| ---------------- | ------------------------------------------------------------- |
+| Systém           | Celá inštalácia SOVA vrátane všetkých tenantov                |
+| Tenant           | Samostatná organizácia alebo zákazník                         |
+| Používateľ       | Globálna identita, ktorá môže patriť do viacerých tenantov    |
+| Členstvo         | Väzba používateľa na konkrétneho tenanta                      |
+| Rola             | Pomenovaná sada oprávnení v určitom rozsahu                   |
+| Pracovná skupina | Skupina členov tenantu, napríklad Backend alebo QA            |
+| Projekt          | Priestor tenantu, v ktorom sa evidujú úlohy                   |
+| Úloha/issue      | Evidovaná práca, chyba, príbeh alebo požiadavka               |
+| Typ úlohy        | Projektová klasifikácia a hierarchická úroveň úlohy           |
+| Workflow         | Projektová, verzovaná definícia stavov a povolených prechodov |
+| Workflow šablóna | Vzor kopírovaný pri vytvorení projektu bez živej väzby        |
+| Audit            | Nemenná evidencia bezpečnostne a funkčne významných operácií  |
 
 ```mermaid
 flowchart TD
@@ -140,6 +140,10 @@ flowchart TD
 - Publikovaná verzia workflow je nemenná; zmena sa publikuje ako nová verzia.
 - Člen skupiny musí byť aktívnym členom rovnakého tenantu.
 - Používateľ alebo skupina priradená k projektu musí patriť rovnakému tenantovi.
+- Pracovná skupina priradená k projektu je nositeľom projektového prístupu svojich
+  aktívnych členov.
+- Úloha môže mať súčasne konkrétneho riešiteľa aj zodpovednú pracovnú skupinu;
+  obe väzby sú nezávisle voliteľné.
 - Väzba medzi úlohami nesmie v prvej verzii prepájať rozdielnych tenantov.
 - Každý tenant musí mať aspoň jedného aktívneho vlastníka.
 - `SUPERADMIN` je systémová rola, nie tenantová rola.
@@ -148,16 +152,16 @@ flowchart TD
 
 ### 5.1 Navrhované systémové a predvolené roly
 
-| Rola | Rozsah | Hlavná zodpovednosť |
-|---|---|---|
-| `SUPERADMIN` | Systém | Tenanti, globálne nastavenia, systémový audit |
-| `TENANT_OWNER` | Tenant | Úplná zodpovednosť za jeden tenant |
-| `TENANT_ADMIN` | Tenant | Členovia, skupiny, projekty a tenantové nastavenia |
-| `PROJECT_MANAGER` | Projekt | Nastavenie projektu, členovia, workflow a úlohy |
-| `GROUP_MANAGER` | Skupina | Správa členov pracovnej skupiny |
-| `MEMBER` | Tenant/projekt | Bežná práca s úlohami |
-| `REPORTER` | Projekt | Vytváranie a sledovanie požiadaviek |
-| `VIEWER` | Tenant/projekt | Prístup iba na čítanie |
+| Rola              | Rozsah         | Hlavná zodpovednosť                                                         |
+| ----------------- | -------------- | --------------------------------------------------------------------------- |
+| `SUPERADMIN`      | Systém         | Úplný prístup ku všetkým tenantom, obsahu, nastaveniam a systémovému auditu |
+| `TENANT_OWNER`    | Tenant         | Úplná zodpovednosť za jeden tenant                                          |
+| `TENANT_ADMIN`    | Tenant         | Členovia, skupiny, projekty a tenantové nastavenia                          |
+| `PROJECT_MANAGER` | Projekt        | Nastavenie projektu, členovia, workflow a úlohy                             |
+| `GROUP_MANAGER`   | Skupina        | Správa členov pracovnej skupiny                                             |
+| `MEMBER`          | Tenant/projekt | Bežná práca s úlohami                                                       |
+| `REPORTER`        | Projekt        | Vytváranie a sledovanie požiadaviek                                         |
+| `VIEWER`          | Tenant/projekt | Prístup iba na čítanie                                                      |
 
 ```mermaid
 flowchart TB
@@ -234,15 +238,19 @@ Odporúčania pre prvú verziu:
 
 ### 5.3 Špeciálne pravidlá pre SUPERADMIN
 
-`SUPERADMIN` môže spravovať tenantov a globálne nastavenia, ale jeho prístup do
-tenantového obsahu musí byť kontrolovaný:
+`SUPERADMIN` má úplné oprávnenie spravovať všetky tenanty a čítať alebo meniť ich
+obsah bez tenantového členstva. Táto právomoc je kontrolovaná prevádzkovými
+ochranami, nie zúžením rozsahu roly:
 
-- bežná systémová administrácia nemá automaticky zobrazovať obsah úloh,
+- systémová administrácia nemá potichu agregovať obsah úloh všetkých tenantov,
 - vstup do tenantového kontextu musí byť explicitný,
-- impersonácia používateľa musí vyžadovať dôvod,
-- začiatok a koniec impersonácie sa auditujú,
+- každý vstup a privilegovaná operácia sa auditujú,
+- impersonácia je súčasťou MVP a vyžaduje cieľ, tenant, dôvod a maximálne
+  15-minútový kontext,
+- začiatok, akcie a koniec impersonácie auditujú skutočného aj efektívneho aktéra,
 - používateľ musí na obrazovke jasne vidieť, že impersonácia prebieha,
-- citlivé operácie môžu vyžadovať opätovné overenie hesla alebo MFA.
+- pred produkciou je pre `SUPERADMIN` povinné MFA a citlivé operácie vyžadujú
+  čerstvé opätovné overenie.
 
 ## 6. Funkčné moduly
 
@@ -250,7 +258,7 @@ tenantového obsahu musí byť kontrolovaný:
 
 Modul zabezpečí:
 
-- vytvorenie používateľského účtu,
+- vytvorenie používateľského účtu iba prijatím platnej pozvánky,
 - overenie e-mailovej adresy,
 - prihlásenie a odhlásenie,
 - obnovu zabudnutého hesla,
@@ -271,6 +279,9 @@ Pre webovú Angular aplikáciu sa odporúča:
 - serverová evidencia a revokácia relácií,
 - CSRF ochrana pri stav meniacich požiadavkách,
 - nepoužívať `localStorage` na dlhodobé autentifikačné tokeny.
+
+Verejná registrácia ani anonymné vytvorenie tenantu neexistujú. Tenant vytvorí
+`SUPERADMIN` a prvý aj ďalší používateľ vstupujú cez jednorazovú pozvánku.
 
 #### 6.1.1 Stav účtu
 
@@ -321,6 +332,10 @@ audit a jasne definovanú politiku záloh.
 
 ### 6.3 Členstvá a pozvánky
 
+Pozvánka je jediný registračný vstup pre nový účet aj jediný spôsob pripojenia
+existujúceho používateľa k ďalšiemu tenantovi. Verejná route `register` sa
+neimplementuje.
+
 Tenantový administrátor bude môcť:
 
 - pozvať používateľa e-mailom,
@@ -349,7 +364,7 @@ Pracovná skupina obsahuje:
 - členov,
 - zoznam priradených projektov.
 
-Skupina môže byť:
+Skupina je:
 
 - nositeľom prístupu k projektu,
 - predvoleným vlastníkom alebo riešiteľským tímom úlohy,
@@ -412,25 +427,35 @@ Predvolené priority:
 
 Základné polia úlohy:
 
-| Pole | Popis |
-|---|---|
-| ID | Interný UUID identifikátor |
-| Kód | Čitateľný identifikátor, napríklad `SOVA-123` |
-| Projekt | Projekt, do ktorého úloha patrí |
-| Typ | Projektový typ, napríklad task, bug, story, epic alebo sub-task |
-| Názov | Stručné pomenovanie |
-| Opis | Formátovaný podrobný obsah |
-| Stav | Aktuálny stav workflow |
-| Priorita | Dôležitosť úlohy |
-| Autor | Používateľ, ktorý úlohu vytvoril |
-| Riešiteľ | Konkrétny zodpovedný používateľ |
-| Skupina | Zodpovedná pracovná skupina |
-| Nadradená úloha | Voliteľná hierarchická väzba |
-| Termín | Voliteľný dátum dokončenia |
-| Odhad | Voliteľný odhad práce |
-| Štítky | Jednoduchá kategorizácia |
-| Verzia | Hodnota na detekciu súbežných zmien |
-| Časy | Vytvorenie, úprava, vyriešenie a uzavretie |
+| Pole            | Popis                                                           |
+| --------------- | --------------------------------------------------------------- |
+| ID              | Interný UUID identifikátor                                      |
+| Kód             | Čitateľný identifikátor, napríklad `SOVA-123`                   |
+| Projekt         | Projekt, do ktorého úloha patrí                                 |
+| Typ             | Projektový typ, napríklad task, bug, story, epic alebo sub-task |
+| Názov           | Stručné pomenovanie                                             |
+| Opis            | CommonMark Markdown bez raw HTML                                |
+| Stav            | Aktuálny stav workflow                                          |
+| Priorita        | Dôležitosť úlohy                                                |
+| Autor           | Používateľ, ktorý úlohu vytvoril                                |
+| Riešiteľ        | Konkrétny zodpovedný používateľ                                 |
+| Skupina         | Zodpovedná pracovná skupina                                     |
+| Nadradená úloha | Voliteľná hierarchická väzba                                    |
+| Termín          | Voliteľný dátum dokončenia                                      |
+| Odhad           | Voliteľný odhad práce                                           |
+| Štítky          | Jednoduchá kategorizácia                                        |
+| Verzia          | Hodnota na detekciu súbežných zmien                             |
+| Časy            | Vytvorenie, úprava, vyriešenie a uzavretie                      |
+
+Opis aj komentáre sa ukladajú ako pôvodný CommonMark Markdown text. Raw HTML je
+zakázané. Server alebo dôveryhodná prezentačná vrstva renderuje iba povolený subset,
+výsledok sanitizuje allowlistom a odkazy bezpečne dopĺňa o potrebné atribúty.
+Zmienky a issue odkazy sú validované štruktúrované referencie a nesmú obísť
+oprávnenia.
+
+`assignee_id` a `workgroup_id` sú nezávisle nullable. Úloha teda môže byť pridelená
+iba používateľovi, iba skupine, obom súčasne alebo dočasne nikomu. Obe priradenia
+musia patriť do rovnakého tenantu a mať prístup k projektu.
 
 #### 6.6.1 Predvolené workflow
 
@@ -483,8 +508,10 @@ novšie dáta.
 
 ### 6.7 Komentáre, zmienky a história
 
-Komentár obsahuje autora, text, čas vytvorenia a úpravy. Bežný používateľ môže upraviť
-vlastný komentár v definovanom časovom okne; moderátor podľa osobitného oprávnenia.
+Komentár obsahuje autora, CommonMark Markdown source text, čas vytvorenia a úpravy.
+Raw HTML nie je povolené a renderovaný výstup sa sanitizuje rovnakou politikou ako
+opis úlohy. Bežný používateľ môže upraviť vlastný komentár v definovanom časovom
+okne; moderátor podľa osobitného oprávnenia.
 
 História úlohy zachytáva minimálne:
 
@@ -518,6 +545,19 @@ Obsah príloh sa nemá ukladať priamo do relačnej databázy. Databáza uloží
 
 Súbory majú byť v privátnom objektovom úložisku. Stiahnutie musí prejsť autorizáciou
 alebo použiť krátkodobú podpísanú URL.
+
+Záväzný MVP kontrakt:
+
+- najviac 25 MiB na súbor, jeden súbor na request, 20 aktívnych príloh na úlohu a
+  predvolená tenantová kvóta 20 GiB,
+- allowlist PNG, JPEG, WebP, PDF, UTF-8 text, CSV, DOCX, XLSX a PPTX,
+- zákaz spustiteľných súborov, skriptov, HTML, SVG, všeobecných archívov a
+  neznámych typov,
+- kontrola veľkosti, prípony, MIME aj signature, interne generovaný názov,
+- privátna karanténa a malware sken pred sprístupnením,
+- podpísaná URL platná najviac 5 minút a nová autorizácia pri každom downloade,
+- zamietnutý obsah sa odstráni do 24 hodín; bežne odstránená príloha po 30 dňoch,
+  ak neplatí legal hold.
 
 ### 6.9 Väzby medzi úlohami
 
@@ -863,18 +903,18 @@ POST   /api/v1/tenants/{tenantId}/issues/{issueId}/attachments
 
 Odporúčané používanie stavov:
 
-| Stav | Použitie |
-|---|---|
-| `200` | Úspešné čítanie alebo úprava |
-| `201` | Vytvorenie zdroja |
-| `204` | Úspešná operácia bez tela odpovede |
-| `400` | Neplatný formát požiadavky |
-| `401` | Chýbajúca alebo neplatná autentifikácia |
-| `403` | Používateľ nemá oprávnenie |
+| Stav  | Použitie                                 |
+| ----- | ---------------------------------------- |
+| `200` | Úspešné čítanie alebo úprava             |
+| `201` | Vytvorenie zdroja                        |
+| `204` | Úspešná operácia bez tela odpovede       |
+| `400` | Neplatný formát požiadavky               |
+| `401` | Chýbajúca alebo neplatná autentifikácia  |
+| `403` | Používateľ nemá oprávnenie               |
 | `404` | Zdroj neexistuje alebo nemá byť odhalený |
-| `409` | Konflikt verzie alebo unikátneho údaja |
-| `422` | Sémanticky neplatné vstupné údaje |
-| `429` | Prekročený rate limit |
+| `409` | Konflikt verzie alebo unikátneho údaja   |
+| `422` | Sémanticky neplatné vstupné údaje        |
+| `429` | Prekročený rate limit                    |
 
 ## 10. Frontend
 
@@ -1285,7 +1325,11 @@ Počiatočné ciele, ktoré treba potvrdiť meraním:
 - opakovanie dočasne neúspešných jobov s limitom,
 - dead-letter evidencia pre trvalo chybné joby,
 - graceful shutdown workerov,
-- idempotentné spracovanie udalostí.
+- idempotentné spracovanie udalostí,
+- produkčná dostupnosť po GA minimálne 99,9 % mesačne bez oznámenej údržby,
+- produkčné `RPO ≤ 15 minút` a `RTO ≤ 4 hodiny`,
+- 35-dňové PITR okno pre databázu a zodpovedajúca ochrana objektov,
+- úplný restore drill minimálne štvrťročne a po významnej zmene storage.
 
 ### 13.3 Prístupnosť
 
@@ -1398,25 +1442,32 @@ Alert má existovať aspoň pre:
 
 ```mermaid
 flowchart TB
-    Internet["Používatelia"] --> LB["Reverse proxy / load balancer"]
-    LB --> Web["Angular statické súbory"]
-    LB --> API1["PHP-FPM + Slim API"]
+    Internet["Používatelia"] --> Edge["TLS edge / WAF / load balancer"]
+    Edge --> Web["Angular statický artefakt"]
+    Edge --> API1["Slim API replika A"]
+    Edge --> API2["Slim API replika B"]
 
-    API1 --> PostgreSQL[("PostgreSQL")]
-    API1 --> Redis[("Redis")]
+    API1 --> PostgreSQL[("Spravovaný PostgreSQL 17 HA")]
+    API2 --> PostgreSQL
     API1 --> Storage[("Objektové úložisko")]
+    API2 --> Storage
 
-    Worker["Queue worker"] --> PostgreSQL
-    Worker --> Redis
+    Worker["Outbox / background worker"] --> PostgreSQL
     Worker --> Storage
     Worker --> Email["SMTP / e-mail provider"]
 
-    Backup["Zálohovací proces"] --> PostgreSQL
-    Backup --> Storage
+    PostgreSQL --> Backup["Šifrovaný WAL/PITR archív"]
+    Storage --> Backup
 
     API1 --> Monitor["Monitoring a logy"]
+    API2 --> Monitor
     Worker --> Monitor
 ```
+
+Produkcia používa spravovanú kontajnerovú platformu v jednom regióne a najmenej
+dvoch zónach dostupnosti. Kubernetes, multi-region active-active a vlastná správa
+databázového clusteru nie sú súčasťou MVP. Nasadzujú sa nemenné artefakty rolling
+alebo blue/green spôsobom.
 
 ### 16.1 Prostredia
 
@@ -1435,18 +1486,20 @@ flowchart TB
 
 ### 16.3 Zálohovanie
 
-Je potrebné definovať:
+- PostgreSQL používa kontinuálny WAL archív a denné/base backupy s 35-dňovým PITR
+  oknom.
+- Objektové úložisko používa versioning alebo delete protection a nezávislú
+  šifrovanú kópiu s rovnakým 35-dňovým oknom.
+- Zálohy sú šifrované a prístupová identita je oddelená od bežnej produkčnej
+  identity.
+- Produkčný cieľ je `RPO ≤ 15 minút` a `RTO ≤ 4 hodiny`.
+- Úplný restore drill sa vykoná minimálne štvrťročne a po významnej zmene storage
+  alebo migračného mechanizmu.
+- Obnova musí znovu aplikovať tombstones odstránených tenantov a používateľov, aby
+  restore neobnovil dáta do aktívneho používania.
 
-- frekvenciu databázových záloh,
-- zálohu objektového úložiska,
-- retention politiku,
-- šifrovanie záloh,
-- oddelenie záloh od produkčného účtu,
-- Recovery Point Objective,
-- Recovery Time Objective,
-- pravidelný test obnovy.
-
-Samotná existencia záložného súboru nestačí. Obnova musí byť pravidelne overená.
+Samotná existencia alebo úspešný upload záložného súboru nestačí. Obnoviteľnosť
+preukazuje až zdokumentovaný restore test s nameraným RPO a RTO.
 
 ## 17. CI/CD
 
@@ -1498,6 +1551,13 @@ Výstupy:
 - pravidlá projektových typov, hierarchie a workflow,
 - architektonické rozhodnutia,
 - prvý ER a OpenAPI návrh.
+
+Fáza je uzavretá. Registrácia je iba cez pozvánku, `SUPERADMIN` má úplný prístup ku
+všetkým tenantom, impersonácia patrí do MVP, pracovné skupiny udeľujú projektový
+prístup, úloha môže mať riešiteľa aj skupinu a textový formát je bezpečný CommonMark.
+Upload, retencia, RPO/RTO a nasadenie definuje
+[ADR 0009](./adr/0009-deployment-data-retention-and-recovery.md); ostatné prijaté
+rozhodnutia sú v [registri ADR](./adr/README.md).
 
 ### 18.2 Fáza 1 – Technický základ
 
@@ -1712,76 +1772,75 @@ Funkcia je dokončená, keď:
 
 ## 22. Riziká a mitigácie
 
-| Riziko | Dopad | Mitigácia |
-|---|---|---|
-| Príliš široký rozsah podobný Jire | Dlhý vývoj bez použiteľného výsledku | Uzavrieť MVP a odkladať pokročilé funkcie |
-| Únik dát medzi tenantmi | Kritický bezpečnostný incident | Tenant context, repository filtre, RLS, FK a izolované testy |
-| Roly natvrdo v controllery | Nekonzistentná autorizácia | Centrálna permission služba |
-| Neauditovaný SUPERADMIN | Strata dôvery a dohľadateľnosti | Explicitný vstup do tenantu a audit impersonácie |
-| JWT alebo tokeny v localStorage | Zvýšený dopad XSS | HttpOnly cookie a revokovateľné relácie |
-| E-mail v hlavnej transakcii | Pomalé alebo zlyhávajúce operácie | Transactional outbox a worker |
-| Súbory v databáze | Rast DB a komplikované zálohy | Objektové úložisko a metadáta v DB |
-| Predčasné mikroservisy | Vysoká prevádzková zložitosť | Modulárny monolit |
-| Neobmedzené zoznamy | Výkonové problémy | Povinné stránkovanie a indexy |
-| Súbežné prepísanie úlohy | Strata zmien | Optimistické zamykanie |
-| Záloha bez testu obnovy | Falošný pocit bezpečia | Pravidelné restore testy |
-| Nejasný význam pracovnej skupiny | Nekonzistentné oprávnenia a priraďovanie | Definovať skupinu pred návrhom DB a API |
+| Riziko                            | Dopad                                    | Mitigácia                                                           |
+| --------------------------------- | ---------------------------------------- | ------------------------------------------------------------------- |
+| Príliš široký rozsah podobný Jire | Dlhý vývoj bez použiteľného výsledku     | Uzavrieť MVP a odkladať pokročilé funkcie                           |
+| Únik dát medzi tenantmi           | Kritický bezpečnostný incident           | Tenant context, repository filtre, RLS, FK a izolované testy        |
+| Roly natvrdo v controllery        | Nekonzistentná autorizácia               | Centrálna permission služba                                         |
+| Neauditovaný SUPERADMIN           | Strata dôvery a dohľadateľnosti          | Povinné MFA, explicitný tenantový vstup, append-only audit a alerty |
+| JWT alebo tokeny v localStorage   | Zvýšený dopad XSS                        | HttpOnly cookie a revokovateľné relácie                             |
+| E-mail v hlavnej transakcii       | Pomalé alebo zlyhávajúce operácie        | Transactional outbox a worker                                       |
+| Súbory v databáze                 | Rast DB a komplikované zálohy            | Objektové úložisko a metadáta v DB                                  |
+| Predčasné mikroservisy            | Vysoká prevádzková zložitosť             | Modulárny monolit                                                   |
+| Neobmedzené zoznamy               | Výkonové problémy                        | Povinné stránkovanie a indexy                                       |
+| Súbežné prepísanie úlohy          | Strata zmien                             | Optimistické zamykanie                                              |
+| Záloha bez testu obnovy           | Falošný pocit bezpečia                   | Pravidelné restore testy                                            |
+| Nejasný význam pracovnej skupiny  | Nekonzistentné oprávnenia a priraďovanie | Definovať skupinu pred návrhom DB a API                             |
 
-## 23. Otvorené produktové rozhodnutia
+## 23. Uzavreté produktové a prevádzkové rozhodnutia
 
-Pred implementáciou dotknutých modulov je potrebné rozhodnúť:
+1. Účet vzniká iba cez pozvánku; verejná registrácia neexistuje.
+2. Globálny používateľ môže patriť do viacerých tenantov a každý tenant má aspoň
+   jedného `TENANT_OWNER`.
+3. `SUPERADMIN` môže vykonávať všetky operácie a čítať všetok obsah vo všetkých
+   tenantoch bez členstva; vstup a akcie sa auditujú.
+4. Impersonácia je súčasť MVP s MFA/reauth, dôvodom, 15-minútovou expiráciou,
+   trvalým bannerom a dvoma identitami v audite.
+5. Projekty podporujú tenantovú aj súkromnú viditeľnosť. Pracovné skupiny sú
+   nositeľom projektového prístupu.
+6. Úloha môže mať súčasne konkrétneho riešiteľa aj pracovnú skupinu.
+7. Opis a komentár používajú CommonMark Markdown bez raw HTML. MVP priority sú
+   pevné; projektová konfigurácia sa môže doplniť kompatibilnou zmenou.
+8. Príloha má najviac 25 MiB a používa allowlist, privátnu karanténu, sken a
+   krátkodobý autorizovaný download.
+9. Produkt podporuje `sk`, `cs`, `en`, `de`, `pl` a `hu`.
+10. Primárnym cieľom MVP je hostovaný SaaS na prenositeľných kontajneroch a
+    štandardných PostgreSQL/S3 kontraktoch. On-premise balenie nie je súčasť MVP.
+11. Produkčný baseline je 99,9 % dostupnosť, `RPO ≤ 15 minút`, `RTO ≤ 4 hodiny` a
+    štvrťročný restore drill.
+12. Konkrétny cloud, e-mailový provider a S3-kompatibilný provider sa vyberú pred
+    stagingom podľa regiónu, ceny, DPA a podpory. Doména používa adaptéry, preto
+    výber dodávateľa neblokuje implementáciu.
 
-1. Bude registrácia verejná alebo bude účet vznikať iba cez pozvánku?
-2. Môže používateľ patriť do viacerých tenantov? Odporúčanie: áno.
-3. Má tenant vlastného `TENANT_OWNER`, alebo iba administrátorov?
-4. Môže `SUPERADMIN` čítať obsah tenantových úloh?
-5. Je impersonácia požadovaná už v MVP?
-6. Budú projekty tenantovo verejné, súkromné alebo oba typy?
-7. Sú pracovné skupiny nositeľom oprávnení alebo iba organizačnou jednotkou?
-8. Môže mať úloha súčasne zodpovednú skupinu aj konkrétneho riešiteľa?
-9. Majú byť priority pevné, projektovo konfigurovateľné alebo tenantové šablóny?
-10. Bude opis a komentár používať Markdown alebo WYSIWYG editor?
-11. Aké typy a maximálne veľkosti príloh sú povolené?
-12. Aká je retention politika auditov, odstránených účtov a tenantov?
-13. Má byť systém dostupný v slovenčine aj angličtine?
-14. Bude SOVA verejný SaaS alebo interná/on-premise aplikácia?
-15. Aké objemy používateľov, tenantov, projektov a úloh sa očakávajú?
-16. Aké sú požadované RPO, RTO a dostupnosť?
-17. Ktorý e-mailový a objektový storage provider sa použije?
+Rozhodnutia o workflow a typoch úloh sú uzavreté podľa
+[samostatnej špecifikácie](./WORKFLOW-A-TYPY-ULOH.md). Detail uploadov, retencie a
+obnovy je v [ADR 0009](./adr/0009-deployment-data-retention-and-recovery.md).
 
-Rozhodnutia o workflow a typoch úloh sú uzavreté: oba sú konfigurovateľné na úrovni
-projektu podľa [samostatnej implementačnej špecifikácie](./WORKFLOW-A-TYPY-ULOH.md).
+## 24. Architektonické rozhodnutia
 
-## 24. Odporúčané architektonické rozhodnutia
+Prijaté rozhodnutia sú vedené v [registri `docs/adr`](./adr/README.md):
 
-V `docs/adr` sa odporúča postupne zaznamenať minimálne:
-
-1. modulárny monolit namiesto mikroservisov,
-2. PostgreSQL ako primárna databáza,
-3. spoločná schéma s `tenant_id` a RLS,
-4. globálny používateľ a tenantové členstvo,
-5. session autentifikácia cez HttpOnly cookie,
-6. permission-based autorizácia,
-7. UUID pre verejné identifikátory,
-8. OpenAPI ako kontrakt medzi backendom a frontendom,
-9. transactional outbox pre asynchrónne udalosti,
-10. objektové úložisko pre prílohy,
-11. UTC pre ukladanie času,
-12. stratégia soft delete, auditu a retencie.
+1. modulárny monolit namiesto predčasných mikroservisov,
+2. PostgreSQL shared schema s `tenant_id`, kompozitnými väzbami a RLS,
+3. globálny používateľ a tenantové členstvo,
+4. session autentifikácia cez Secure/HttpOnly cookie,
+5. permission-based autorizácia a systémový `SUPERADMIN`,
+6. UUIDv7 pre technické identifikátory a UTC pre okamihy,
+7. OpenAPI 3.1 ako kontrakt backendu a frontendu,
+8. transactional outbox pre asynchrónne udalosti,
+9. privátne objektové úložisko, retencia, nasadenie a obnova.
 
 ## 25. Bezprostredné ďalšie kroky
 
-1. Odpovedať na otvorené produktové otázky s dopadom na MVP.
-2. Zapísať potvrdené rozhodnutia do funkčnej špecifikácie.
-3. Vytvoriť katalóg oprávnení a maticu rolí.
-4. Spresniť ER model vrátane unikátnych a cudzích kľúčov.
-5. Definovať prvú OpenAPI špecifikáciu pre identity, tenantov a členstvá.
-6. Vytvoriť ADR dokumenty pre kľúčové technické rozhodnutia.
-7. Inicializovať backend, frontend, lokálne prostredie a CI.
-8. Implementovať vertical slice: prihlásenie → výber tenantu → autorizované načítanie
+1. Dokončiť vertical slice: prihlásenie → výber tenantu → autorizované načítanie
    tenantového profilu.
-9. Automatizovane otestovať tenantovú izoláciu ešte pred implementáciou projektov a
-   úloh.
+2. Automatizovane otestovať aktívne členstvo, pozastavenie a izoláciu dvoch tenantov
+   ešte pred projektmi a úlohami.
+3. Napojiť frontendový auth a tenant picker na OpenAPI kontrakt.
+4. Vytvoriť katalóg oprávnení, systémovú rolu `SUPERADMIN` a maticu predvolených
+   rolí.
+5. Implementovať pozvánky ako jediný registračný tok.
+6. Pokračovať podľa [trvalého implementačného plánu](./IMPLEMENTATION_PLAN.md).
 
 Tento postup umožní najskôr overiť najrizikovejšie časti – autentifikáciu,
 tenantový kontext a autorizáciu – a až potom na nich bezpečne stavať zvyšok systému.

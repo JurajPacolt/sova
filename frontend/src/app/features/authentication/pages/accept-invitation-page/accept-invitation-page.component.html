@@ -1,0 +1,121 @@
+<app-public-auth-layout
+  title="access.invitationTitle"
+  subtitle="access.invitationSubtitle"
+  [wide]="true"
+>
+  @if (loading()) {
+    <p class="text-center mb-0" role="status" aria-live="polite">
+      {{ 'access.loadingInvitation' | translate }}
+    </p>
+  } @else if (acceptedNewAccount()) {
+    <div class="alert alert-success" role="status">
+      {{ 'access.invitationAcceptedNew' | translate }}
+    </div>
+    <a class="btn btn-primary w-100" routerLink="/login">
+      {{ 'access.signIn' | translate }}
+    </a>
+  } @else if (invitation(); as invitationDetails) {
+    <dl class="row small border-bottom pb-3 mb-4">
+      <dt class="col-sm-4">{{ 'access.tenant' | translate }}</dt>
+      <dd class="col-sm-8">{{ invitationDetails.tenant_name }}</dd>
+      <dt class="col-sm-4">{{ 'auth.email' | translate }}</dt>
+      <dd class="col-sm-8">{{ invitationDetails.email }}</dd>
+      <dt class="col-sm-4">{{ 'access.invitedBy' | translate }}</dt>
+      <dd class="col-sm-8">{{ invitationDetails.invited_by_display_name }}</dd>
+      <dt class="col-sm-4">{{ 'access.expiresAt' | translate }}</dt>
+      <dd class="col-sm-8 mb-0">{{ invitationDetails.expires_at }}</dd>
+    </dl>
+
+    @if (error(); as errorMessage) {
+      <div class="alert alert-danger" role="alert" aria-live="polite">
+        {{ errorMessage | translate }}
+      </div>
+    }
+
+    @if (authenticated()) {
+      <p class="text-body-secondary">{{ 'access.acceptExistingNotice' | translate }}</p>
+      <button
+        class="btn btn-primary w-100"
+        type="button"
+        [disabled]="accepting()"
+        (click)="acceptExistingAccount()"
+      >
+        @if (accepting()) {
+          {{ 'access.acceptingInvitation' | translate }}
+        } @else {
+          {{ 'access.acceptInvitation' | translate }}
+        }
+      </button>
+    } @else {
+      <form [formGroup]="form" (ngSubmit)="acceptNewAccount()">
+        <div class="mb-3">
+          <label class="form-label" for="invitation-display-name">
+            {{ 'access.displayName' | translate }}
+          </label>
+          <input
+            id="invitation-display-name"
+            class="form-control"
+            type="text"
+            autocomplete="name"
+            formControlName="display_name"
+          />
+        </div>
+
+        <div class="mb-3">
+          <label class="form-label" for="invitation-locale">
+            {{ 'access.preferredLanguage' | translate }}
+          </label>
+          <select id="invitation-locale" class="form-select" formControlName="preferred_locale">
+            @for (language of languageOptions; track language.code) {
+              <option [value]="language.code">{{ language.nativeName }}</option>
+            }
+          </select>
+        </div>
+
+        <div class="row">
+          <div class="col-md-6 mb-3">
+            <label class="form-label" for="invitation-password">
+              {{ 'access.newPassword' | translate }}
+            </label>
+            <input
+              id="invitation-password"
+              class="form-control"
+              type="password"
+              autocomplete="new-password"
+              formControlName="password"
+            />
+          </div>
+          <div class="col-md-6 mb-3">
+            <label class="form-label" for="invitation-password-confirmation">
+              {{ 'access.confirmPassword' | translate }}
+            </label>
+            <input
+              id="invitation-password-confirmation"
+              class="form-control"
+              type="password"
+              autocomplete="new-password"
+              formControlName="password_confirmation"
+            />
+          </div>
+        </div>
+        <div class="form-text mb-3">{{ 'access.passwordHint' | translate }}</div>
+
+        <button class="btn btn-primary w-100" type="submit" [disabled]="accepting()">
+          @if (accepting()) {
+            {{ 'access.acceptingInvitation' | translate }}
+          } @else {
+            {{ 'access.createAccountAndAccept' | translate }}
+          }
+        </button>
+        <p class="small text-body-secondary text-center mt-3 mb-0">
+          {{ 'access.existingAccountHint' | translate }}
+          <a routerLink="/login">{{ 'access.signIn' | translate }}</a>
+        </p>
+      </form>
+    }
+  } @else {
+    <div class="alert alert-danger mb-0" role="alert">
+      {{ error() ?? 'access.invalidInvitation' | translate }}
+    </div>
+  }
+</app-public-auth-layout>

@@ -4,16 +4,20 @@
 
 .login-page {
   background:
-    radial-gradient(circle at top left, rgb(13 110 253 / 16%), transparent 34rem),
-    var(--sova-app-background);
+    radial-gradient(
+      circle at top left,
+      rgb(var(--sova-color-action-primary-rgb) / 16%),
+      transparent 34rem
+    ),
+    var(--sova-color-canvas);
   min-height: 100dvh;
 }
 
 .login-page__logo {
   align-items: center;
-  background: var(--bs-primary);
+  background: var(--sova-color-action-primary);
   border-radius: 1rem;
-  color: var(--bs-white);
+  color: var(--sova-color-on-primary);
   display: inline-flex;
   font-size: 1.5rem;
   font-weight: 800;

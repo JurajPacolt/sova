@@ -16,22 +16,22 @@ Dokument opisuje hlavný pracovný tok aplikácie:
 
 ## 2. Katalóg obrazoviek
 
-| ID | Obrazovka | Route | Typický prístup |
-|---|---|---|---|
-| WORK-01 | Dashboard | `/t/:tenantSlug/dashboards/:dashboardId` | Vlastník dashboardu |
-| WORK-01A | Správa dashboardov | `/t/:tenantSlug/dashboards` | Člen tenantu |
-| WORK-02 | Moja práca | `/t/:tenantSlug/my-work` | Člen tenantu |
-| PRJ-01 | Projekty | `/t/:tenantSlug/projects` | `project.view` |
-| PRJ-02 | Nový projekt | modal alebo admin route | `project.create` |
-| PRJ-03 | Prehľad projektu | `/t/:tenantSlug/projects/:projectKey` | Prístup k projektu |
-| PRJ-04 | Typy úloh | `.../:projectKey/settings/issue-types` | `issue_type.manage` |
-| PRJ-05 | Workflow | `.../:projectKey/settings/workflows` | `workflow.manage` |
-| PRJ-06 | Mapovanie workflow | `.../:projectKey/settings/workflow-mapping` | `workflow.manage` |
-| ISS-01 | Zoznam úloh | `.../:projectKey/issues` | `issue.view` |
-| ISS-02 | Kanban | `.../:projectKey/board` | `issue.view` |
-| ISS-03 | Nová úloha | modal alebo `.../issues/new` | `issue.create` |
-| ISS-04 | Detail úlohy | `/t/:tenantSlug/issues/:issueKey` | `issue.view` |
-| ISS-05 | Hromadné operácie | časť zoznamu | Osobitné oprávnenia |
+| ID       | Obrazovka          | Route                                       | Typický prístup     |
+| -------- | ------------------ | ------------------------------------------- | ------------------- |
+| WORK-01  | Dashboard          | `/t/:tenantSlug/dashboards/:dashboardId`    | Vlastník dashboardu |
+| WORK-01A | Správa dashboardov | `/t/:tenantSlug/dashboards`                 | Člen tenantu        |
+| WORK-02  | Moja práca         | `/t/:tenantSlug/my-work`                    | Člen tenantu        |
+| PRJ-01   | Projekty           | `/t/:tenantSlug/projects`                   | `project.view`      |
+| PRJ-02   | Nový projekt       | modal alebo admin route                     | `project.create`    |
+| PRJ-03   | Prehľad projektu   | `/t/:tenantSlug/projects/:projectKey`       | Prístup k projektu  |
+| PRJ-04   | Typy úloh          | `.../:projectKey/settings/issue-types`      | `issue_type.manage` |
+| PRJ-05   | Workflow           | `.../:projectKey/settings/workflows`        | `workflow.manage`   |
+| PRJ-06   | Mapovanie workflow | `.../:projectKey/settings/workflow-mapping` | `workflow.manage`   |
+| ISS-01   | Zoznam úloh        | `.../:projectKey/issues`                    | `issue.view`        |
+| ISS-02   | Kanban             | `.../:projectKey/board`                     | `issue.view`        |
+| ISS-03   | Nová úloha         | modal alebo `.../issues/new`                | `issue.create`      |
+| ISS-04   | Detail úlohy       | `/t/:tenantSlug/issues/:issueKey`           | `issue.view`        |
+| ISS-05   | Hromadné operácie  | časť zoznamu                                | Osobitné oprávnenia |
 
 ## 3. Hlavný pracovný tok
 
@@ -383,6 +383,11 @@ Pravý panel:
 - odhad,
 - štítky,
 - sledovatelia,
+
+Riešiteľ a skupina sú dve nezávislé voliteľné hodnoty. Úloha môže mať oboch
+súčasne; členovia priradenej pracovnej skupiny získavajú prístup iba vtedy, ak je
+skupina nositeľom prístupu k danému projektu.
+
 - vytvorenie a posledná zmena.
 
 Na mobile sa pravý panel presunie pod hlavnú časť alebo do dostupného detailového
@@ -425,8 +430,9 @@ flowchart TD
     Result -->|konflikt| Conflict["Načítať novšiu verziu"]
 ```
 
-Ak je priradená skupina bez používateľa, úloha sa zobrazí v „Moje skupiny“. Ak je
-priradený konkrétny používateľ, jeho členstvo a projektový prístup musia byť aktívne.
+Ak je priradená skupina bez používateľa, úloha sa zobrazí v „Moje skupiny“. Skupina
+a konkrétny používateľ môžu byť priradení súčasne. Členstvo skupiny, členstvo
+používateľa aj ich projektový prístup musia byť aktívne.
 
 ## 13. Zmena stavu
 
