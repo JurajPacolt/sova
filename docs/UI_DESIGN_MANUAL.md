@@ -158,6 +158,31 @@ komunikuje aj textom a podľa kontextu ikonou; samotná farba nestačí.
 
 ![Sémantické stavy SOVA](./design/sova-semantic-states.svg)
 
+### 3.4 Farby dátových sérií
+
+| Token | Light | Dark | Účel |
+|---|---|---|---|
+| `--sova-color-chart-series-1` | `--sova-indigo-600` | `--sova-indigo-500` | prvá séria, jednofarebné stĺpce a bunky matice |
+| `--sova-color-chart-series-2` | `--sova-teal-600` | `--sova-teal-600` | druhá séria (napr. „vyriešené“ oproti „vytvorené“) |
+
+Séria nesie **identitu**, preto je dvojica zvolená podľa odstupu pri poruchách
+farbocitu, nie podľa toho, ako vyzerá vedľa seba: obe kombinácie sú overené
+voči vlastnému povrchu svojho režimu (light `ΔE 22,1` deutan, dark `ΔE 18,9`),
+nie prevrátené z jedného do druhého — preto má dark iný indigo stupeň. Tmavý
+režim je vybraný, nie odvodený.
+
+Pravidlá pre komponenty:
+
+- Viac než dve série sa **nedopĺňajú generovanými odtieňmi**. Namiesto toho sa
+  zlúčia do „ostatné“, rozdelia na viac grafov, alebo sa použije tabuľka.
+- Veličina (rozdelenie, teplota bunky) je **jeden odtieň** so škálou svetlosti,
+  nikdy dúha; polarita by potrebovala dvojicu s neutrálnym stredom.
+- Stavové farby z §3.3 sú vyhradené stavu a nikdy sa nepoužijú ako „séria 3“.
+- Text nesie textové tokeny, nikdy farbu série; identitu nesie značka vedľa neho.
+- Legenda je prítomná od druhej série; jedna séria ju nepotrebuje, lebo ju
+  pomenúva nadpis. Ku každému grafu patrí aj textová alternatíva (tabuľka), aby
+  tvar nebol jediný zdroj údaja.
+
 ## 4. Typografia
 
 ### 4.1 Rodiny písma

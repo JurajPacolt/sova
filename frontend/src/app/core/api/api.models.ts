@@ -921,6 +921,151 @@ export interface CreateIssueRequest {
   readonly assignee_membership_id?: string | null;
 }
 
+/**
+ * A personal dashboard. There is no viewer-access field, and that is the point:
+ * a dashboard belongs to exactly one membership and nobody else can reach it.
+ */
+export interface Dashboard {
+  readonly id: string;
+  readonly name: string;
+  readonly position: number;
+  readonly is_default: boolean;
+  /** Which one the caller last opened — their preference, not a property of the row. */
+  readonly is_active: boolean;
+  readonly widget_count: number;
+  readonly version: number;
+  readonly created_at: string;
+  readonly updated_at: string;
+}
+
+export interface DashboardList {
+  readonly dashboards: readonly Dashboard[];
+  /** Where to land when no dashboard was named. Null only before the first one exists. */
+  readonly active_dashboard_id: string | null;
+}
+
+export interface DashboardResponse {
+  readonly dashboard: Dashboard;
+}
+
+export interface RestoreDashboardTemplateRequest {
+  readonly name?: string;
+}
+
+export interface DashboardTemplateResponse {
+  readonly dashboard: Dashboard;
+  readonly widgets: readonly DashboardWidget[];
+}
+
+export type WidgetTypeKey =
+  'issue_count' | 'issue_list' | 'issue_breakdown' | 'issue_matrix' | 'issue_time_series';
+
+export interface DashboardWidget {
+  readonly id: string;
+  readonly dashboard_id: string;
+  readonly type_key: string;
+  /**
+   * False when this deployment no longer knows the stored type. The row still
+   * arrives so the widget can be removed; nothing guesses what it meant.
+   */
+  readonly available: boolean;
+  readonly schema_version: number;
+  readonly title: string;
+  readonly saved_query_id: string;
+  readonly source_name: string | null;
+  readonly source_reachable: boolean;
+  readonly configuration: Readonly<Record<string, unknown>>;
+  readonly x: number;
+  readonly y: number;
+  readonly width: number;
+  readonly height: number;
+  readonly version: number;
+  readonly created_at: string;
+  readonly updated_at: string;
+}
+
+export interface DashboardWidgetList {
+  readonly widgets: readonly DashboardWidget[];
+}
+
+export interface WidgetCountData {
+  readonly count: number;
+}
+
+export interface WidgetListData {
+  readonly issues: readonly IssueSearchHit[];
+}
+
+export interface WidgetBreakdownBucket {
+  readonly key: string | null;
+  readonly label: string;
+  readonly count: number;
+}
+
+export interface WidgetBreakdownData {
+  readonly buckets: readonly WidgetBreakdownBucket[];
+}
+
+export interface WidgetMatrixCell {
+  readonly row_key: string | null;
+  readonly row_label: string;
+  readonly column_key: string | null;
+  readonly column_label: string;
+  readonly count: number;
+}
+
+export interface WidgetMatrixData {
+  readonly cells: readonly WidgetMatrixCell[];
+}
+
+export interface WidgetTimeSeriesPoint {
+  readonly bucket: string;
+  readonly count: number;
+}
+
+export interface WidgetTimeSeries {
+  readonly event: string;
+  /** Empty buckets arrive as zero, so a gap is a zero and not a missing point. */
+  readonly points: readonly WidgetTimeSeriesPoint[];
+}
+
+export interface WidgetTimeSeriesData {
+  readonly series: readonly WidgetTimeSeries[];
+}
+
+/**
+ * The shape depends on the widget's type. The caller already knows the type it
+ * asked for, so the narrowing helpers below check the payload rather than trust
+ * it — a stored type this build no longer understands must not be read as one
+ * that happens to sit next to it.
+ */
+export type WidgetData =
+  WidgetCountData | WidgetListData | WidgetBreakdownData | WidgetMatrixData | WidgetTimeSeriesData;
+
+export interface WidgetDataResponse {
+  readonly data: WidgetData;
+}
+
+export function isWidgetCountData(data: WidgetData): data is WidgetCountData {
+  return typeof (data as Partial<WidgetCountData>).count === 'number';
+}
+
+export function isWidgetListData(data: WidgetData): data is WidgetListData {
+  return Array.isArray((data as Partial<WidgetListData>).issues);
+}
+
+export function isWidgetBreakdownData(data: WidgetData): data is WidgetBreakdownData {
+  return Array.isArray((data as Partial<WidgetBreakdownData>).buckets);
+}
+
+export function isWidgetMatrixData(data: WidgetData): data is WidgetMatrixData {
+  return Array.isArray((data as Partial<WidgetMatrixData>).cells);
+}
+
+export function isWidgetTimeSeriesData(data: WidgetData): data is WidgetTimeSeriesData {
+  return Array.isArray((data as Partial<WidgetTimeSeriesData>).series);
+}
+
 export interface ProblemDetails {
   readonly type: string;
   readonly title: string;

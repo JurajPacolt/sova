@@ -1,48 +1,62 @@
 <app-page-header
   [eyebrow]="'dashboard.eyebrow' | translate"
-  [title]="'dashboard.title' | translate"
+  [title]="openDashboard()?.name ?? ('dashboard.title' | translate)"
   [subtitle]="'dashboard.subtitle' | translate"
 >
-  <a actions class="btn btn-primary" routerLink="../projects">
-    {{ 'dashboard.showProjects' | translate }}
-  </a>
+  @if (dashboards().length > 1) {
+    <nav actions class="dashboard__switcher" [attr.aria-label]="'dashboard.switcher' | translate">
+      <ul class="nav nav-pills gap-1 mb-0">
+        @for (dashboard of dashboards(); track dashboard.id) {
+          <li class="nav-item">
+            <button
+              type="button"
+              class="nav-link"
+              [class.active]="dashboard.id === dashboardId()"
+              [attr.aria-current]="dashboard.id === dashboardId() ? 'page' : null"
+              (click)="open(dashboard)"
+            >
+              {{ dashboard.name }}
+              @if (dashboard.is_default) {
+                <span class="visually-hidden">{{ 'dashboard.isDefault' | translate }}</span>
+              }
+            </button>
+          </li>
+        }
+      </ul>
+    </nav>
+  }
 </app-page-header>
 
-<div class="row g-3 mb-4">
-  <div class="col-12 col-sm-6 col-xl-3">
-    <article class="card border-0 shadow-sm h-100">
-      <div class="card-body">
-        <p class="text-body-secondary mb-2">{{ 'dashboard.activeIssues' | translate }}</p>
-        <strong class="display-6">{{ openIssueCount() }}</strong>
-      </div>
-    </article>
-  </div>
-  <div class="col-12 col-sm-6 col-xl-3">
-    <article class="card border-0 shadow-sm h-100">
-      <div class="card-body">
-        <p class="text-body-secondary mb-2">{{ 'dashboard.overdue' | translate }}</p>
-        <strong class="display-6 text-danger">0</strong>
-      </div>
-    </article>
-  </div>
-</div>
+@if (loadError(); as error) {
+  <div class="alert alert-warning" role="alert">{{ error | translate }}</div>
+}
 
-<section class="card border-0 shadow-sm">
-  <div class="card-header bg-body d-flex justify-content-between align-items-center">
-    <h2 class="h5 mb-0">{{ 'dashboard.assignedToMe' | translate }}</h2>
-    <span class="badge text-bg-light">{{ assignedIssues().length }}</span>
-  </div>
-
-  <div class="list-group list-group-flush">
-    @for (issue of assignedIssues(); track issue.key) {
-      <a
-        class="list-group-item list-group-item-action d-flex align-items-center gap-3 py-3"
-        [routerLink]="['../issues', issue.key]"
+@if (widgetsLoading()) {
+  <p class="text-body-secondary" role="status">{{ 'common.loading' | translate }}</p>
+} @else if (orderedWidgets().length === 0) {
+  @if (loadError() === null) {
+    <div class="card border-0 shadow-sm">
+      <div class="card-body">
+        <p class="mb-0">{{ 'dashboard.empty' | translate }}</p>
+      </div>
+    </div>
+  }
+} @else {
+  <div class="dashboard__grid">
+    @for (widget of orderedWidgets(); track widget.id) {
+      <div
+        class="dashboard__cell"
+        [style.--widget-column]="widget.x + 1"
+        [style.--widget-span]="widget.width"
+        [style.--widget-row]="widget.y + 1"
+        [style.--widget-rows]="widget.height"
       >
-        <span class="font-monospace small">{{ issue.key }}</span>
-        <span class="flex-grow-1">{{ issue.titleKey | translate }}</span>
-        <app-status-badge [status]="issue.status" />
-      </a>
+        <app-dashboard-widget
+          [tenantId]="tenantId() ?? ''"
+          [dashboardId]="dashboardId()"
+          [widget]="widget"
+        />
+      </div>
     }
   </div>
-</section>
+}

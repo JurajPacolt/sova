@@ -256,7 +256,7 @@ export class SystemTenantListPageComponent implements OnInit {
       )
       .subscribe({
         next: (response) => {
-          void this.router.navigate(['/t', response.impersonation.tenant.slug, 'dashboard']);
+          void this.router.navigate(['/t', response.impersonation.tenant.slug, 'dashboards']);
         },
         error: () => this.impersonationError.set(true),
       });

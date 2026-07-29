@@ -63,7 +63,7 @@ export class TenantShellComponent {
   protected readonly endingImpersonation = signal(false);
   protected readonly impersonationEndError = signal(false);
   private readonly allNavigation = signal<readonly NavigationItem[]>([
-    { labelKey: 'nav.dashboard', path: 'dashboard' },
+    { labelKey: 'nav.dashboard', path: 'dashboards' },
     { labelKey: 'nav.projects', path: 'projects' },
     {
       labelKey: 'nav.administration',

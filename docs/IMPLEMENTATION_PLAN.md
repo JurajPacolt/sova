@@ -6,8 +6,8 @@
 | ---------------------- | --------------------------------------------------- |
 | Posledná aktualizácia  | 2026-07-29                                       |
 | Aktuálna fáza          | Fáza 7 – kompletné UI, uložené dotazy a dashboardy |
-| Aktuálny checkpoint    | F7.8d – štartovacia predloha dashboardu               |
-| Nasledujúci checkpoint | F7.8e – UI dashboardov (prepínač, mriežka, widgety)  |
+| Aktuálny checkpoint    | F7.8e – UI dashboardov (prepínač, mriežka, widgety)   |
+| Nasledujúci checkpoint | F7.8f – režim úprav dashboardu a správa dashboardov  |
 
 ## Ako plán udržiavať
 
@@ -719,6 +719,43 @@ editor SovaQL s filter builderom (z F5.3).
         ostávajú nedotknuté. Obsadené meno sa rieši počítaním nahor
         (`My work 2`), nie odmietnutím; pri explicitnej požiadavke chýbajúce
         oprávnenie vráti `403`, kým automatické prvé otvorenie ticho nespraví nič.
+- [ ] UI dashboardov. **ROZPRACOVANÉ** – prepínač, mriežka a vykreslenie
+      všetkých piatich typov widgetov sú hotové; režim úprav a obrazovka
+      „Spravovať dashboardy“ nie.
+  - [x] Kanonická route `/t/:tenantSlug/dashboards/:dashboardId` (§7.2);
+        jednotné číslo `dashboard` ostáva ako vstupný bod a presmeruje.
+        Holá cesta je **vstup, nie obrazovka**: `DashboardEntryComponent`
+        zistí posledný aktívny dashboard a **nahradí** sa ním, takže adresa
+        vždy pomenúva to, čo je na obrazovke, a tlačidlo Späť odchádza z
+        dashboardov, nie medzi nimi.
+  - [x] Prepínač v hlavičke. Prepnutie zapíše preferenciu „posledný aktívny“,
+        obyčajné otvorenie nie – server ten zápis vedome drží mimo `GET` a
+        klient ho tam nesmie vrátiť. Zlyhanie zápisu sa neukazuje: zlé miesto
+        pri budúcom prihlásení je menší problém než chybová hláška nad
+        funkčnou obrazovkou.
+  - [x] 12-stĺpcová mriežka podľa uložených súradníc; pod `62em` jeden stĺpec v
+        poradí `y`, `x`, `id`. Poradie je **odvodené z dokumentu**, takže
+        mobilné zobrazenie neprepisuje desktopové súradnice (§7.4).
+  - [x] Widgety `issue_count`, `issue_list`, `issue_breakdown`, `issue_matrix`
+        a `issue_time_series`. **Každý si načíta vlastné dáta a nesie vlastnú
+        chybu** – to je klientská polovica toho, prečo server vydáva dáta po
+        jednom widgete; jeden nedostupný dotaz preto nezhodí stránku a dá sa
+        zopakovať bez reloadu. Neznámy `type_key` ani nedosiahnuteľný zdroj
+        nespustia požiadavku a vykreslia sa ako nedostupné.
+  - [x] Dve overené farby sérií (`--sova-color-chart-series-1/2`, viď
+        `UI_DESIGN_MANUAL.md` §3.4). Tmavý režim má **vlastný** indigo stupeň,
+        nie prevrátený svetlý. Číslo v dlaždici nosí textovú farbu a tón ide
+        cez **pomenovaný** odznak; bunka matice vždy obsahuje číslo, nielen
+        odtieň; ku grafu patrí skrytá tabuľka. Farba tak nikdy nie je jediný
+        nosič významu.
+  - [ ] `DONUT` sa vykresľuje ako stĺpcový graf. Prstenec potrebuje farbu na
+        výsek a dizajnový systém dodáva dve farby sérií zámerne – desať by bolo
+        vymyslených, nie zvolených. Uložená konfigurácia sa nemení, mení sa iba
+        vykreslenie; vlastná forma prstenca čaká na kategorickú paletu.
+  - [ ] Režim úprav: pridanie, konfigurácia a odobratie widgetu, presun a
+        zmena veľkosti proti `dashboard.version` s UX konfliktu (§7.4).
+  - [ ] Obrazovka „Spravovať dashboardy“ (§7.3): premenovanie, duplikovanie,
+        predvolený, poradie a odstránenie.
 - [ ] Tabuľkový zoznam, Kanban a detail úlohy s plnými stavmi. **ROZPRACOVANÉ**
       – tabuľkový zoznam a detail sú hotové a napojené na API, Kanban a úplná
       sada stavov nie.
@@ -888,3 +925,4 @@ editor SovaQL s filter builderom (z F5.3).
 | 2026-07-29 | F7.8c dáta widgetov | `QueryPlan` + `IssueSearchService::plan()` (vyňatá bezpečnostná postupnosť), `AggregationField`/`AggregationBucket`/`AggregationCell`/`TimeSeriesEvent`/`TimeSeriesBucket`/`TimeSeriesPoint`, port `IssueAggregationRepository` a `DoctrineIssueAggregationRepository`, verejná `IssueAggregationService`, `WidgetDataService`, `WidgetDataAction`, 1 nová cesta, DI, `tests/Api/WidgetDataApiTest.php` (9), OpenAPI (87 ciest, 175 schém), PHPStan `max`, CS Fixer, plný `composer check` | Prešlo: **418/418 testov, 7 449 assertions** (predtým 409/7 031), 9 nových. Overené testom: počet zodpovedá počtu úloh; **ten istý widget spočíta iba to, na čo čitateľ dosiahne** – vlastník vidí 1, obdarovaný člen bez projektovej roly 0, pretože rozsah sa aplikuje pred agregáciou, nie na jej výsledok; rozdelenie zoskupuje podľa nastavenej dimenzie a radí podľa počtu; **prázdny bucket sa hlási**, kým sa nevypne (graf, ktorý ticho zahodí nepridelené, dá menej než celok a zavádza); matica počíta obe osi naraz; zoznam vracia prvú stránku v poradí **samotného dotazu**, widget netriedi za chrbtom autora; časový rad dopĺňa prázdne buckety nulou (8 bodov pre 7-dňové okno), takže medzera je nula, nie chýbajúci bod na interpoláciu; porovnanie vráti dve série; a keď vlastník odoberie grant, widget vráti `404 WIDGET_DATA_SOURCE_NOT_FOUND` — zdroj sa číta pri každom načítaní, nie z cache — pričom zvyšok dashboardu sa naďalej načíta. Zámerné rozhodnutia: agregácia plánuje dotaz cez `IssueSearchService::plan()`, takže bezpečnostná postupnosť žije na jednom mieste a nemôže sa rozísť; `CLOSED` sa z časových radov vypustil, kým úlohy nemajú `closed_at`; strop matice je na **bunkách**, nie na osi zvlášť, lebo limit na os by aj tak dovolil súčin oboch. Beh odhalil vlastnú chybu v teste: `?? 'missing'` skolabuje práve to `null`, ktoré má tvrdiť. |
 | 2026-07-29 | F7.8d štartovacia predloha dashboardu | Doména `StarterTemplate`/`TemplateQuery`/`TemplateWidget`, `StarterDashboardProvisioner`, `SavedQueryService::availableName()` a `DashboardService::availableName()`, provisioning v `DashboardsAction` (GET), `DashboardTemplateAction`, 1 nová cesta, `tests/Domain/StarterTemplateTest.php` (6) a `tests/Api/DashboardTemplateApiTest.php` (8), OpenAPI, PHPStan `max`, CS Fixer, plný `composer check` | Prešlo: **432/432 testov, 7 788 assertions** (predtým 418/7 449), 14 nových. Overené testom: manifest je platný a už kanonický SovaQL, nenesie UUID ani osobu, nepoužíva pole bez úložiska, každý widget ukazuje na deklarovaný dotaz a žiadny dotaz nezostane nevykreslený, rozloženie prejde tým istým validátorom ako klientske a preset sa uloží presne tak, ako je napísaný; prvé načítanie zoznamu vytvorí dashboard so 4 widgetmi nad 4 **súkromnými** dotazmi člena, ďalšie načítania už nič (žiadna druhá dávka dotazov) a **preferencia „aktívny“ ostane nezapísaná**; každý widget predlohy sa naozaj načíta (`200`), takže manifest je nielen uložiteľný, ale aj spustiteľný cez compiler a rozsah; obnova vytvorí `My work 2` s **novými** dotazmi (prienik zdrojov s originálom prázdny), pôvodný dashboard si nechá widgety aj predvolený príznak; člen bez `dashboard.create` (REPORTER) nedostane nič – ani dashboard, ani dotaz – a explicitná obnova mu vráti `403 PERMISSION_DENIED`. Zámerné rozhodnutia: predloha sa kopíruje cez tie isté služby a kontroly oprávnení ako ručná práca; súbeh rieši unikátny index namiesto zámku; obnova nikdy nepreberá predvolený príznak. |
 | 2026-07-29 | Rekonštrukcia `docs/openapi.json` | Nepotvrdená pracovná verzia kontraktu (87 ciest) bola omylom zahodená príkazom `git checkout docs/openapi.json`; commit aj `origin` mali iba starších 45 ciest a nikde na disku neexistovala kópia. Kontrakt bol znovu zostavený zo `config/routes.php`, akcií, serializerov a validátorov vstupu | Prešlo: `OpenApiContractTest` páruje **88/88 ciest a metód**, všetkých 173 `$ref` sa rozlíši a žiadna schéma nezostala nepoužitá. Pri rekonštrukcii sa navyše doplnilo 8 schém projektových endpointov (`CreateProjectRequest`, `ProjectList`, `ProjectResponse`, `ProjectRoleList`, `ProjectMemberList`, `ProjectWorkgroupLinkList`, `ChangeProjectStatusRequest`, `UpsertProjectWorkgroupRequest`), ktoré chýbali **už v commite** – dokument sa na ne odvolával, ale nedefinoval ich. Popisy a členenie schém sú nové znenie odvodené z kódu, nie doslovná kópia stratenej verzie. |
+| 2026-07-29 | F7.8e UI dashboardov | 20 nových modelov a 5 type guardov v `api.models.ts`, 5 metód v API klientovi, `DashboardWorkspaceService`, nový `DashboardEntryComponent` a `DashboardWidgetComponent`, prepísaná `dashboard-page` (skeleton s hardkódovanými dátami nahradený), kanonická route `dashboards/:dashboardId` + presmerovanie z `dashboard`, dva overené tokeny sérií v `styles.scss` a §3.4 dizajnového manuálu, **30 i18n kľúčov × 6 jazykov** (7 vzorových odstránených), 22 nových testov v 4 súboroch, `npm run check` na Node 24.15.0 | Prešlo: Prettier, strict typecheck, **156 testov v 43 súboroch** (predtým 134/39), production build 545,03 kB – nad 500 kB warningom, pod 1 MB limitom. Overené testom: preferencia „posledný aktívny“ sa **nezapíše otvorením stránky** a zapíše sa prepnutím; prepínač sa neukazuje, kým nie je medzi čím prepínať; widgety sa radia `y`, `x`, `id` a na mriežku sadajú podľa vlastných súradníc; nedostupný dashboard hlási „už nie je dostupný“, nie „zakázané“; stĺpce rozdelenia sa merajú voči najväčšiemu, nie voči súčtu; bunka matice vždy nesie číslo; legenda pribudne až s druhou sériou a vedľa grafu stojí skrytá tabuľka; widget ohlási vlastnú chybu a zopakuje sa bez reloadu; neznámy typ ani nedosiahnuteľný zdroj nespustia požiadavku. Dizajn: dvojica farieb sérií overená validátorom pre oba režimy zvlášť (light `ΔE 22,1`, dark `ΔE 18,9` deutan), preto má tmavý režim vlastný indigo stupeň. |

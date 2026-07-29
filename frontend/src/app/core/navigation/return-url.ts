@@ -55,6 +55,6 @@ export function destinationAfterLogin(
   }
 
   return tenants.length === 1
-    ? `/t/${encodeURIComponent(tenants[0].slug)}/dashboard`
+    ? `/t/${encodeURIComponent(tenants[0].slug)}/dashboards`
     : '/select-tenant';
 }

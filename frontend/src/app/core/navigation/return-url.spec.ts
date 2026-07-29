@@ -32,7 +32,7 @@ describe('return URL safety', () => {
 
   it('uses a tenant return URL only when the user still has access', () => {
     expect(destinationAfterLogin('/t/acme/projects', [ACME_TENANT])).toBe('/t/acme/projects');
-    expect(destinationAfterLogin('/t/foreign/projects', [ACME_TENANT])).toBe('/t/acme/dashboard');
+    expect(destinationAfterLogin('/t/foreign/projects', [ACME_TENANT])).toBe('/t/acme/dashboards');
   });
 
   it('falls back to tenant selection for zero or multiple tenants', () => {
@@ -45,7 +45,7 @@ describe('return URL safety', () => {
   it('permits system return URLs only for a superadmin', () => {
     expect(destinationAfterLogin('/system/tenants', [ACME_TENANT], true)).toBe('/system/tenants');
     expect(destinationAfterLogin('/system/tenants', [ACME_TENANT], false)).toBe(
-      '/t/acme/dashboard',
+      '/t/acme/dashboards',
     );
     expect(destinationAfterLogin(null, [ACME_TENANT], true)).toBe('/system/tenants');
   });

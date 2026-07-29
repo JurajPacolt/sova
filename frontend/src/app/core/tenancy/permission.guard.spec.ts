@@ -49,7 +49,7 @@ describe('permissionGuard', () => {
     const result = run('tenant.members.view');
 
     expect(result).not.toBe(true);
-    expect(TestBed.inject(Router).serializeUrl(result as UrlTree)).toBe('/t/acme/dashboard');
+    expect(TestBed.inject(Router).serializeUrl(result as UrlTree)).toBe('/t/acme/dashboards');
   });
 
   it('sends a caller without a tenant context to tenant selection', () => {

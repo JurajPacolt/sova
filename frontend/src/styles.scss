@@ -78,6 +78,12 @@
   --sova-color-link: var(--sova-indigo-700);
   --sova-color-focus: var(--sova-indigo-500);
   --sova-color-selection: var(--sova-indigo-100);
+  // Chart series carry identity, so the two steps are chosen for how far apart
+  // they stay under colour-vision deficiency, not for how they look side by
+  // side. Both modes were checked against their own surface rather than
+  // flipped, which is why dark uses a different indigo step.
+  --sova-color-chart-series-1: var(--sova-indigo-600);
+  --sova-color-chart-series-2: var(--sova-teal-600);
 
   --bs-primary: var(--sova-color-action-primary);
   --bs-primary-rgb: 79, 70, 229;
@@ -114,6 +120,8 @@
   --sova-color-link: var(--sova-indigo-300);
   --sova-color-focus: var(--sova-indigo-400);
   --sova-color-selection: var(--sova-indigo-950);
+  --sova-color-chart-series-1: var(--sova-indigo-500);
+  --sova-color-chart-series-2: var(--sova-teal-600);
 
   --bs-primary: var(--sova-color-action-primary);
   --bs-primary-rgb: 129, 140, 248;

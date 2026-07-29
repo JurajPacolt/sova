@@ -35,6 +35,10 @@ import {
   IssueWatcherList,
   IssueWatchState,
   CurrentSessionResponse,
+  DashboardList,
+  DashboardResponse,
+  DashboardTemplateResponse,
+  DashboardWidgetList,
   EmailRequest,
   ExecuteIssueTransitionRequest,
   InvitationAcceptanceResponse,
@@ -79,6 +83,8 @@ import {
   WorkgroupMemberList,
   WorkgroupMemberResponse,
   WorkgroupResponse,
+  RestoreDashboardTemplateRequest,
+  WidgetDataResponse,
 } from './api.models';
 
 const API_ROOT = '/api/v1';
@@ -685,6 +691,63 @@ export class SovaApiClient {
     return this.http.delete<SavedQueryFavouriteState>(
       `${this.savedQueryPath(tenantId, savedQueryId)}/favourite`,
     );
+  }
+
+  /**
+   * The caller's own dashboards. A member who has none yet is given the starter
+   * one by this call, so the list is never empty for somebody who may own one.
+   */
+  listDashboards(tenantId: string): Observable<DashboardList> {
+    return this.http.get<DashboardList>(this.dashboardsPath(tenantId));
+  }
+
+  /**
+   * Remembers where the caller last was. Deliberately its own request: a
+   * prefetch or a link preview must never move where somebody lands next.
+   */
+  setActiveDashboard(tenantId: string, dashboardId: string): Observable<DashboardResponse> {
+    return this.http.put<DashboardResponse>(
+      `${this.dashboardPath(tenantId, dashboardId)}/active`,
+      {},
+    );
+  }
+
+  restoreDashboardFromTemplate(
+    tenantId: string,
+    request: RestoreDashboardTemplateRequest,
+  ): Observable<DashboardTemplateResponse> {
+    return this.http.post<DashboardTemplateResponse>(
+      `${this.dashboardsPath(tenantId)}/from-template`,
+      request,
+    );
+  }
+
+  listDashboardWidgets(tenantId: string, dashboardId: string): Observable<DashboardWidgetList> {
+    return this.http.get<DashboardWidgetList>(
+      `${this.dashboardPath(tenantId, dashboardId)}/widgets`,
+    );
+  }
+
+  /**
+   * One widget at a time, on purpose: each carries its own result or its own
+   * failure, so a single unreachable source cannot blank the whole page.
+   */
+  getWidgetData(
+    tenantId: string,
+    dashboardId: string,
+    widgetId: string,
+  ): Observable<WidgetDataResponse> {
+    return this.http.get<WidgetDataResponse>(
+      `${this.dashboardPath(tenantId, dashboardId)}/widgets/${encodeURIComponent(widgetId)}/data`,
+    );
+  }
+
+  private dashboardsPath(tenantId: string): string {
+    return `${API_ROOT}/tenants/${encodeURIComponent(tenantId)}/dashboards`;
+  }
+
+  private dashboardPath(tenantId: string, dashboardId: string): string {
+    return `${this.dashboardsPath(tenantId)}/${encodeURIComponent(dashboardId)}`;
   }
 
   private savedQueriesPath(tenantId: string): string {

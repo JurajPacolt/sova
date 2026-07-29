@@ -35,10 +35,17 @@ export const routes = [
       {
         path: '',
         pathMatch: 'full',
-        redirectTo: 'dashboard',
+        redirectTo: 'dashboards',
       },
       {
+        // The singular path stays as an entry point (spec §7.2) so older links
+        // and anything pointing at "the dashboard" still land somewhere.
         path: 'dashboard',
+        pathMatch: 'full',
+        redirectTo: 'dashboards',
+      },
+      {
+        path: 'dashboards',
         loadChildren: () =>
           import('./features/dashboard/dashboard.routes').then(
             (routesModule) => routesModule.DASHBOARD_ROUTES,

@@ -21,6 +21,6 @@ export function permissionGuard(...codes: readonly string[]): CanActivateFn {
       return true;
     }
 
-    return router.createUrlTree(['/t', tenant.slug, 'dashboard']);
+    return router.createUrlTree(['/t', tenant.slug, 'dashboards']);
   };
 }
