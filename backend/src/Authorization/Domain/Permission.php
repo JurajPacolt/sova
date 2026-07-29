@@ -38,12 +38,18 @@ enum Permission: string
     case IssueEdit = 'issue.edit';
     case IssueAssign = 'issue.assign';
     case IssueTransition = 'issue.transition';
+    case IssueChangeType = 'issue.change-type';
     case IssueDelete = 'issue.delete';
     case CommentCreate = 'comment.create';
     case CommentModerate = 'comment.moderate';
     case AttachmentUpload = 'attachment.upload';
     case AttachmentModerate = 'attachment.moderate';
+    case SavedQueryCreate = 'saved-query.create';
     case SavedQueryShare = 'saved-query.share';
+    case SavedQueryManage = 'saved-query.manage';
+    case DashboardCreate = 'dashboard.create';
+    case DashboardUpdateOwn = 'dashboard.update-own';
+    case DashboardDeleteOwn = 'dashboard.delete-own';
 
     case WorkgroupView = 'workgroup.view';
     case WorkgroupManage = 'workgroup.manage';
@@ -70,6 +76,12 @@ enum Permission: string
             self::TenantWorkgroupsManage,
             self::TenantProjectsCreate,
             self::TenantProjectsManage,
+            self::SavedQueryCreate,
+            self::SavedQueryShare,
+            self::SavedQueryManage,
+            self::DashboardCreate,
+            self::DashboardUpdateOwn,
+            self::DashboardDeleteOwn,
             self::TenantAuditView,
             self::TenantAuditExport => PermissionScope::Tenant,
             self::ProjectView,
@@ -82,12 +94,12 @@ enum Permission: string
             self::IssueEdit,
             self::IssueAssign,
             self::IssueTransition,
+            self::IssueChangeType,
             self::IssueDelete,
             self::CommentCreate,
             self::CommentModerate,
             self::AttachmentUpload,
-            self::AttachmentModerate,
-            self::SavedQueryShare => PermissionScope::Project,
+            self::AttachmentModerate => PermissionScope::Project,
             self::WorkgroupView,
             self::WorkgroupManage,
             self::WorkgroupMembersManage => PermissionScope::Workgroup,
@@ -164,6 +176,7 @@ enum Permission: string
             self::IssueEdit,
             self::IssueAssign,
             self::IssueTransition,
+            self::IssueChangeType,
             self::IssueDelete,
             self::CommentCreate,
             self::CommentModerate,
@@ -172,7 +185,10 @@ enum Permission: string
                 self::ProjectView,
                 self::IssueView,
             ],
-            self::SavedQueryShare => [self::ProjectView],
+            self::SavedQueryShare,
+            self::SavedQueryManage => [self::SavedQueryCreate],
+            self::DashboardUpdateOwn,
+            self::DashboardDeleteOwn => [self::DashboardCreate],
             self::WorkgroupManage,
             self::WorkgroupMembersManage => [self::WorkgroupView],
             default => [],

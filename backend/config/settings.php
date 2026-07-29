@@ -119,6 +119,37 @@ return [
         'sensitive_payload_key_id' => $envString('SENSITIVE_PAYLOAD_KEY_ID'),
         'sensitive_payload_key' => $envString('SENSITIVE_PAYLOAD_KEY'),
     ],
+    // Attachment bytes never live in the database. The directory must sit
+    // outside anything the web server serves directly, or a file could be
+    // fetched without passing the download authorisation.
+    'attachments' => [
+        'path' => $envString('ATTACHMENT_STORAGE_PATH', __DIR__ . '/../var/attachments'),
+        'tenant_quota_bytes' => $envInt(
+            'ATTACHMENT_TENANT_QUOTA_BYTES',
+            20 * 1024 * 1024 * 1024,
+        ),
+        'scanner' => $envString('ATTACHMENT_SCANNER', 'none'),
+    ],
+    'comments' => [
+        // Grace window in which an author may still edit their own comment.
+        // Beyond it, and for anyone else's comment, `comment.moderate` decides.
+        'edit_window_seconds' => $envInt('COMMENT_EDIT_WINDOW_SECONDS', 900),
+    ],
+    // SovaQL safety limits (spec SOVAQL-A-DASHBOARDY.md §4.12). Operations may
+    // tune them, but no value here can widen the tenant scope or bypass the
+    // database statement timeout.
+    'search' => [
+        'max_query_bytes' => $envInt('SEARCH_MAX_QUERY_BYTES', 8192),
+        'max_ast_nodes' => $envInt('SEARCH_MAX_AST_NODES', 100),
+        'max_paren_depth' => $envInt('SEARCH_MAX_PAREN_DEPTH', 10),
+        'max_in_values' => $envInt('SEARCH_MAX_IN_VALUES', 100),
+        'max_sort_fields' => $envInt('SEARCH_MAX_SORT_FIELDS', 3),
+        'default_page_size' => $envInt('SEARCH_DEFAULT_PAGE_SIZE', 50),
+        'max_page_size' => $envInt('SEARCH_MAX_PAGE_SIZE', 100),
+        'statement_timeout_ms' => $envInt('SEARCH_STATEMENT_TIMEOUT_MS', 3000),
+        'rate_limit_window_seconds' => $envInt('SEARCH_RATE_LIMIT_WINDOW_SECONDS', 60),
+        'rate_limit_requests' => $envInt('SEARCH_RATE_LIMIT_REQUESTS', 120),
+    ],
     'mailer' => [
         'dsn' => $envString('MAILER_DSN', 'null://null'),
         'from' => $envString('MAILER_FROM', 'noreply@example.test'),

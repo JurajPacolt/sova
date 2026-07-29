@@ -1,0 +1,84 @@
+<app-page-header
+  [eyebrow]="'issue.eyebrow' | translate"
+  [title]="'issue.board.title' | translate"
+  [subtitle]="'issue.board.subtitle' | translate: { project: projectCode() }"
+></app-page-header>
+
+@if (moveError(); as message) {
+  <div class="alert alert-warning" role="alert">{{ message | translate }}</div>
+}
+
+@if (loading()) {
+  <p class="text-body-secondary" role="status">{{ 'common.loading' | translate }}</p>
+} @else if (loadError(); as message) {
+  <div class="alert alert-warning" role="alert">{{ message | translate }}</div>
+} @else {
+  <div class="board-columns">
+    @for (column of columns(); track column.status.id) {
+      <section class="board-column" [attr.aria-label]="column.status.name">
+        <header class="board-column-header">
+          <span class="fw-semibold">{{ column.status.name }}</span>
+          <span class="badge text-bg-secondary">{{ column.issues.length }}</span>
+        </header>
+
+        @if (column.issues.length === 0) {
+          <p class="text-body-secondary small mb-0">{{ 'issue.board.emptyColumn' | translate }}</p>
+        } @else {
+          <ul class="list-unstyled mb-0">
+            @for (issue of column.issues; track issue.id) {
+              <li class="board-card">
+                <a class="fw-semibold d-block" [routerLink]="['../..', issue.key]">
+                  {{ issue.key }}
+                </a>
+                <span class="d-block">{{ issue.title }}</span>
+                <span class="d-block text-body-secondary small">
+                  {{ issue.issue_type.name }} · {{ issue.priority }} ·
+                  {{ issue.assignee?.display_name ?? ('issue.unassigned' | translate) }}
+                </span>
+
+                <button
+                  class="btn btn-link btn-sm p-0 mt-1"
+                  type="button"
+                  [attr.aria-expanded]="openCardId() === issue.id"
+                  (click)="toggleMoves(issue)"
+                >
+                  {{ 'issue.board.move' | translate }}
+                </button>
+
+                @if (openCardId() === issue.id) {
+                  @if (movesLoading()) {
+                    <p class="small text-body-secondary mb-0" role="status">
+                      {{ 'common.loading' | translate }}
+                    </p>
+                  } @else if (moves().length === 0) {
+                    <p class="small text-body-secondary mb-0">
+                      {{ 'issue.board.noMoves' | translate }}
+                    </p>
+                  } @else {
+                    <ul class="list-unstyled mb-0 mt-1">
+                      @for (transition of moves(); track transition.id) {
+                        <li>
+                          <button
+                            class="btn btn-outline-primary btn-sm w-100 mb-1"
+                            type="button"
+                            [disabled]="moving()"
+                            (click)="move(issue, transition)"
+                          >
+                            {{
+                              'issue.board.moveTo'
+                                | translate: { status: transition.to_status.name }
+                            }}
+                          </button>
+                        </li>
+                      }
+                    </ul>
+                  }
+                }
+              </li>
+            }
+          </ul>
+        }
+      </section>
+    }
+  </div>
+}

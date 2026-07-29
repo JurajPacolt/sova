@@ -161,15 +161,6 @@ final class WorkgroupApiTest extends TestCase
         self::assertSame('MANAGER', $addedMember['role'] ?? null);
 
         $memberLogin = $this->login('workgroup-member');
-        $rename = $this->app->handle(
-            $this->authenticatedRequest(
-                'PATCH',
-                sprintf('/api/v1/tenants/%s/workgroups/%s', $this->tenantId, $workgroupId),
-                $memberLogin,
-            )->withParsedBody(['status' => 'ARCHIVED']),
-        );
-
-        self::assertSame(200, $rename->getStatusCode());
 
         $secondMemberId = $this->insertUser('workgroup-second');
         $secondMembershipId = $this->addMembership(
@@ -215,6 +206,37 @@ final class WorkgroupApiTest extends TestCase
             ),
         );
         self::assertSame(204, $remove->getStatusCode());
+
+        $archive = $this->app->handle(
+            $this->authenticatedRequest(
+                'PATCH',
+                sprintf('/api/v1/tenants/%s/workgroups/%s', $this->tenantId, $workgroupId),
+                $memberLogin,
+            )->withParsedBody(['status' => 'ARCHIVED']),
+        );
+        self::assertSame(200, $archive->getStatusCode());
+
+        // Archiving is deliberately one-way for a workgroup manager: an archived
+        // workgroup grants no workgroup-scoped permission at all, so only a
+        // tenant administrator holding `tenant.workgroups.manage` can bring it
+        // back. The manager must not keep managing what they just archived.
+        $reactivate = $this->app->handle(
+            $this->authenticatedRequest(
+                'PATCH',
+                sprintf('/api/v1/tenants/%s/workgroups/%s', $this->tenantId, $workgroupId),
+                $memberLogin,
+            )->withParsedBody(['status' => 'ACTIVE']),
+        );
+        self::assertSame(403, $reactivate->getStatusCode());
+
+        $ownerReactivate = $this->app->handle(
+            $this->authenticatedRequest(
+                'PATCH',
+                sprintf('/api/v1/tenants/%s/workgroups/%s', $this->tenantId, $workgroupId),
+                $ownerLogin,
+            )->withParsedBody(['status' => 'ACTIVE']),
+        );
+        self::assertSame(200, $ownerReactivate->getStatusCode());
     }
 
     public function testPlainWorkgroupMemberCannotManageItsSettingsOrMembers(): void

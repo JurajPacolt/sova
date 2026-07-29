@@ -110,9 +110,9 @@ enum DefaultRole: string
             Permission::IssueEdit,
             Permission::IssueAssign,
             Permission::IssueTransition,
+            Permission::IssueChangeType,
             Permission::CommentCreate,
             Permission::AttachmentUpload,
-            Permission::SavedQueryShare,
         ];
 
         if ($assignedScope === PermissionScope::Project) {
@@ -122,6 +122,16 @@ enum DefaultRole: string
         return [
             Permission::TenantView,
             Permission::TenantMembersView,
+            // Saved queries are tenant entities: one query may span several
+            // projects, so the permission cannot hang off a single project.
+            Permission::SavedQueryCreate,
+            Permission::SavedQueryShare,
+            // A dashboard is personal: it belongs to one membership and nobody
+            // else can reach it, so even a read-only member has one of their
+            // own to arrange.
+            Permission::DashboardCreate,
+            Permission::DashboardUpdateOwn,
+            Permission::DashboardDeleteOwn,
             ...$projectPermissions,
         ];
     }
@@ -158,6 +168,16 @@ enum DefaultRole: string
         return [
             Permission::TenantView,
             Permission::TenantMembersView,
+            // Saved queries are tenant entities: one query may span several
+            // projects, so the permission cannot hang off a single project.
+            Permission::SavedQueryCreate,
+            Permission::SavedQueryShare,
+            // A dashboard is personal: it belongs to one membership and nobody
+            // else can reach it, so even a read-only member has one of their
+            // own to arrange.
+            Permission::DashboardCreate,
+            Permission::DashboardUpdateOwn,
+            Permission::DashboardDeleteOwn,
             ...$projectPermissions,
         ];
     }

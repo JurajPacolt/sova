@@ -29,6 +29,7 @@
         <env name="AUTH_RATE_LIMIT_SECRET" value="sova-test-rate-limit-secret" force="true"/>
         <env name="SENSITIVE_PAYLOAD_KEY_ID" value="test-v1" force="true"/>
         <env name="SENSITIVE_PAYLOAD_KEY" value="MDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDA=" force="true"/>
+        <env name="ATTACHMENT_STORAGE_PATH" value="var/test-attachments" force="true"/>
         <env name="MAILER_DSN" value="null://null" force="true"/>
         <env name="MAILER_FROM" value="noreply@example.test" force="true"/>
     </php>

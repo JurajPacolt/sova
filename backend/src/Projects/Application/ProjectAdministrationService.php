@@ -8,6 +8,7 @@ use Doctrine\DBAL\Connection;
 use Doctrine\DBAL\Exception\UniqueConstraintViolationException;
 use RuntimeException;
 use Sova\Authorization\Domain\DefaultRole;
+use Sova\ProjectConfiguration\Application\ProjectConfigurationProvisioner;
 use Sova\Projects\Domain\ProjectStatus;
 use Sova\Shared\Application\Audit\SecurityAuditRecorder;
 use Sova\Shared\Domain\Error\DomainProblemException;
@@ -21,15 +22,29 @@ final readonly class ProjectAdministrationService
         private ProjectRepository $projects,
         private ProjectRoleProvisioner $roleProvisioner,
         private ProjectRoleRepository $roles,
+        private ProjectConfigurationProvisioner $configurationProvisioner,
         private SecurityAuditRecorder $audit,
     ) {}
 
     /**
-     * @return list<ProjectDetails>
+     * Every project of the tenant, for callers holding `tenant.projects.manage`.
+     *
+     * @return list<ProjectListItem>
      */
-    public function list(string $tenantId): array
+    public function list(string $tenantId, string $viewerUserId): array
     {
-        return $this->projects->listForTenant($tenantId);
+        return $this->projects->listForTenant($tenantId, $viewerUserId);
+    }
+
+    /**
+     * Only what the user may see: tenant-visible projects plus private ones
+     * they reach through a role assignment or a linked workgroup.
+     *
+     * @return list<ProjectListItem>
+     */
+    public function listVisible(string $tenantId, string $userId): array
+    {
+        return $this->projects->listVisibleForUser($tenantId, $userId);
     }
 
     public function create(
@@ -79,6 +94,13 @@ final readonly class ProjectAdministrationService
                         $projectId,
                         $actorUserId,
                     );
+                    // Same transaction: a project must never exist without
+                    // issue types, statuses and a published workflow.
+                    $this->configurationProvisioner->provisionDefaults(
+                        $tenantId,
+                        $projectId,
+                        $actorUserId,
+                    );
 
                     if ($input->leadMembershipId !== null) {
                         $managerRole = $this->roles->findByCode(
@@ -124,8 +146,7 @@ final readonly class ProjectAdministrationService
             throw new DomainProblemException(
                 ProblemType::Conflict,
                 'PROJECT_CODE_TAKEN',
-                'A project with this code already exists.',
-                ['code' => ['Choose a different project code.']],
+                'A project with this code already exists. Choose a different one.',
             );
         }
     }

@@ -1,0 +1,112 @@
+<section class="border rounded p-2 mt-2" aria-live="polite">
+  <p class="small text-body-secondary mb-2">{{ 'savedQuery.grants.notice' | translate }}</p>
+
+  @if (error(); as message) {
+    <div class="alert alert-warning py-2" role="alert">{{ message | translate }}</div>
+  }
+
+  @if (loading()) {
+    <p class="text-body-secondary small mb-0" role="status">{{ 'common.loading' | translate }}</p>
+  } @else {
+    @if (rows().length === 0) {
+      <p class="text-body-secondary small mb-2">{{ 'savedQuery.grants.empty' | translate }}</p>
+    } @else {
+      <ul class="list-unstyled mb-2">
+        @for (row of rows(); track row.principalId) {
+          <li class="d-flex flex-wrap align-items-center gap-2 py-1">
+            <span class="me-auto">
+              {{ row.displayName }}
+              <span class="badge text-bg-light">
+                {{
+                  (row.kind === 'MEMBER' ? 'savedQuery.grants.member' : 'savedQuery.grants.group')
+                    | translate
+                }}
+              </span>
+            </span>
+
+            <label class="visually-hidden" [attr.for]="'grant-access-' + row.principalId">
+              {{ 'savedQuery.grants.access' | translate }}
+            </label>
+            <select
+              class="form-select form-select-sm w-auto"
+              [id]="'grant-access-' + row.principalId"
+              [ngModel]="row.access"
+              (ngModelChange)="changeAccess(row.principalId, $event)"
+              [name]="'grantAccess' + row.principalId"
+            >
+              <option value="VIEW">{{ 'savedQuery.grants.view' | translate }}</option>
+              <option value="EDIT">{{ 'savedQuery.grants.edit' | translate }}</option>
+            </select>
+
+            <button
+              class="btn btn-sm btn-outline-secondary"
+              type="button"
+              (click)="remove(row.principalId)"
+            >
+              {{ 'savedQuery.grants.remove' | translate }}
+            </button>
+          </li>
+        }
+      </ul>
+    }
+
+    <div class="row g-2 align-items-end">
+      <div class="col-12 col-md-6">
+        <label class="form-label small" for="grant-principal">
+          {{ 'savedQuery.grants.add' | translate }}
+        </label>
+        <select
+          class="form-select form-select-sm"
+          id="grant-principal"
+          [ngModel]="selectedPrincipal()"
+          (ngModelChange)="selectedPrincipal.set($event)"
+          name="grantPrincipal"
+        >
+          <option value="">{{ 'savedQuery.grants.addPlaceholder' | translate }}</option>
+          @for (candidate of available(); track candidate.principalId) {
+            <option [value]="candidate.principalId">{{ candidate.displayName }}</option>
+          }
+        </select>
+      </div>
+
+      <div class="col-6 col-md-3">
+        <label class="form-label small" for="grant-new-access">
+          {{ 'savedQuery.grants.access' | translate }}
+        </label>
+        <select
+          class="form-select form-select-sm"
+          id="grant-new-access"
+          [ngModel]="selectedAccess()"
+          (ngModelChange)="selectedAccess.set($event)"
+          name="grantNewAccess"
+        >
+          <option value="VIEW">{{ 'savedQuery.grants.view' | translate }}</option>
+          <option value="EDIT">{{ 'savedQuery.grants.edit' | translate }}</option>
+        </select>
+      </div>
+
+      <div class="col-6 col-md-3">
+        <button
+          class="btn btn-sm btn-outline-primary w-100"
+          type="button"
+          [disabled]="selectedPrincipal() === ''"
+          (click)="add()"
+        >
+          {{ 'savedQuery.grants.addSubmit' | translate }}
+        </button>
+      </div>
+    </div>
+
+    <div class="d-flex align-items-center gap-2 mt-2">
+      <button class="btn btn-sm btn-primary" type="button" [disabled]="saving()" (click)="save()">
+        {{ 'savedQuery.grants.save' | translate }}
+      </button>
+
+      @if (saved()) {
+        <span class="text-body-secondary small" role="status">
+          {{ 'savedQuery.grants.saved' | translate }}
+        </span>
+      }
+    </div>
+  }
+</section>

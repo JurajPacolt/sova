@@ -8,6 +8,17 @@ use Slim\Routing\RouteCollectorProxy;
 use Sova\Authorization\Presentation\Http\Action\MutateTenantRoleAssignmentAction;
 use Sova\Authorization\Presentation\Http\Action\MutateTenantRoleDefinitionAction;
 use Sova\Authorization\Presentation\Http\Action\TenantRolesAction;
+use Sova\Dashboards\Presentation\Http\Action\CopyDashboardAction;
+use Sova\Dashboards\Presentation\Http\Action\DashboardAction;
+use Sova\Dashboards\Presentation\Http\Action\DashboardActiveAction;
+use Sova\Dashboards\Presentation\Http\Action\DashboardDefaultAction;
+use Sova\Dashboards\Presentation\Http\Action\DashboardLayoutAction;
+use Sova\Dashboards\Presentation\Http\Action\DashboardsAction;
+use Sova\Dashboards\Presentation\Http\Action\DashboardTemplateAction;
+use Sova\Dashboards\Presentation\Http\Action\DashboardWidgetAction;
+use Sova\Dashboards\Presentation\Http\Action\DashboardWidgetsAction;
+use Sova\Dashboards\Presentation\Http\Action\WidgetDataAction;
+use Sova\Dashboards\Presentation\Http\Action\WidgetTypesAction;
 use Sova\Identity\Infrastructure\Http\Middleware\CsrfProtectionMiddleware;
 use Sova\Identity\Infrastructure\Http\Middleware\SessionAuthenticationMiddleware;
 use Sova\Identity\Presentation\Http\Action\ChangeSystemUserStatusAction;
@@ -23,6 +34,33 @@ use Sova\Identity\Presentation\Http\Action\RevokeSessionAction;
 use Sova\Identity\Presentation\Http\Action\SystemImpersonationsAction;
 use Sova\Identity\Presentation\Http\Action\SystemUsersAction;
 use Sova\Identity\Presentation\Http\Action\VerifyEmailAction;
+use Sova\Issues\Presentation\Http\Action\ChangeIssueTypeAction;
+use Sova\Issues\Presentation\Http\Action\ExecuteIssueTransitionAction;
+use Sova\Issues\Presentation\Http\Action\IssueAction;
+use Sova\Issues\Presentation\Http\Action\IssueAttachmentAction;
+use Sova\Issues\Presentation\Http\Action\IssueAttachmentsAction;
+use Sova\Issues\Presentation\Http\Action\IssueCommentAction;
+use Sova\Issues\Presentation\Http\Action\IssueCommentsAction;
+use Sova\Issues\Presentation\Http\Action\IssueHistoryAction;
+use Sova\Issues\Presentation\Http\Action\IssueLinkAction;
+use Sova\Issues\Presentation\Http\Action\IssueLinksAction;
+use Sova\Issues\Presentation\Http\Action\IssueQueryMetadataAction;
+use Sova\Issues\Presentation\Http\Action\IssuesAction;
+use Sova\Issues\Presentation\Http\Action\IssueTransitionsAction;
+use Sova\Issues\Presentation\Http\Action\IssueWatchAction;
+use Sova\Issues\Presentation\Http\Action\IssueWatchersAction;
+use Sova\Issues\Presentation\Http\Action\SearchIssuesAction;
+use Sova\Issues\Presentation\Http\Action\ValidateIssueQueryAction;
+use Sova\Notifications\Presentation\Http\Action\MarkNotificationsReadAction;
+use Sova\Notifications\Presentation\Http\Action\NotificationPreferencesAction;
+use Sova\Notifications\Presentation\Http\Action\NotificationsAction;
+use Sova\ProjectConfiguration\Presentation\Http\Action\ConfigurationHistoryAction;
+use Sova\ProjectConfiguration\Presentation\Http\Action\ProjectConfigurationAction;
+use Sova\ProjectConfiguration\Presentation\Http\Action\PublishWorkflowAction;
+use Sova\ProjectConfiguration\Presentation\Http\Action\ValidateWorkflowDraftAction;
+use Sova\ProjectConfiguration\Presentation\Http\Action\WorkflowDraftAction;
+use Sova\ProjectConfiguration\Presentation\Http\Action\WorkflowImpactAction;
+use Sova\ProjectConfiguration\Presentation\Http\Action\WorkflowsAction;
 use Sova\Projects\Presentation\Http\Action\ChangeProjectStatusAction;
 use Sova\Projects\Presentation\Http\Action\MutateProjectRoleAssignmentAction;
 use Sova\Projects\Presentation\Http\Action\MutateProjectWorkgroupAction;
@@ -30,6 +68,11 @@ use Sova\Projects\Presentation\Http\Action\ProjectMembersAction;
 use Sova\Projects\Presentation\Http\Action\ProjectRolesAction;
 use Sova\Projects\Presentation\Http\Action\ProjectsAction;
 use Sova\Projects\Presentation\Http\Action\ProjectWorkgroupsAction;
+use Sova\SavedQueries\Presentation\Http\Action\ArchiveSavedQueryAction;
+use Sova\SavedQueries\Presentation\Http\Action\SavedQueriesAction;
+use Sova\SavedQueries\Presentation\Http\Action\SavedQueryAction;
+use Sova\SavedQueries\Presentation\Http\Action\SavedQueryFavouriteAction;
+use Sova\SavedQueries\Presentation\Http\Action\SavedQueryGrantsAction;
 use Sova\Shared\Presentation\Http\Action\ApiInfoAction;
 use Sova\Shared\Presentation\Http\Action\Health\LivenessAction;
 use Sova\Shared\Presentation\Http\Action\Health\ReadinessAction;
@@ -316,6 +359,422 @@ return static function (App $app): void {
                 MutateProjectWorkgroupAction::class,
             )
             ->setName('tenants.projects.workgroups.mutate')
+            ->add(TenantContextMiddleware::class)
+            ->add(CsrfProtectionMiddleware::class)
+            ->add(SessionAuthenticationMiddleware::class);
+
+        $group
+            ->get(
+                '/tenants/{tenantId}/projects/{projectId}/configuration',
+                ProjectConfigurationAction::class,
+            )
+            ->setName('tenants.projects.configuration')
+            ->add(TenantContextMiddleware::class)
+            ->add(SessionAuthenticationMiddleware::class);
+
+        $group
+            ->get(
+                '/tenants/{tenantId}/projects/{projectId}/configuration/history',
+                ConfigurationHistoryAction::class,
+            )
+            ->setName('tenants.projects.configuration.history')
+            ->add(TenantContextMiddleware::class)
+            ->add(SessionAuthenticationMiddleware::class);
+
+        $group
+            ->get(
+                '/tenants/{tenantId}/projects/{projectId}/workflows',
+                WorkflowsAction::class,
+            )
+            ->setName('tenants.projects.workflows.list')
+            ->add(TenantContextMiddleware::class)
+            ->add(SessionAuthenticationMiddleware::class);
+
+        $group
+            ->get(
+                '/tenants/{tenantId}/projects/{projectId}/workflows/{workflowId}/validation',
+                ValidateWorkflowDraftAction::class,
+            )
+            ->setName('tenants.projects.workflows.validation')
+            ->add(TenantContextMiddleware::class)
+            ->add(SessionAuthenticationMiddleware::class);
+
+        $group
+            ->get(
+                '/tenants/{tenantId}/projects/{projectId}/workflows/{workflowId}/impact',
+                WorkflowImpactAction::class,
+            )
+            ->setName('tenants.projects.workflows.impact')
+            ->add(TenantContextMiddleware::class)
+            ->add(SessionAuthenticationMiddleware::class);
+
+        $group
+            ->map(
+                ['POST', 'PUT'],
+                '/tenants/{tenantId}/projects/{projectId}/workflows/{workflowId}/draft',
+                WorkflowDraftAction::class,
+            )
+            ->setName('tenants.projects.workflows.draft')
+            ->add(TenantContextMiddleware::class)
+            ->add(CsrfProtectionMiddleware::class)
+            ->add(SessionAuthenticationMiddleware::class);
+
+        $group
+            ->post(
+                '/tenants/{tenantId}/projects/{projectId}/workflows/{workflowId}/publish',
+                PublishWorkflowAction::class,
+            )
+            ->setName('tenants.projects.workflows.publish')
+            ->add(TenantContextMiddleware::class)
+            ->add(CsrfProtectionMiddleware::class)
+            ->add(SessionAuthenticationMiddleware::class);
+
+        $group
+            ->map(
+                ['GET', 'POST'],
+                '/tenants/{tenantId}/projects/{projectId}/issues',
+                IssuesAction::class,
+            )
+            ->setName('tenants.projects.issues.collection')
+            ->add(TenantContextMiddleware::class)
+            ->add(CsrfProtectionMiddleware::class)
+            ->add(SessionAuthenticationMiddleware::class);
+
+        $group
+            ->post('/tenants/{tenantId}/issues/search', SearchIssuesAction::class)
+            ->setName('tenants.issues.search')
+            ->add(TenantContextMiddleware::class)
+            ->add(CsrfProtectionMiddleware::class)
+            ->add(SessionAuthenticationMiddleware::class);
+
+        $group
+            ->post(
+                '/tenants/{tenantId}/issue-query/validate',
+                ValidateIssueQueryAction::class,
+            )
+            ->setName('tenants.issue-query.validate')
+            ->add(TenantContextMiddleware::class)
+            ->add(CsrfProtectionMiddleware::class)
+            ->add(SessionAuthenticationMiddleware::class);
+
+        $group
+            ->get(
+                '/tenants/{tenantId}/issue-query/metadata',
+                IssueQueryMetadataAction::class,
+            )
+            ->setName('tenants.issue-query.metadata')
+            ->add(TenantContextMiddleware::class)
+            ->add(SessionAuthenticationMiddleware::class);
+
+        $group
+            ->get('/tenants/{tenantId}/issues/{issueId}', IssueAction::class)
+            ->setName('tenants.issues.detail')
+            ->add(TenantContextMiddleware::class)
+            ->add(SessionAuthenticationMiddleware::class);
+
+        $group
+            ->get(
+                '/tenants/{tenantId}/issues/{issueId}/transitions',
+                IssueTransitionsAction::class,
+            )
+            ->setName('tenants.issues.transitions.list')
+            ->add(TenantContextMiddleware::class)
+            ->add(SessionAuthenticationMiddleware::class);
+
+        $group
+            ->post(
+                '/tenants/{tenantId}/issues/{issueId}/transitions/{transitionId}',
+                ExecuteIssueTransitionAction::class,
+            )
+            ->setName('tenants.issues.transitions.execute')
+            ->add(TenantContextMiddleware::class)
+            ->add(CsrfProtectionMiddleware::class)
+            ->add(SessionAuthenticationMiddleware::class);
+
+        $group
+            ->map(['GET', 'POST'], '/tenants/{tenantId}/saved-queries', SavedQueriesAction::class)
+            ->setName('tenants.savedQueries.collection')
+            ->add(TenantContextMiddleware::class)
+            ->add(CsrfProtectionMiddleware::class)
+            ->add(SessionAuthenticationMiddleware::class);
+
+        $group
+            ->map(
+                ['GET', 'PATCH'],
+                '/tenants/{tenantId}/saved-queries/{savedQueryId}',
+                SavedQueryAction::class,
+            )
+            ->setName('tenants.savedQueries.item')
+            ->add(TenantContextMiddleware::class)
+            ->add(CsrfProtectionMiddleware::class)
+            ->add(SessionAuthenticationMiddleware::class);
+
+        $group
+            ->map(
+                ['GET', 'PUT'],
+                '/tenants/{tenantId}/saved-queries/{savedQueryId}/grants',
+                SavedQueryGrantsAction::class,
+            )
+            ->setName('tenants.savedQueries.grants')
+            ->add(TenantContextMiddleware::class)
+            ->add(CsrfProtectionMiddleware::class)
+            ->add(SessionAuthenticationMiddleware::class);
+
+        $group
+            ->map(
+                ['PUT', 'DELETE'],
+                '/tenants/{tenantId}/saved-queries/{savedQueryId}/favourite',
+                SavedQueryFavouriteAction::class,
+            )
+            ->setName('tenants.savedQueries.favourite')
+            ->add(TenantContextMiddleware::class)
+            ->add(CsrfProtectionMiddleware::class)
+            ->add(SessionAuthenticationMiddleware::class);
+
+        $group
+            ->post(
+                '/tenants/{tenantId}/saved-queries/{savedQueryId}/archive',
+                ArchiveSavedQueryAction::class,
+            )
+            ->setName('tenants.savedQueries.archive')
+            ->add(TenantContextMiddleware::class)
+            ->add(CsrfProtectionMiddleware::class)
+            ->add(SessionAuthenticationMiddleware::class);
+
+        $group
+            ->map(['GET', 'POST'], '/tenants/{tenantId}/dashboards', DashboardsAction::class)
+            ->setName('tenants.dashboards.collection')
+            ->add(TenantContextMiddleware::class)
+            ->add(CsrfProtectionMiddleware::class)
+            ->add(SessionAuthenticationMiddleware::class);
+
+        // Declared before `{dashboardId}`, which would otherwise swallow the
+        // literal segment and answer "no such dashboard".
+        $group
+            ->post(
+                '/tenants/{tenantId}/dashboards/from-template',
+                DashboardTemplateAction::class,
+            )
+            ->setName('tenants.dashboards.fromTemplate')
+            ->add(TenantContextMiddleware::class)
+            ->add(CsrfProtectionMiddleware::class)
+            ->add(SessionAuthenticationMiddleware::class);
+
+        $group
+            ->map(
+                ['GET', 'PATCH', 'DELETE'],
+                '/tenants/{tenantId}/dashboards/{dashboardId}',
+                DashboardAction::class,
+            )
+            ->setName('tenants.dashboards.item')
+            ->add(TenantContextMiddleware::class)
+            ->add(CsrfProtectionMiddleware::class)
+            ->add(SessionAuthenticationMiddleware::class);
+
+        $group
+            ->put(
+                '/tenants/{tenantId}/dashboards/{dashboardId}/default',
+                DashboardDefaultAction::class,
+            )
+            ->setName('tenants.dashboards.default')
+            ->add(TenantContextMiddleware::class)
+            ->add(CsrfProtectionMiddleware::class)
+            ->add(SessionAuthenticationMiddleware::class);
+
+        $group
+            ->put(
+                '/tenants/{tenantId}/dashboards/{dashboardId}/active',
+                DashboardActiveAction::class,
+            )
+            ->setName('tenants.dashboards.active')
+            ->add(TenantContextMiddleware::class)
+            ->add(CsrfProtectionMiddleware::class)
+            ->add(SessionAuthenticationMiddleware::class);
+
+        $group
+            ->post(
+                '/tenants/{tenantId}/dashboards/{dashboardId}/copy',
+                CopyDashboardAction::class,
+            )
+            ->setName('tenants.dashboards.copy')
+            ->add(TenantContextMiddleware::class)
+            ->add(CsrfProtectionMiddleware::class)
+            ->add(SessionAuthenticationMiddleware::class);
+
+        $group
+            ->map(
+                ['GET', 'POST'],
+                '/tenants/{tenantId}/dashboards/{dashboardId}/widgets',
+                DashboardWidgetsAction::class,
+            )
+            ->setName('tenants.dashboards.widgets.collection')
+            ->add(TenantContextMiddleware::class)
+            ->add(CsrfProtectionMiddleware::class)
+            ->add(SessionAuthenticationMiddleware::class);
+
+        $group
+            ->map(
+                ['PATCH', 'DELETE'],
+                '/tenants/{tenantId}/dashboards/{dashboardId}/widgets/{widgetId}',
+                DashboardWidgetAction::class,
+            )
+            ->setName('tenants.dashboards.widgets.item')
+            ->add(TenantContextMiddleware::class)
+            ->add(CsrfProtectionMiddleware::class)
+            ->add(SessionAuthenticationMiddleware::class);
+
+        $group
+            ->put(
+                '/tenants/{tenantId}/dashboards/{dashboardId}/layout',
+                DashboardLayoutAction::class,
+            )
+            ->setName('tenants.dashboards.layout')
+            ->add(TenantContextMiddleware::class)
+            ->add(CsrfProtectionMiddleware::class)
+            ->add(SessionAuthenticationMiddleware::class);
+
+        $group
+            ->get(
+                '/tenants/{tenantId}/dashboards/{dashboardId}/widgets/{widgetId}/data',
+                WidgetDataAction::class,
+            )
+            ->setName('tenants.dashboards.widgets.data')
+            ->add(TenantContextMiddleware::class)
+            ->add(SessionAuthenticationMiddleware::class);
+
+        $group
+            ->get('/tenants/{tenantId}/widget-types', WidgetTypesAction::class)
+            ->setName('tenants.widgetTypes')
+            ->add(TenantContextMiddleware::class)
+            ->add(SessionAuthenticationMiddleware::class);
+
+        $group
+            ->get('/tenants/{tenantId}/notifications', NotificationsAction::class)
+            ->setName('tenants.notifications.list')
+            ->add(TenantContextMiddleware::class)
+            ->add(SessionAuthenticationMiddleware::class);
+
+        $group
+            ->map(
+                ['GET', 'PUT'],
+                '/tenants/{tenantId}/notification-preferences',
+                NotificationPreferencesAction::class,
+            )
+            ->setName('tenants.notifications.preferences')
+            ->add(TenantContextMiddleware::class)
+            ->add(CsrfProtectionMiddleware::class)
+            ->add(SessionAuthenticationMiddleware::class);
+
+        $group
+            ->post(
+                '/tenants/{tenantId}/notifications/read',
+                MarkNotificationsReadAction::class,
+            )
+            ->setName('tenants.notifications.read')
+            ->add(TenantContextMiddleware::class)
+            ->add(CsrfProtectionMiddleware::class)
+            ->add(SessionAuthenticationMiddleware::class);
+
+        $group
+            ->map(
+                ['GET', 'POST'],
+                '/tenants/{tenantId}/issues/{issueId}/comments',
+                IssueCommentsAction::class,
+            )
+            ->setName('tenants.issues.comments.collection')
+            ->add(TenantContextMiddleware::class)
+            ->add(CsrfProtectionMiddleware::class)
+            ->add(SessionAuthenticationMiddleware::class);
+
+        $group
+            ->map(
+                ['PATCH', 'DELETE'],
+                '/tenants/{tenantId}/issues/{issueId}/comments/{commentId}',
+                IssueCommentAction::class,
+            )
+            ->setName('tenants.issues.comments.item')
+            ->add(TenantContextMiddleware::class)
+            ->add(CsrfProtectionMiddleware::class)
+            ->add(SessionAuthenticationMiddleware::class);
+
+        $group
+            ->map(
+                ['GET', 'POST'],
+                '/tenants/{tenantId}/issues/{issueId}/attachments',
+                IssueAttachmentsAction::class,
+            )
+            ->setName('tenants.issues.attachments.collection')
+            ->add(TenantContextMiddleware::class)
+            ->add(CsrfProtectionMiddleware::class)
+            ->add(SessionAuthenticationMiddleware::class);
+
+        $group
+            ->map(
+                ['GET', 'DELETE'],
+                '/tenants/{tenantId}/issues/{issueId}/attachments/{attachmentId}',
+                IssueAttachmentAction::class,
+            )
+            ->setName('tenants.issues.attachments.item')
+            ->add(TenantContextMiddleware::class)
+            ->add(CsrfProtectionMiddleware::class)
+            ->add(SessionAuthenticationMiddleware::class);
+
+        $group
+            ->map(
+                ['GET', 'POST'],
+                '/tenants/{tenantId}/issues/{issueId}/links',
+                IssueLinksAction::class,
+            )
+            ->setName('tenants.issues.links.collection')
+            ->add(TenantContextMiddleware::class)
+            ->add(CsrfProtectionMiddleware::class)
+            ->add(SessionAuthenticationMiddleware::class);
+
+        $group
+            ->delete(
+                '/tenants/{tenantId}/issues/{issueId}/links/{linkId}',
+                IssueLinkAction::class,
+            )
+            ->setName('tenants.issues.links.item')
+            ->add(TenantContextMiddleware::class)
+            ->add(CsrfProtectionMiddleware::class)
+            ->add(SessionAuthenticationMiddleware::class);
+
+        $group
+            ->get(
+                '/tenants/{tenantId}/issues/{issueId}/watchers',
+                IssueWatchersAction::class,
+            )
+            ->setName('tenants.issues.watchers.list')
+            ->add(TenantContextMiddleware::class)
+            ->add(SessionAuthenticationMiddleware::class);
+
+        $group
+            ->map(
+                ['PUT', 'DELETE'],
+                '/tenants/{tenantId}/issues/{issueId}/watchers/me',
+                IssueWatchAction::class,
+            )
+            ->setName('tenants.issues.watchers.self')
+            ->add(TenantContextMiddleware::class)
+            ->add(CsrfProtectionMiddleware::class)
+            ->add(SessionAuthenticationMiddleware::class);
+
+        $group
+            ->get(
+                '/tenants/{tenantId}/issues/{issueId}/history',
+                IssueHistoryAction::class,
+            )
+            ->setName('tenants.issues.history.list')
+            ->add(TenantContextMiddleware::class)
+            ->add(SessionAuthenticationMiddleware::class);
+
+        $group
+            ->post(
+                '/tenants/{tenantId}/issues/{issueId}/type',
+                ChangeIssueTypeAction::class,
+            )
+            ->setName('tenants.issues.type.change')
             ->add(TenantContextMiddleware::class)
             ->add(CsrfProtectionMiddleware::class)
             ->add(SessionAuthenticationMiddleware::class);

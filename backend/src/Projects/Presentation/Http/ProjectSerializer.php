@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Sova\Projects\Presentation\Http;
 
 use Sova\Projects\Application\ProjectDetails;
+use Sova\Projects\Application\ProjectListItem;
 use Sova\Projects\Application\ProjectMemberDetails;
 use Sova\Projects\Application\ProjectMemberRoleDetails;
 use Sova\Projects\Application\ProjectRoleDetails;
@@ -34,6 +35,15 @@ final class ProjectSerializer
             'created_at' => $project->createdAt->format(DATE_ATOM),
             'updated_at' => $project->updatedAt->format(DATE_ATOM),
         ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    public function serializeListItem(ProjectListItem $item): array
+    {
+        return $this->serialize($item->project)
+            + ['viewer_roles' => $item->viewerRoleCodes];
     }
 
     /**

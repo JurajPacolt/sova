@@ -107,7 +107,9 @@ final class TenantRoleApiTest extends TestCase
         self::assertIsArray($roles);
         self::assertCount(4, $roles);
         self::assertIsArray($permissions);
-        self::assertCount(32, $permissions);
+        // 38 = every non-system permission; grows when the catalog does, which
+        // is why the assertion is a count and not a hard-coded list.
+        self::assertCount(38, $permissions);
 
         foreach ($permissions as $permission) {
             self::assertIsArray($permission);

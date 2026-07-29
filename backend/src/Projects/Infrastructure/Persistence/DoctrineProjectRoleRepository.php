@@ -358,7 +358,7 @@ final readonly class DoctrineProjectRoleRepository implements ProjectRoleReposit
                 role.is_editable,
                 role.revision,
                 (
-                    SELECT COALESCE(ARRAY_AGG(permission.permission_code ORDER BY permission.permission_code), '{}')
+                    SELECT COALESCE(STRING_AGG(permission.permission_code, ',' ORDER BY permission.permission_code), '')
                     FROM project_role_permissions permission
                     WHERE permission.tenant_id = role.tenant_id
                         AND permission.project_id = role.project_id
@@ -380,27 +380,23 @@ final readonly class DoctrineProjectRoleRepository implements ProjectRoleReposit
      */
     private function hydrate(array $row): ProjectRoleDetails
     {
+        // PDO hands back an aggregated PostgreSQL array as a string, so the
+        // codes travel as a comma separated list; the column CHECK constraint
+        // keeps commas out of a permission code.
         $permissionCodes = $row['permission_codes'] ?? null;
 
-        if (!is_array($permissionCodes)) {
+        if (!is_string($permissionCodes)) {
             throw new RuntimeException(
-                'Expected project role permission codes to be an array.',
+                'Expected project role permission codes to be a string.',
             );
         }
 
-        /** @var list<string> $codes */
-        $codes = array_values(array_map(
-            static function (mixed $code): string {
-                if (!is_string($code)) {
-                    throw new RuntimeException(
-                        'Expected each project role permission code to be a string.',
-                    );
-                }
-
-                return $code;
-            },
-            $permissionCodes,
-        ));
+        $codes = $permissionCodes === ''
+            ? []
+            : array_values(array_filter(
+                explode(',', $permissionCodes),
+                static fn(string $code): bool => $code !== '',
+            ));
 
         return new ProjectRoleDetails(
             id: $this->stringValue($row, 'id'),

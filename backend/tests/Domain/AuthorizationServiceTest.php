@@ -36,6 +36,57 @@ final class AuthorizationServiceTest extends TestCase
         self::assertSame('member-id', $provider->lastUserId);
     }
 
+    public function testGrantedPermissionsDropCodesTheScopeDoesNotSupport(): void
+    {
+        // A tenant role legitimately stores project-scoped codes; they must not
+        // appear as tenant-scoped grants in the UI affordance list.
+        $authorization = new AuthorizationService(
+            new InMemoryEffectivePermissionProvider([
+                Permission::TenantMembersInvite,
+                Permission::ProjectView,
+                Permission::IssueCreate,
+            ]),
+        );
+
+        $granted = $authorization->grantedPermissions(
+            AuthorizationSubject::authenticated('member-id', false),
+            AuthorizationScope::tenant('tenant-id'),
+        );
+
+        self::assertSame([Permission::TenantMembersInvite], $granted);
+    }
+
+    public function testGrantedPermissionsGiveASuperadminEveryPermissionOfTheScope(): void
+    {
+        $authorization = new AuthorizationService(
+            new InMemoryEffectivePermissionProvider([]),
+        );
+
+        $granted = $authorization->grantedPermissions(
+            AuthorizationSubject::authenticated('superadmin-id', true),
+            AuthorizationScope::tenant('tenant-id'),
+        );
+
+        self::assertNotSame([], $granted);
+        self::assertContains(Permission::TenantMembersInvite, $granted);
+        self::assertNotContains(Permission::ProjectView, $granted);
+        self::assertNotContains(Permission::SystemTenantsView, $granted);
+    }
+
+    public function testImpersonationLosesTheSuperadminGrantList(): void
+    {
+        $authorization = new AuthorizationService(
+            new InMemoryEffectivePermissionProvider([]),
+        );
+
+        $granted = $authorization->grantedPermissions(
+            AuthorizationSubject::impersonated('superadmin-id', 'target-id', true),
+            AuthorizationScope::tenant('tenant-id'),
+        );
+
+        self::assertSame([], $granted);
+    }
+
     public function testSuperadminBypassStillRequiresTheCorrectExplicitScope(): void
     {
         $authorization = new AuthorizationService(
@@ -118,5 +169,12 @@ final class InMemoryEffectivePermissionProvider implements EffectivePermissionPr
         $this->lastUserId = $userId;
 
         return in_array($permission, $this->permissions, true);
+    }
+
+    public function listPermissions(string $userId, AuthorizationScope $scope): array
+    {
+        $this->lastUserId = $userId;
+
+        return $this->permissions;
     }
 }

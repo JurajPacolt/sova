@@ -4,24 +4,58 @@ import { Observable } from 'rxjs';
 import {
   AcceptedEmailRequest,
   AcceptNewAccountInvitationRequest,
+  ChangeProjectStatusRequest,
   ChangeSystemTenantStatusRequest,
   ChangeSystemUserStatusRequest,
   ChangeTenantMembershipStatusRequest,
   ChangeWorkgroupStatusRequest,
   CreatedInvitationResponse,
   CreateInvitationRequest,
+  CreateProjectRequest,
   CreateSystemTenantRequest,
   CreateSystemTenantResponse,
   CreateTenantRoleRequest,
+  CreateIssueLinkRequest,
+  CreateIssueRequest,
   CreateWorkgroupRequest,
+  IssueAttachmentList,
+  IssueAttachmentResponse,
+  IssueLinkList,
+  IssueQueryMetadata,
+  IssueQueryValidationResponse,
+  ProjectConfiguration,
+  IssueCommentList,
+  IssueCommentRequest,
+  IssueCommentResponse,
+  IssueHistoryList,
+  IssueResponse,
+  IssueSearchRequest,
+  IssueSearchResponse,
+  IssueTransitionList,
+  IssueWatcherList,
+  IssueWatchState,
   CurrentSessionResponse,
   EmailRequest,
+  ExecuteIssueTransitionRequest,
   InvitationAcceptanceResponse,
   InvitationPreviewResponse,
   InvitationTokenRequest,
   LoginRequest,
   LoginResponse,
+  ProjectList,
+  ProjectMemberList,
+  ProjectResponse,
+  ProjectRoleList,
+  ProjectWorkgroupLinkList,
+  ReplaceSavedQueryGrantsRequest,
   ResetPasswordRequest,
+  ArchiveSavedQueryRequest,
+  CreateSavedQueryRequest,
+  SavedQueryFavouriteState,
+  SavedQueryGrantList,
+  SavedQueryList,
+  SavedQueryResponse,
+  UpdateSavedQueryRequest,
   SecurityAuditPage,
   SecurityAuditQuery,
   StartImpersonationRequest,
@@ -37,6 +71,7 @@ import {
   TenantRoleList,
   TenantRoleResponse,
   UpdateTenantRoleRequest,
+  UpsertProjectWorkgroupRequest,
   UpsertWorkgroupMemberRequest,
   VerifyEmailRequest,
   VerifyEmailResponse,
@@ -332,6 +367,350 @@ export class SovaApiClient {
   ): Observable<void> {
     return this.http.delete<void>(
       `${API_ROOT}/tenants/${encodeURIComponent(tenantId)}/workgroups/${encodeURIComponent(workgroupId)}/members/${encodeURIComponent(membershipId)}`,
+    );
+  }
+
+  listProjects(tenantId: string): Observable<ProjectList> {
+    return this.http.get<ProjectList>(
+      `${API_ROOT}/tenants/${encodeURIComponent(tenantId)}/projects`,
+    );
+  }
+
+  createProject(tenantId: string, request: CreateProjectRequest): Observable<ProjectResponse> {
+    return this.http.post<ProjectResponse>(
+      `${API_ROOT}/tenants/${encodeURIComponent(tenantId)}/projects`,
+      request,
+    );
+  }
+
+  changeProjectStatus(
+    tenantId: string,
+    projectId: string,
+    request: ChangeProjectStatusRequest,
+  ): Observable<ProjectResponse> {
+    return this.http.patch<ProjectResponse>(
+      `${API_ROOT}/tenants/${encodeURIComponent(tenantId)}/projects/${encodeURIComponent(projectId)}`,
+      request,
+    );
+  }
+
+  listProjectRoles(tenantId: string, projectId: string): Observable<ProjectRoleList> {
+    return this.http.get<ProjectRoleList>(
+      `${API_ROOT}/tenants/${encodeURIComponent(tenantId)}/projects/${encodeURIComponent(projectId)}/roles`,
+    );
+  }
+
+  listProjectMembers(tenantId: string, projectId: string): Observable<ProjectMemberList> {
+    return this.http.get<ProjectMemberList>(
+      `${API_ROOT}/tenants/${encodeURIComponent(tenantId)}/projects/${encodeURIComponent(projectId)}/members`,
+    );
+  }
+
+  assignProjectRole(
+    tenantId: string,
+    projectId: string,
+    membershipId: string,
+    roleId: string,
+  ): Observable<void> {
+    return this.http.put<void>(this.projectRolePath(tenantId, projectId, membershipId, roleId), {});
+  }
+
+  unassignProjectRole(
+    tenantId: string,
+    projectId: string,
+    membershipId: string,
+    roleId: string,
+  ): Observable<void> {
+    return this.http.delete<void>(this.projectRolePath(tenantId, projectId, membershipId, roleId));
+  }
+
+  listProjectWorkgroups(tenantId: string, projectId: string): Observable<ProjectWorkgroupLinkList> {
+    return this.http.get<ProjectWorkgroupLinkList>(
+      `${API_ROOT}/tenants/${encodeURIComponent(tenantId)}/projects/${encodeURIComponent(projectId)}/workgroups`,
+    );
+  }
+
+  linkProjectWorkgroup(
+    tenantId: string,
+    projectId: string,
+    workgroupId: string,
+    request: UpsertProjectWorkgroupRequest,
+  ): Observable<void> {
+    return this.http.put<void>(
+      this.projectWorkgroupPath(tenantId, projectId, workgroupId),
+      request,
+    );
+  }
+
+  unlinkProjectWorkgroup(
+    tenantId: string,
+    projectId: string,
+    workgroupId: string,
+  ): Observable<void> {
+    return this.http.delete<void>(this.projectWorkgroupPath(tenantId, projectId, workgroupId));
+  }
+
+  private projectRolePath(
+    tenantId: string,
+    projectId: string,
+    membershipId: string,
+    roleId: string,
+  ): string {
+    return (
+      `${API_ROOT}/tenants/${encodeURIComponent(tenantId)}` +
+      `/projects/${encodeURIComponent(projectId)}` +
+      `/members/${encodeURIComponent(membershipId)}` +
+      `/roles/${encodeURIComponent(roleId)}`
+    );
+  }
+
+  searchIssues(tenantId: string, request: IssueSearchRequest): Observable<IssueSearchResponse> {
+    return this.http.post<IssueSearchResponse>(
+      `${API_ROOT}/tenants/${encodeURIComponent(tenantId)}/issues/search`,
+      request,
+    );
+  }
+
+  getIssue(tenantId: string, issueId: string): Observable<IssueResponse> {
+    return this.http.get<IssueResponse>(this.issuePath(tenantId, issueId));
+  }
+
+  listIssueTransitions(tenantId: string, issueId: string): Observable<IssueTransitionList> {
+    return this.http.get<IssueTransitionList>(`${this.issuePath(tenantId, issueId)}/transitions`);
+  }
+
+  executeIssueTransition(
+    tenantId: string,
+    issueId: string,
+    transitionId: string,
+    request: ExecuteIssueTransitionRequest,
+  ): Observable<IssueResponse> {
+    return this.http.post<IssueResponse>(
+      `${this.issuePath(tenantId, issueId)}/transitions/${encodeURIComponent(transitionId)}`,
+      request,
+    );
+  }
+
+  listIssueComments(tenantId: string, issueId: string): Observable<IssueCommentList> {
+    return this.http.get<IssueCommentList>(`${this.issuePath(tenantId, issueId)}/comments`);
+  }
+
+  createIssueComment(
+    tenantId: string,
+    issueId: string,
+    request: IssueCommentRequest,
+  ): Observable<IssueCommentResponse> {
+    return this.http.post<IssueCommentResponse>(
+      `${this.issuePath(tenantId, issueId)}/comments`,
+      request,
+    );
+  }
+
+  deleteIssueComment(tenantId: string, issueId: string, commentId: string): Observable<void> {
+    return this.http.delete<void>(
+      `${this.issuePath(tenantId, issueId)}/comments/${encodeURIComponent(commentId)}`,
+    );
+  }
+
+  listIssueHistory(tenantId: string, issueId: string): Observable<IssueHistoryList> {
+    return this.http.get<IssueHistoryList>(`${this.issuePath(tenantId, issueId)}/history`);
+  }
+
+  listIssueWatchers(tenantId: string, issueId: string): Observable<IssueWatcherList> {
+    return this.http.get<IssueWatcherList>(`${this.issuePath(tenantId, issueId)}/watchers`);
+  }
+
+  watchIssue(tenantId: string, issueId: string): Observable<IssueWatchState> {
+    return this.http.put<IssueWatchState>(`${this.issuePath(tenantId, issueId)}/watchers/me`, {});
+  }
+
+  unwatchIssue(tenantId: string, issueId: string): Observable<IssueWatchState> {
+    return this.http.delete<IssueWatchState>(`${this.issuePath(tenantId, issueId)}/watchers/me`);
+  }
+
+  validateIssueQuery(tenantId: string, query: string): Observable<IssueQueryValidationResponse> {
+    return this.http.post<IssueQueryValidationResponse>(
+      `${API_ROOT}/tenants/${encodeURIComponent(tenantId)}/issue-query/validate`,
+      { query },
+    );
+  }
+
+  getIssueQueryMetadata(tenantId: string): Observable<IssueQueryMetadata> {
+    return this.http.get<IssueQueryMetadata>(
+      `${API_ROOT}/tenants/${encodeURIComponent(tenantId)}/issue-query/metadata`,
+    );
+  }
+
+  getProjectConfiguration(tenantId: string, projectId: string): Observable<ProjectConfiguration> {
+    return this.http.get<ProjectConfiguration>(
+      `${API_ROOT}/tenants/${encodeURIComponent(tenantId)}` +
+        `/projects/${encodeURIComponent(projectId)}/configuration`,
+    );
+  }
+
+  createIssue(
+    tenantId: string,
+    projectId: string,
+    request: CreateIssueRequest,
+  ): Observable<IssueResponse> {
+    return this.http.post<IssueResponse>(
+      `${API_ROOT}/tenants/${encodeURIComponent(tenantId)}` +
+        `/projects/${encodeURIComponent(projectId)}/issues`,
+      request,
+    );
+  }
+
+  listIssueAttachments(tenantId: string, issueId: string): Observable<IssueAttachmentList> {
+    return this.http.get<IssueAttachmentList>(`${this.issuePath(tenantId, issueId)}/attachments`);
+  }
+
+  uploadIssueAttachment(
+    tenantId: string,
+    issueId: string,
+    file: File,
+  ): Observable<IssueAttachmentResponse> {
+    const form = new FormData();
+    form.append('file', file, file.name);
+
+    // No explicit Content-Type: the browser has to set the multipart boundary
+    // itself, and overriding it produces a request the server cannot parse.
+    return this.http.post<IssueAttachmentResponse>(
+      `${this.issuePath(tenantId, issueId)}/attachments`,
+      form,
+    );
+  }
+
+  /**
+   * Downloads go through the HTTP client rather than a plain anchor so they
+   * travel the same authenticated path as every other call; the endpoint
+   * authorises each one and always answers as a download.
+   */
+  downloadIssueAttachment(
+    tenantId: string,
+    issueId: string,
+    attachmentId: string,
+  ): Observable<Blob> {
+    return this.http.get(this.attachmentPath(tenantId, issueId, attachmentId), {
+      responseType: 'blob',
+    });
+  }
+
+  deleteIssueAttachment(tenantId: string, issueId: string, attachmentId: string): Observable<void> {
+    return this.http.delete<void>(this.attachmentPath(tenantId, issueId, attachmentId));
+  }
+
+  listIssueLinks(tenantId: string, issueId: string): Observable<IssueLinkList> {
+    return this.http.get<IssueLinkList>(`${this.issuePath(tenantId, issueId)}/links`);
+  }
+
+  createIssueLink(
+    tenantId: string,
+    issueId: string,
+    request: CreateIssueLinkRequest,
+  ): Observable<IssueLinkList> {
+    return this.http.post<IssueLinkList>(`${this.issuePath(tenantId, issueId)}/links`, request);
+  }
+
+  deleteIssueLink(tenantId: string, issueId: string, linkId: string): Observable<void> {
+    return this.http.delete<void>(
+      `${this.issuePath(tenantId, issueId)}/links/${encodeURIComponent(linkId)}`,
+    );
+  }
+
+  listSavedQueries(tenantId: string): Observable<SavedQueryList> {
+    return this.http.get<SavedQueryList>(this.savedQueriesPath(tenantId));
+  }
+
+  createSavedQuery(
+    tenantId: string,
+    request: CreateSavedQueryRequest,
+  ): Observable<SavedQueryResponse> {
+    return this.http.post<SavedQueryResponse>(this.savedQueriesPath(tenantId), request);
+  }
+
+  updateSavedQuery(
+    tenantId: string,
+    savedQueryId: string,
+    request: UpdateSavedQueryRequest,
+  ): Observable<SavedQueryResponse> {
+    return this.http.patch<SavedQueryResponse>(
+      this.savedQueryPath(tenantId, savedQueryId),
+      request,
+    );
+  }
+
+  archiveSavedQuery(
+    tenantId: string,
+    savedQueryId: string,
+    request: ArchiveSavedQueryRequest,
+  ): Observable<SavedQueryResponse> {
+    return this.http.post<SavedQueryResponse>(
+      `${this.savedQueryPath(tenantId, savedQueryId)}/archive`,
+      request,
+    );
+  }
+
+  listSavedQueryGrants(tenantId: string, savedQueryId: string): Observable<SavedQueryGrantList> {
+    return this.http.get<SavedQueryGrantList>(
+      `${this.savedQueryPath(tenantId, savedQueryId)}/grants`,
+    );
+  }
+
+  /** Replaces the whole set: an entry left out really loses access. */
+  replaceSavedQueryGrants(
+    tenantId: string,
+    savedQueryId: string,
+    request: ReplaceSavedQueryGrantsRequest,
+  ): Observable<SavedQueryGrantList> {
+    return this.http.put<SavedQueryGrantList>(
+      `${this.savedQueryPath(tenantId, savedQueryId)}/grants`,
+      request,
+    );
+  }
+
+  addSavedQueryFavourite(
+    tenantId: string,
+    savedQueryId: string,
+  ): Observable<SavedQueryFavouriteState> {
+    return this.http.put<SavedQueryFavouriteState>(
+      `${this.savedQueryPath(tenantId, savedQueryId)}/favourite`,
+      {},
+    );
+  }
+
+  removeSavedQueryFavourite(
+    tenantId: string,
+    savedQueryId: string,
+  ): Observable<SavedQueryFavouriteState> {
+    return this.http.delete<SavedQueryFavouriteState>(
+      `${this.savedQueryPath(tenantId, savedQueryId)}/favourite`,
+    );
+  }
+
+  private savedQueriesPath(tenantId: string): string {
+    return `${API_ROOT}/tenants/${encodeURIComponent(tenantId)}/saved-queries`;
+  }
+
+  private savedQueryPath(tenantId: string, savedQueryId: string): string {
+    return `${this.savedQueriesPath(tenantId)}/${encodeURIComponent(savedQueryId)}`;
+  }
+
+  private attachmentPath(tenantId: string, issueId: string, attachmentId: string): string {
+    return `${this.issuePath(tenantId, issueId)}/attachments/${encodeURIComponent(attachmentId)}`;
+  }
+
+  private issuePath(tenantId: string, issueId: string): string {
+    return (
+      `${API_ROOT}/tenants/${encodeURIComponent(tenantId)}` +
+      `/issues/${encodeURIComponent(issueId)}`
+    );
+  }
+
+  private projectWorkgroupPath(tenantId: string, projectId: string, workgroupId: string): string {
+    return (
+      `${API_ROOT}/tenants/${encodeURIComponent(tenantId)}` +
+      `/projects/${encodeURIComponent(projectId)}` +
+      `/workgroups/${encodeURIComponent(workgroupId)}`
     );
   }
 

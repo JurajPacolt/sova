@@ -23,11 +23,14 @@ import { LanguageSwitcherComponent } from '../../../shared/components/language-s
 import { ThemeSwitcherComponent } from '../../../shared/components/theme-switcher/theme-switcher.component';
 import { TranslatePipe } from '../../i18n/translate.pipe';
 import { TranslationKey } from '../../i18n/translations';
+import { ADMINISTRATION_PERMISSIONS } from '../../tenancy/tenant-permissions';
 import { TenantStore } from '../../tenancy/tenant.store';
 
 interface NavigationItem {
   readonly labelKey: TranslationKey;
   readonly path: string;
+  /** Shown only when the caller holds one of these tenant permissions. */
+  readonly permissions?: readonly string[];
 }
 
 @Component({
@@ -59,11 +62,22 @@ export class TenantShellComponent {
   protected readonly logoutError = signal(false);
   protected readonly endingImpersonation = signal(false);
   protected readonly impersonationEndError = signal(false);
-  protected readonly navigation = signal<readonly NavigationItem[]>([
+  private readonly allNavigation = signal<readonly NavigationItem[]>([
     { labelKey: 'nav.dashboard', path: 'dashboard' },
     { labelKey: 'nav.projects', path: 'projects' },
-    { labelKey: 'nav.administration', path: 'admin' },
+    {
+      labelKey: 'nav.administration',
+      path: 'admin',
+      permissions: ADMINISTRATION_PERMISSIONS,
+    },
   ]);
+
+  protected readonly navigation = computed(() =>
+    this.allNavigation().filter(
+      (item) =>
+        item.permissions === undefined || this.tenantStore.hasAnyPermission(item.permissions),
+    ),
+  );
 
   protected readonly tenantSlug = toSignal(
     this.route.paramMap.pipe(map((params) => params.get('tenantSlug') ?? 'tenant')),

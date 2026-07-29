@@ -93,11 +93,9 @@ tenantové členstvo, používateľa, tenant, rolu, priradenie a grant; bez úpl
 vráti deny. Vďaka tomu môže pozvánku vytvoriť vlastný `SUPERADMIN` bypass aj člen s
 priradenou rolou `TENANT_ADMIN` alebo `TENANT_OWNER`.
 
-Tenantový provider je dokončený. `WORKGROUP` scope je od 2026-07-27
-implementovaný (viď nižšie). `PROJECT` scope zostáva fail-closed, kým Fáza 4
-pridá `projects` tabuľku a jej rolové väzby; tenantové roly už obsahujú
-budúci projektový grant podľa matice, ale provider ho zatiaľ nevyhodnocuje bez
-konkrétneho resource scope.
+Tenantový provider je dokončený. `WORKGROUP` scope je od 2026-07-27 a `PROJECT`
+scope od 2026-07-28 implementovaný (viď nižšie). Všetky štyri scopes sú tak
+vyhodnocované; bez preukázaného grantu naďalej platí deny by default.
 
 ## Workgroup role a oprávnenia
 
@@ -125,7 +123,14 @@ ale nedosiahne na cudzie skupiny.
 | `DELETE` | `/api/v1/tenants/{tenantId}/workgroups/{workgroupId}/members/{membershipId}` | `tenant.workgroups.manage` ALEBO `workgroup.members.manage`    |
 
 Skupina má stavy `ACTIVE`/`ARCHIVED` s obojsmerným prechodom; opakovanie
-aktuálneho stavu je idempotentné. Pridanie člena vyžaduje aktívne tenantové
+aktuálneho stavu je idempotentné. **Archivovaná skupina nedáva žiadne
+workgroup-scoped oprávnenie** – rovnako ako archivovaný projekt.
+`loadWorkgroupDecision` aj `workgroupPermissionCodes` vyžadujú
+`workgroup.status = 'ACTIVE'`, takže archivácia je pre manažéra skupiny
+jednosmerná: reaktivovať ju vie iba držiteľ tenantového
+`tenant.workgroups.manage`. Overuje to
+`WorkgroupApiTest::testMemberAddedAsManagerCanManageTheirOwnWorkgroupWithoutTenantPermission`.
+Pridanie člena vyžaduje aktívne tenantové
 členstvo a aktívnu skupinu; `PUT` na existujúceho člena nahradí jeho rolu.
 Odstránenie chýbajúceho člena je idempotentné (`204`). Vytvorenie, archivácia,
 reaktivácia a zmeny členstva sa auditujú (`WORKGROUP_CREATED`,
@@ -136,6 +141,102 @@ Unit a databázové integračné testy overujú úplnosť katalógu, závislosti
 predvolenej roly, nesprávny scope, deny by default, úplný `SUPERADMIN` bypass,
 vypnutie bypassu pri impersonácii, presnú predvolenú maticu, idempotentný
 provisioning, okamžitú revision invalidáciu a cross-tenant cudzie kľúče.
+
+## Projektové role a oprávnenia
+
+Projekt má na rozdiel od skupiny vlastný katalóg rolí. Pri vytvorení projektu sa
+predvolené projektové roly (`PROJECT_MANAGER`, `MEMBER`, `REPORTER`, `VIEWER`)
+provisionujú ako **nezávislá kópia** do `project_roles` a
+`project_role_permissions`; neskoršia zmena predvolenej matice už existujúci
+projekt nemení. Zmena hociktorej projektovej tabuľky zvyšuje tenantovú
+autorizačnú revíziu rovnakým triggerom ako tenantové roly.
+
+Projektový grant vzniká dvoma cestami, ktoré sa zjednocujú:
+
+1. priame priradenie role tenantovému členstvu
+   (`project_membership_role_assignments`),
+2. prepojená pracovná skupina (`project_workgroups`), ktorá dáva svoju
+   projektovú rolu všetkým aktívnym členom skupiny.
+
+Obe cesty vyžadujú aktívneho používateľa, aktívne tenantové členstvo, aktívny
+tenant, aktívny projekt a aktívnu rolu; skupinová cesta navyše aktívnu skupinu.
+
+| Metóda   | Route                                                                              | Oprávnenie                                                |
+| -------- | ---------------------------------------------------------------------------------- | ---------------------------------------------------------- |
+| `GET`    | `/api/v1/tenants/{tenantId}/projects`                                             | aktívne členstvo; rozsah podľa `tenant.projects.manage`   |
+| `POST`   | `/api/v1/tenants/{tenantId}/projects`                                             | `tenant.projects.create`                                  |
+| `PATCH`  | `/api/v1/tenants/{tenantId}/projects/{projectId}`                                 | `tenant.projects.manage` ALEBO `project.settings.manage`  |
+| `GET`    | `/api/v1/tenants/{tenantId}/projects/{projectId}/roles`                           | `tenant.projects.manage` ALEBO `project.view`             |
+| `GET`    | `/api/v1/tenants/{tenantId}/projects/{projectId}/members`                         | `tenant.projects.manage` ALEBO `project.view`             |
+| `PUT`    | `/api/v1/tenants/{tenantId}/projects/{projectId}/members/{membershipId}/roles/{roleId}` | `tenant.projects.manage` ALEBO `project.members.manage`   |
+| `DELETE` | `/api/v1/tenants/{tenantId}/projects/{projectId}/members/{membershipId}/roles/{roleId}` | `tenant.projects.manage` ALEBO `project.members.manage`   |
+| `GET`    | `/api/v1/tenants/{tenantId}/projects/{projectId}/workgroups`                      | `tenant.projects.manage` ALEBO `project.view`             |
+| `PUT`    | `/api/v1/tenants/{tenantId}/projects/{projectId}/workgroups/{workgroupId}`        | `tenant.projects.manage` ALEBO `project.members.manage`   |
+| `DELETE` | `/api/v1/tenants/{tenantId}/projects/{projectId}/workgroups/{workgroupId}`        | `tenant.projects.manage` ALEBO `project.members.manage`   |
+
+Zoznam projektov je jediný endpoint bez vlastného permission gate, pretože jeho
+**rozsah** je autorizáciou: `tenant.projects.manage` vracia všetky projekty
+tenantu, každý iný aktívny člen dostane `TENANT` viditeľné projekty plus
+`PRIVATE` projekty, kde má rolu priamo alebo cez prepojenú skupinu. Rozhoduje
+efektívny používateľ, takže počas impersonácie vidí volajúci presne to, čo
+cieľová identita. Položka zoznamu nesie `viewer_roles` s vlastnými rolami
+volajúceho.
+
+Tenantová viditeľnosť je iba právo vidieť, že projekt existuje. Členov, roly a
+prepojené skupiny vracia API až pri `project.view` na konkrétnom projekte, preto
+tenantovo verejný projekt bez projektovej role odpovie na tieto tri endpointy
+`403`.
+
+Projekt má stavy `ACTIVE`/`ARCHIVED` s obojsmerným prechodom a idempotentným
+opakovaním. Archivovaný projekt nedáva žiadne projektové oprávnenia, pretože
+provider vyžaduje `project.status = 'ACTIVE'`. Kód projektu je unikátny v rámci
+tenantu (`409 PROJECT_CODE_TAKEN`), súkromný projekt vyžaduje vedúceho, ktorý sa
+v tej istej transakcii stáva prvým `PROJECT_MANAGER`. Vytvorenie, archivácia a
+reaktivácia sa auditujú (`PROJECT_CREATED`, `PROJECT_ARCHIVED`,
+`PROJECT_REACTIVATED`).
+
+## Efektívne oprávnenia pre UI
+
+`AuthorizationService::grantedPermissions()` vracia oprávnenia, ktoré subjekt v
+danom scope skutočne má. `SUPERADMIN` bez impersonácie dostane všetky oprávnenia
+scope; ostatní dostanú výsledok `EffectivePermissionProvider::listPermissions()`.
+Oba prípady sa filtrujú cez `AuthorizationScope::supports()` — tenantová rola
+podľa predvolenej matice nesie aj projektové kódy (`project.view`, `issue.*`) a
+tie na tenantovej úrovni nič neznamenajú.
+
+`GET /api/v1/tenants/{tenantId}` preto vracia pole `permissions` s tenantovo
+scopovanými kódmi volajúceho. Frontend ich drží v `TenantStore` a používa pre
+`permissionGuard()` a navigáciu. Je to **iba UX afordancia**: každý endpoint sa
+autorizuje samostatne, takže zastaraný alebo podvrhnutý zoznam prístup
+nerozšíri.
+
+## Issue tracking a workflow prechody
+
+Podľa `WORKFLOW-A-TYPY-ULOH.md` §10 tenantová rola **neobchádza** projektový
+kontext úlohy. Všetky issue endpointy vyžadujú projektovo scopované oprávnenie;
+`tenant.projects.manage` na ne nestačí (na rozdiel od čítania projektovej
+konfigurácie, kde alternatíva platí kvôli konzistencii s ostatnými projektovými
+read endpointmi).
+
+| Metóda | Route                                                                  | Oprávnenie                                            |
+| ------ | ---------------------------------------------------------------------- | ------------------------------------------------------ |
+| `GET`  | `/api/v1/tenants/{tenantId}/projects/{projectId}/configuration`       | `tenant.projects.manage` ALEBO `project.view`         |
+| `GET`  | `/api/v1/tenants/{tenantId}/projects/{projectId}/issues`              | `issue.view` na projekte                              |
+| `POST` | `/api/v1/tenants/{tenantId}/projects/{projectId}/issues`              | `issue.create` na projekte                            |
+| `GET`  | `/api/v1/tenants/{tenantId}/issues/{issueId}`                         | `issue.view` na projekte úlohy                        |
+| `GET`  | `/api/v1/tenants/{tenantId}/issues/{issueId}/transitions`             | `issue.view` na projekte úlohy                        |
+| `POST` | `/api/v1/tenants/{tenantId}/issues/{issueId}/transitions/{transitionId}` | `issue.transition` plus oprávnenie samotného prechodu |
+
+Poradie kontrol pri vykonaní prechodu je záväzné: najprv `issue.transition` na
+projekte, až potom verzia úlohy a dostupnosť prechodu. Opačné poradie by cez
+rozdiel medzi `409`, `422` a `403` prezradilo stav workflow používateľovi, ktorý
+na projekt nemá prístup. Prechod môže vyžadovať ďalšie oprávnenie cez
+`permission_code`; neznámy kód je fail-closed.
+
+Úloha sa vytvára výhradne z projektových metadát — klient neposiela počiatočný
+stav ani verziu workflow, a pri prechode posiela iba `transition_id` a
+`expected_issue_version`. Cudzí rodič alebo úloha z iného tenantu vracia `404`,
+aby odpoveď nepotvrdila ich existenciu.
 
 ## Systémový kontext
 

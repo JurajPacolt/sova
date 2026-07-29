@@ -15,6 +15,11 @@ use Sova\Authorization\Application\TenantRoleRepository;
 use Sova\Authorization\Infrastructure\Persistence\DoctrineEffectivePermissionProvider;
 use Sova\Authorization\Infrastructure\Persistence\DoctrineTenantRoleProvisioner;
 use Sova\Authorization\Infrastructure\Persistence\DoctrineTenantRoleRepository;
+use Sova\Dashboards\Application\DashboardRepository;
+use Sova\Dashboards\Application\WidgetRepository;
+use Sova\Dashboards\Infrastructure\Persistence\DoctrineDashboardRepository;
+use Sova\Dashboards\Infrastructure\Persistence\DoctrineWidgetRepository;
+use Sova\Dashboards\Infrastructure\SavedQueries\WidgetSavedQueryUsageProbe;
 use Sova\Identity\Application\Authentication\AuthenticationEventRecorder;
 use Sova\Identity\Application\Authentication\LoginRateLimiter;
 use Sova\Identity\Application\Authentication\UserCredentialsRepository;
@@ -39,17 +44,74 @@ use Sova\Identity\Infrastructure\Persistence\DoctrineUserActionRequestPublisher;
 use Sova\Identity\Infrastructure\Persistence\DoctrineUserCredentialsRepository;
 use Sova\Identity\Infrastructure\Persistence\DoctrineUserSessionRepository;
 use Sova\Identity\Infrastructure\Security\Argon2idPasswordHasher;
+use Sova\Issues\Application\Attachment\AttachmentRepository;
+use Sova\Issues\Application\Attachment\AttachmentScanner;
+use Sova\Issues\Application\Attachment\AttachmentStorage;
+use Sova\Issues\Application\Comment\CommentEventPublisher;
+use Sova\Issues\Application\Comment\CommentRepository;
+use Sova\Issues\Application\History\HistoryRepository;
+use Sova\Issues\Application\IssueEventPublisher;
+use Sova\Issues\Application\IssueRepository;
+use Sova\Issues\Application\Link\IssueLinkRepository;
+use Sova\Issues\Application\Search\IssueAggregationRepository;
+use Sova\Issues\Application\Search\IssueSearchRepository;
+use Sova\Issues\Application\Search\QueryCompiler;
+use Sova\Issues\Application\Search\QueryRateLimiter;
+use Sova\Issues\Application\Search\ReferenceResolver;
+use Sova\Issues\Application\Search\SearchScopeProvider;
+use Sova\Issues\Application\Watcher\WatcherRepository;
+use Sova\Issues\Domain\QueryLanguage\QueryLimits;
+use Sova\Issues\Infrastructure\Persistence\DoctrineAttachmentRepository;
+use Sova\Issues\Infrastructure\Persistence\DoctrineCommentEventPublisher;
+use Sova\Issues\Infrastructure\Persistence\DoctrineCommentRepository;
+use Sova\Issues\Infrastructure\Persistence\DoctrineHistoryRepository;
+use Sova\Issues\Infrastructure\Persistence\DoctrineIssueAggregationRepository;
+use Sova\Issues\Infrastructure\Persistence\DoctrineIssueEventPublisher;
+use Sova\Issues\Infrastructure\Persistence\DoctrineIssueLinkRepository;
+use Sova\Issues\Infrastructure\Persistence\DoctrineIssueMigrator;
+use Sova\Issues\Infrastructure\Persistence\DoctrineIssueRepository;
+use Sova\Issues\Infrastructure\Persistence\DoctrineIssueSearchRepository;
+use Sova\Issues\Infrastructure\Persistence\DoctrineQueryRateLimiter;
+use Sova\Issues\Infrastructure\Persistence\DoctrineReferenceResolver;
+use Sova\Issues\Infrastructure\Persistence\DoctrineSearchScopeProvider;
+use Sova\Issues\Infrastructure\Persistence\DoctrineWatcherRepository;
+use Sova\Issues\Infrastructure\Persistence\IssueQueryCompiler;
+use Sova\Issues\Infrastructure\Storage\FilesystemAttachmentStorage;
+use Sova\Issues\Infrastructure\Storage\UnavailableAttachmentScanner;
+use Sova\Notifications\Application\IssueEventNotifier;
+use Sova\Notifications\Application\MemberDirectory;
+use Sova\Notifications\Application\NotificationEmailHandler;
+use Sova\Notifications\Application\NotificationMailer;
+use Sova\Notifications\Application\NotificationRepository;
+use Sova\Notifications\Application\PreferenceRepository;
+use Sova\Notifications\Infrastructure\Mail\SymfonyNotificationMailer;
+use Sova\Notifications\Infrastructure\Persistence\DoctrineMemberDirectory;
+use Sova\Notifications\Infrastructure\Persistence\DoctrineNotificationRepository;
+use Sova\Notifications\Infrastructure\Persistence\DoctrinePreferenceRepository;
+use Sova\ProjectConfiguration\Application\ConfigurationEventPublisher;
+use Sova\ProjectConfiguration\Application\IssueMigrator;
+use Sova\ProjectConfiguration\Application\ProjectConfigurationProvisioner;
+use Sova\ProjectConfiguration\Application\ProjectConfigurationRepository;
+use Sova\ProjectConfiguration\Application\WorkflowConfigurationRepository;
+use Sova\ProjectConfiguration\Infrastructure\Persistence\DoctrineConfigurationEventPublisher;
+use Sova\ProjectConfiguration\Infrastructure\Persistence\DoctrineProjectConfigurationProvisioner;
+use Sova\ProjectConfiguration\Infrastructure\Persistence\DoctrineProjectConfigurationRepository;
+use Sova\ProjectConfiguration\Infrastructure\Persistence\DoctrineWorkflowConfigurationRepository;
 use Sova\Projects\Application\ProjectRepository;
 use Sova\Projects\Application\ProjectRoleProvisioner;
 use Sova\Projects\Application\ProjectRoleRepository;
 use Sova\Projects\Infrastructure\Persistence\DoctrineProjectRepository;
 use Sova\Projects\Infrastructure\Persistence\DoctrineProjectRoleProvisioner;
 use Sova\Projects\Infrastructure\Persistence\DoctrineProjectRoleRepository;
+use Sova\SavedQueries\Application\SavedQueryRepository;
+use Sova\SavedQueries\Application\SavedQueryUsageProbe;
+use Sova\SavedQueries\Infrastructure\Persistence\DoctrineSavedQueryRepository;
 use Sova\Shared\Application\Audit\SecurityAuditReader;
 use Sova\Shared\Application\Audit\SecurityAuditRecorder;
 use Sova\Shared\Application\Security\SensitivePayloadCipher;
 use Sova\Shared\Infrastructure\Configuration\Settings;
 use Sova\Shared\Infrastructure\Logging\LoggerFactory;
+use Sova\Shared\Infrastructure\Outbox\OutboxDispatcher;
 use Sova\Shared\Infrastructure\Persistence\ConnectionFactory;
 use Sova\Shared\Infrastructure\Persistence\DoctrineSecurityAuditReader;
 use Sova\Shared\Infrastructure\Persistence\DoctrineSecurityAuditRecorder;
@@ -145,6 +207,136 @@ return [
     ),
     ProjectRoleProvisioner::class => autowire(
         DoctrineProjectRoleProvisioner::class,
+    ),
+    ProjectConfigurationProvisioner::class => autowire(
+        DoctrineProjectConfigurationProvisioner::class,
+    ),
+    ProjectConfigurationRepository::class => autowire(
+        DoctrineProjectConfigurationRepository::class,
+    ),
+    WorkflowConfigurationRepository::class => autowire(
+        DoctrineWorkflowConfigurationRepository::class,
+    ),
+    ConfigurationEventPublisher::class => autowire(
+        DoctrineConfigurationEventPublisher::class,
+    ),
+    IssueMigrator::class => autowire(
+        DoctrineIssueMigrator::class,
+    ),
+    IssueRepository::class => autowire(
+        DoctrineIssueRepository::class,
+    ),
+    IssueEventPublisher::class => autowire(
+        DoctrineIssueEventPublisher::class,
+    ),
+    CommentRepository::class => autowire(
+        DoctrineCommentRepository::class,
+    ),
+    CommentEventPublisher::class => autowire(
+        DoctrineCommentEventPublisher::class,
+    ),
+    HistoryRepository::class => autowire(
+        DoctrineHistoryRepository::class,
+    ),
+    DashboardRepository::class => autowire(
+        DoctrineDashboardRepository::class,
+    ),
+    WidgetRepository::class => autowire(
+        DoctrineWidgetRepository::class,
+    ),
+    SavedQueryUsageProbe::class => autowire(
+        WidgetSavedQueryUsageProbe::class,
+    ),
+    SavedQueryRepository::class => autowire(
+        DoctrineSavedQueryRepository::class,
+    ),
+    NotificationRepository::class => autowire(
+        DoctrineNotificationRepository::class,
+    ),
+    PreferenceRepository::class => autowire(
+        DoctrinePreferenceRepository::class,
+    ),
+    MemberDirectory::class => autowire(
+        DoctrineMemberDirectory::class,
+    ),
+    NotificationMailer::class => autowire(
+        SymfonyNotificationMailer::class,
+    ),
+    OutboxDispatcher::class => factory(
+        static fn(
+            Connection $connection,
+            IssueEventNotifier $notifier,
+            NotificationEmailHandler $emailHandler,
+            Settings $settings,
+        ): OutboxDispatcher => new OutboxDispatcher(
+            $connection,
+            // Handlers are listed explicitly rather than discovered, so adding
+            // a consumer is a visible decision and the dispatcher never claims
+            // an event nobody handles.
+            [$notifier, $emailHandler],
+            $settings,
+        ),
+    ),
+    AttachmentRepository::class => autowire(
+        DoctrineAttachmentRepository::class,
+    ),
+    AttachmentStorage::class => autowire(
+        FilesystemAttachmentStorage::class,
+    ),
+    AttachmentScanner::class => factory(
+        static function (
+            Settings $settings,
+            LoggerInterface $logger,
+        ): AttachmentScanner {
+            $scanner = $settings->string('attachments.scanner', 'none');
+            $environment = $settings->string('app.environment', 'production');
+
+            // The same guard the mailer uses for a null transport: a missing
+            // scanner is a development convenience, never a production state.
+            if ($environment === 'production' && $scanner === 'none') {
+                throw new RuntimeException(
+                    'ATTACHMENT_SCANNER must configure a real scanner in production.',
+                );
+            }
+
+            return new UnavailableAttachmentScanner($logger);
+        },
+    ),
+    WatcherRepository::class => autowire(
+        DoctrineWatcherRepository::class,
+    ),
+    IssueLinkRepository::class => autowire(
+        DoctrineIssueLinkRepository::class,
+    ),
+    QueryLimits::class => factory(
+        static fn(Settings $settings): QueryLimits => new QueryLimits(
+            $settings->int('search.max_query_bytes', 8192),
+            $settings->int('search.max_ast_nodes', 100),
+            $settings->int('search.max_paren_depth', 10),
+            $settings->int('search.max_in_values', 100),
+            $settings->int('search.max_sort_fields', 3),
+            $settings->int('search.default_page_size', 50),
+            $settings->int('search.max_page_size', 100),
+            $settings->int('search.statement_timeout_ms', 3000),
+        ),
+    ),
+    QueryCompiler::class => autowire(
+        IssueQueryCompiler::class,
+    ),
+    SearchScopeProvider::class => autowire(
+        DoctrineSearchScopeProvider::class,
+    ),
+    ReferenceResolver::class => autowire(
+        DoctrineReferenceResolver::class,
+    ),
+    IssueAggregationRepository::class => autowire(
+        DoctrineIssueAggregationRepository::class,
+    ),
+    IssueSearchRepository::class => autowire(
+        DoctrineIssueSearchRepository::class,
+    ),
+    QueryRateLimiter::class => autowire(
+        DoctrineQueryRateLimiter::class,
     ),
     InvitationRepository::class => autowire(
         DoctrineInvitationRepository::class,

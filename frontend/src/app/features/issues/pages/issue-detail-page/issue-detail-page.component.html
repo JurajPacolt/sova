@@ -1,46 +1,325 @@
-<app-page-header
-  [eyebrow]="'issue.eyebrow' | translate"
-  [title]="'issue.title' | translate: { key: issueKey() }"
-  [subtitle]="'issue.subtitle' | translate"
->
-  <button actions class="btn btn-primary" type="button" (click)="transition()">
-    {{ nextActionKey() | translate }}
-  </button>
-</app-page-header>
+@if (loading()) {
+  <p class="text-body-secondary" role="status">{{ 'common.loading' | translate }}</p>
+} @else if (loadError(); as message) {
+  <div class="alert alert-warning" role="alert">{{ message | translate }}</div>
+} @else if (issue(); as detail) {
+  <app-page-header
+    [eyebrow]="'issue.eyebrow' | translate"
+    [title]="detail.key + ' — ' + detail.title"
+    [subtitle]="detail.issue_type.name"
+  >
+    @if (watchersAvailable()) {
+      <button actions class="btn btn-outline-secondary" type="button" (click)="toggleWatching()">
+        @if (watching()) {
+          {{ 'issue.detail.unwatch' | translate }}
+        } @else {
+          {{ 'issue.detail.watch' | translate }}
+        }
+        <span class="ms-2 badge text-bg-light">
+          {{ 'issue.detail.watchers' | translate: { count: watcherCount() } }}
+        </span>
+      </button>
+    }
+  </app-page-header>
 
-<div class="row g-4">
-  <div class="col-12 col-xl-8">
-    <section class="card border-0 shadow-sm mb-4">
-      <div class="card-body">
-        <h2 class="h5">{{ 'issue.description' | translate }}</h2>
-        <p class="text-body-secondary mb-0">
-          {{ 'issue.descriptionText' | translate }}
-        </p>
-      </div>
-    </section>
+  <div class="row g-4">
+    <div class="col-12 col-lg-8">
+      <section class="card border-0 shadow-sm mb-4" aria-labelledby="issue-description-title">
+        <div class="card-body">
+          <h2 class="h6" id="issue-description-title">{{ 'issue.description' | translate }}</h2>
+          @if (detail.description.trim() === '') {
+            <p class="text-body-secondary mb-0">
+              {{ 'issue.detail.noDescription' | translate }}
+            </p>
+          } @else {
+            <!-- The API returns CommonMark source and never rendered markup. -->
+            <pre class="issue-source mb-0">{{ detail.description }}</pre>
+          }
+        </div>
+      </section>
 
-    <section class="card border-0 shadow-sm">
-      <div class="card-body">
-        <h2 class="h5">{{ 'issue.activity' | translate }}</h2>
-        <p class="text-body-secondary mb-0">{{ 'issue.activityText' | translate }}</p>
-      </div>
-    </section>
+      <section class="card border-0 shadow-sm mb-4" aria-labelledby="issue-attachments-title">
+        <div class="card-body">
+          <h2 class="h6" id="issue-attachments-title">
+            {{ 'issue.attachments.title' | translate }}
+          </h2>
+
+          @if (!attachmentsAvailable()) {
+            <p class="text-body-secondary mb-0">{{ 'common.unavailable' | translate }}</p>
+          } @else {
+            @if (attachmentError(); as message) {
+              <div class="alert alert-warning" role="alert">{{ message | translate }}</div>
+            }
+
+            @if (attachments().length === 0) {
+              <p class="text-body-secondary">{{ 'issue.attachments.empty' | translate }}</p>
+            } @else {
+              <ul class="list-unstyled mb-3">
+                @for (attachment of attachments(); track attachment.id) {
+                  <li class="issue-attachment">
+                    <span class="fw-semibold">{{ attachment.name }}</span>
+                    <span class="text-body-secondary"> — {{ attachment.media_type }}</span>
+                    @if (scanNoticeKey(attachment); as notice) {
+                      <span class="badge text-bg-warning ms-2">{{ notice | translate }}</span>
+                    }
+                    <span class="d-block">
+                      @if (attachment.downloadable) {
+                        <button
+                          class="btn btn-link btn-sm p-0 me-3"
+                          type="button"
+                          (click)="downloadAttachment(attachment)"
+                        >
+                          {{ 'issue.attachments.download' | translate }}
+                        </button>
+                      }
+                      <button
+                        class="btn btn-link btn-sm p-0"
+                        type="button"
+                        (click)="removeAttachment(attachment)"
+                      >
+                        {{ 'issue.attachments.remove' | translate }}
+                      </button>
+                    </span>
+                  </li>
+                }
+              </ul>
+            }
+
+            <label class="form-label" for="issue-attachment-file">
+              {{ 'issue.attachments.add' | translate }}
+            </label>
+            <input
+              class="form-control"
+              id="issue-attachment-file"
+              type="file"
+              [disabled]="attachmentUploading()"
+              (change)="selectFile($event)"
+            />
+          }
+        </div>
+      </section>
+
+      <section class="card border-0 shadow-sm mb-4" aria-labelledby="issue-links-title">
+        <div class="card-body">
+          <h2 class="h6" id="issue-links-title">{{ 'issue.links.title' | translate }}</h2>
+
+          @if (!linksAvailable()) {
+            <p class="text-body-secondary mb-0">{{ 'common.unavailable' | translate }}</p>
+          } @else {
+            @if (linkError(); as message) {
+              <div class="alert alert-warning" role="alert">{{ message | translate }}</div>
+            }
+
+            @if (links().length === 0) {
+              <p class="text-body-secondary">{{ 'issue.links.empty' | translate }}</p>
+            } @else {
+              <ul class="list-unstyled mb-3">
+                @for (link of links(); track link.id) {
+                  <li class="issue-link-entry">
+                    <span class="text-body-secondary">
+                      {{ relationKey(link.relation) | translate }}
+                    </span>
+                    <a class="fw-semibold" [routerLink]="['..', link.issue.key]">
+                      {{ link.issue.key }}
+                    </a>
+                    <span>{{ link.issue.title }}</span>
+                    <button
+                      class="btn btn-link btn-sm p-0 ms-2"
+                      type="button"
+                      (click)="removeLink(link)"
+                    >
+                      {{ 'issue.links.remove' | translate }}
+                    </button>
+                  </li>
+                }
+              </ul>
+            }
+
+            <form class="row g-2 align-items-end" (ngSubmit)="submitLink()">
+              <div class="col-12 col-md-5">
+                <label class="form-label" for="issue-link-type">
+                  {{ 'issue.links.typeLabel' | translate }}
+                </label>
+                <select class="form-select" id="issue-link-type" [formControl]="linkTypeControl">
+                  <option value="BLOCKS">{{ 'issue.links.blocks' | translate }}</option>
+                  <option value="RELATES_TO">{{ 'issue.links.relatesTo' | translate }}</option>
+                  <option value="DUPLICATES">{{ 'issue.links.duplicates' | translate }}</option>
+                </select>
+              </div>
+              <div class="col-12 col-md-4">
+                <label class="form-label" for="issue-link-key">
+                  {{ 'issue.links.targetLabel' | translate }}
+                </label>
+                <input
+                  class="form-control"
+                  id="issue-link-key"
+                  type="text"
+                  autocomplete="off"
+                  [formControl]="linkKeyControl"
+                />
+              </div>
+              <div class="col-12 col-md-3 d-grid">
+                <button class="btn btn-outline-primary" type="submit" [disabled]="linkSubmitting()">
+                  {{ 'issue.links.add' | translate }}
+                </button>
+              </div>
+            </form>
+          }
+        </div>
+      </section>
+
+      <section class="card border-0 shadow-sm mb-4" aria-labelledby="issue-comments-title">
+        <div class="card-body">
+          <h2 class="h6" id="issue-comments-title">{{ 'issue.comments.title' | translate }}</h2>
+
+          @if (!commentsAvailable()) {
+            <p class="text-body-secondary mb-0">{{ 'common.unavailable' | translate }}</p>
+          } @else {
+            @if (comments().length === 0) {
+              <p class="text-body-secondary">{{ 'issue.comments.empty' | translate }}</p>
+            } @else {
+              <ul class="list-unstyled mb-3">
+                @for (comment of comments(); track comment.id) {
+                  <li class="issue-comment">
+                    <p class="mb-1 fw-semibold">
+                      {{ comment.author.display_name ?? '—' }}
+                      @if (comment.edited_at !== null) {
+                        <span class="text-body-secondary fw-normal">
+                          ({{ 'issue.comments.edited' | translate }})
+                        </span>
+                      }
+                    </p>
+                    @if (comment.deleted) {
+                      <p class="text-body-secondary fst-italic mb-0">
+                        {{ 'issue.comments.deleted' | translate }}
+                      </p>
+                    } @else {
+                      <pre class="issue-source mb-1">{{ comment.body }}</pre>
+                      <button
+                        class="btn btn-link btn-sm p-0"
+                        type="button"
+                        (click)="removeComment(comment)"
+                      >
+                        {{ 'issue.comments.remove' | translate }}
+                      </button>
+                    }
+                  </li>
+                }
+              </ul>
+            }
+
+            @if (commentError(); as message) {
+              <div class="alert alert-warning" role="alert">{{ message | translate }}</div>
+            }
+
+            <form (ngSubmit)="submitComment()">
+              <label class="visually-hidden" for="issue-comment-body">
+                {{ 'issue.comments.title' | translate }}
+              </label>
+              <textarea
+                class="form-control mb-2"
+                id="issue-comment-body"
+                rows="3"
+                [formControl]="commentControl"
+                [attr.placeholder]="'issue.comments.placeholder' | translate"
+              ></textarea>
+              <button class="btn btn-primary" type="submit" [disabled]="commentSubmitting()">
+                {{ 'issue.comments.submit' | translate }}
+              </button>
+            </form>
+          }
+        </div>
+      </section>
+    </div>
+
+    <div class="col-12 col-lg-4">
+      <section class="card border-0 shadow-sm mb-4" aria-labelledby="issue-facts-title">
+        <div class="card-body">
+          <h2 class="h6" id="issue-facts-title">{{ 'issue.status' | translate }}</h2>
+          <dl class="row mb-0">
+            <dt class="col-5">{{ 'issue.status' | translate }}</dt>
+            <dd class="col-7">{{ detail.status.name }}</dd>
+            <dt class="col-5">{{ 'issue.priority' | translate }}</dt>
+            <dd class="col-7">{{ detail.priority }}</dd>
+            <dt class="col-5">{{ 'issue.assignee' | translate }}</dt>
+            <dd class="col-7">
+              {{ detail.assignee?.display_name ?? ('issue.unassigned' | translate) }}
+            </dd>
+            <dt class="col-5">{{ 'issue.detail.reporter' | translate }}</dt>
+            <dd class="col-7">{{ detail.reporter.display_name ?? '—' }}</dd>
+            <dt class="col-5">{{ 'issue.detail.created' | translate }}</dt>
+            <dd class="col-7">{{ detail.created_at }}</dd>
+            <dt class="col-5">{{ 'issue.detail.updated' | translate }}</dt>
+            <dd class="col-7 mb-0">{{ detail.updated_at }}</dd>
+          </dl>
+        </div>
+      </section>
+
+      <section class="card border-0 shadow-sm mb-4" aria-labelledby="issue-transitions-title">
+        <div class="card-body">
+          <h2 class="h6" id="issue-transitions-title">
+            {{ 'issue.detail.transitions' | translate }}
+          </h2>
+
+          @if (transitionError(); as message) {
+            <div class="alert alert-warning" role="alert">{{ message | translate }}</div>
+          }
+
+          @if (transitions().length === 0) {
+            <p class="text-body-secondary mb-0">
+              {{ 'issue.detail.noTransitions' | translate }}
+            </p>
+          } @else {
+            @if (resolutionRequired()) {
+              <label class="form-label" for="issue-resolution">
+                {{ 'issue.detail.resolutionLabel' | translate }}
+              </label>
+              <input
+                class="form-control mb-3"
+                id="issue-resolution"
+                type="text"
+                [formControl]="resolutionControl"
+              />
+            }
+
+            <div class="d-grid gap-2">
+              @for (transition of transitions(); track transition.id) {
+                <button
+                  class="btn btn-outline-primary"
+                  type="button"
+                  [disabled]="busyTransitionId() !== null"
+                  (click)="execute(transition)"
+                >
+                  {{ transition.name }}
+                </button>
+              }
+            </div>
+          }
+        </div>
+      </section>
+
+      <section class="card border-0 shadow-sm" aria-labelledby="issue-history-title">
+        <div class="card-body">
+          <h2 class="h6" id="issue-history-title">{{ 'issue.history.title' | translate }}</h2>
+
+          @if (!historyAvailable()) {
+            <p class="text-body-secondary mb-0">{{ 'common.unavailable' | translate }}</p>
+          } @else if (history().length === 0) {
+            <p class="text-body-secondary mb-0">{{ 'issue.history.empty' | translate }}</p>
+          } @else {
+            <ul class="list-unstyled mb-0">
+              @for (entry of history(); track entry.id) {
+                <li class="issue-history-entry">
+                  <span class="fw-semibold">{{ entry.event_type }}</span>
+                  <span class="text-body-secondary">
+                    — {{ entry.actor?.display_name ?? '—' }}
+                  </span>
+                </li>
+              }
+            </ul>
+          }
+        </div>
+      </section>
+    </div>
   </div>
-
-  <aside class="col-12 col-xl-4">
-    <section class="card border-0 shadow-sm">
-      <div class="card-body">
-        <dl class="row mb-0">
-          <dt class="col-5">{{ 'issue.status' | translate }}</dt>
-          <dd class="col-7"><app-status-badge [status]="status()" /></dd>
-
-          <dt class="col-5">{{ 'issue.assignee' | translate }}</dt>
-          <dd class="col-7">{{ 'issue.unassigned' | translate }}</dd>
-
-          <dt class="col-5">{{ 'issue.priority' | translate }}</dt>
-          <dd class="col-7">{{ 'common.normal' | translate }}</dd>
-        </dl>
-      </div>
-    </section>
-  </aside>
-</div>
+}

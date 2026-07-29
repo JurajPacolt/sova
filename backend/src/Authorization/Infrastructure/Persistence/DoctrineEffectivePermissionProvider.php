@@ -76,6 +76,218 @@ final class DoctrineEffectivePermissionProvider implements EffectivePermissionPr
         return $decision;
     }
 
+    public function listPermissions(string $userId, AuthorizationScope $scope): array
+    {
+        if ($scope->tenantId === null || !$this->hasResourceId($scope)) {
+            return [];
+        }
+
+        $codes = match ($scope->type) {
+            PermissionScope::Tenant => $this->tenantPermissionCodes(
+                $userId,
+                $scope->tenantId,
+            ),
+            PermissionScope::Project => $this->projectPermissionCodes(
+                $userId,
+                $scope->tenantId,
+                $scope->projectId ?? '',
+            ),
+            PermissionScope::Workgroup => $this->workgroupPermissionCodes(
+                $userId,
+                $scope->tenantId,
+                $scope->workgroupId ?? '',
+            ),
+            PermissionScope::System => [],
+        };
+
+        $permissions = [];
+
+        foreach ($codes as $code) {
+            $permission = Permission::tryFrom($code);
+
+            // A code with no catalog entry is a removed permission still stored
+            // on a role; it grants nothing.
+            if ($permission !== null) {
+                $permissions[] = $permission;
+            }
+        }
+
+        return $permissions;
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function tenantPermissionCodes(string $userId, string $tenantId): array
+    {
+        return $this->codeList(
+            <<<'SQL'
+                SELECT DISTINCT role_permission.permission_code
+                FROM tenant_memberships membership
+                INNER JOIN users user_account
+                    ON user_account.id = membership.user_id
+                INNER JOIN tenants tenant
+                    ON tenant.id = membership.tenant_id
+                INNER JOIN tenant_membership_role_assignments assignment
+                    ON assignment.tenant_id = membership.tenant_id
+                    AND assignment.membership_id = membership.id
+                INNER JOIN tenant_roles role
+                    ON role.tenant_id = assignment.tenant_id
+                    AND role.id = assignment.role_id
+                INNER JOIN tenant_role_permissions role_permission
+                    ON role_permission.tenant_id = role.tenant_id
+                    AND role_permission.role_id = role.id
+                WHERE membership.tenant_id = :tenant_id
+                    AND membership.user_id = :user_id
+                    AND membership.status = 'ACTIVE'
+                    AND user_account.status = 'ACTIVE'
+                    AND tenant.status = 'ACTIVE'
+                    AND role.status = 'ACTIVE'
+                SQL,
+            ['tenant_id' => $tenantId, 'user_id' => $userId],
+        );
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function projectPermissionCodes(
+        string $userId,
+        string $tenantId,
+        string $projectId,
+    ): array {
+        return $this->codeList(
+            <<<'SQL'
+                SELECT DISTINCT role_permission.permission_code
+                FROM project_role_permissions role_permission
+                INNER JOIN project_roles role
+                    ON role.tenant_id = role_permission.tenant_id
+                    AND role.project_id = role_permission.project_id
+                    AND role.id = role_permission.role_id
+                INNER JOIN projects project
+                    ON project.tenant_id = role.tenant_id
+                    AND project.id = role.project_id
+                INNER JOIN tenants tenant
+                    ON tenant.id = project.tenant_id
+                WHERE role.tenant_id = :tenant_id
+                    AND role.project_id = :project_id
+                    AND role.status = 'ACTIVE'
+                    AND project.status = 'ACTIVE'
+                    AND tenant.status = 'ACTIVE'
+                    AND (
+                        EXISTS (
+                            SELECT 1
+                            FROM project_membership_role_assignments assignment
+                            INNER JOIN tenant_memberships membership
+                                ON membership.tenant_id = assignment.tenant_id
+                                AND membership.id = assignment.membership_id
+                            INNER JOIN users user_account
+                                ON user_account.id = membership.user_id
+                            WHERE assignment.tenant_id = role.tenant_id
+                                AND assignment.project_id = role.project_id
+                                AND assignment.role_id = role.id
+                                AND membership.user_id = :user_id
+                                AND membership.status = 'ACTIVE'
+                                AND user_account.status = 'ACTIVE'
+                        )
+                        OR EXISTS (
+                            SELECT 1
+                            FROM project_workgroups linked
+                            INNER JOIN workgroups workgroup
+                                ON workgroup.tenant_id = linked.tenant_id
+                                AND workgroup.id = linked.workgroup_id
+                            INNER JOIN workgroup_members workgroup_member
+                                ON workgroup_member.tenant_id = linked.tenant_id
+                                AND workgroup_member.workgroup_id = linked.workgroup_id
+                            INNER JOIN tenant_memberships membership
+                                ON membership.tenant_id = workgroup_member.tenant_id
+                                AND membership.id = workgroup_member.membership_id
+                            INNER JOIN users user_account
+                                ON user_account.id = membership.user_id
+                            WHERE linked.tenant_id = role.tenant_id
+                                AND linked.project_id = role.project_id
+                                AND linked.role_id = role.id
+                                AND membership.user_id = :user_id
+                                AND membership.status = 'ACTIVE'
+                                AND user_account.status = 'ACTIVE'
+                                AND workgroup.status = 'ACTIVE'
+                        )
+                    )
+                SQL,
+            [
+                'tenant_id' => $tenantId,
+                'project_id' => $projectId,
+                'user_id' => $userId,
+            ],
+        );
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function workgroupPermissionCodes(
+        string $userId,
+        string $tenantId,
+        string $workgroupId,
+    ): array {
+        $role = $this->connection->fetchOne(
+            <<<'SQL'
+                SELECT member.member_role
+                FROM workgroup_members member
+                INNER JOIN tenant_memberships membership
+                    ON membership.tenant_id = member.tenant_id
+                    AND membership.id = member.membership_id
+                INNER JOIN users user_account
+                    ON user_account.id = membership.user_id
+                INNER JOIN tenants tenant
+                    ON tenant.id = member.tenant_id
+                INNER JOIN workgroups workgroup
+                    ON workgroup.tenant_id = member.tenant_id
+                    AND workgroup.id = member.workgroup_id
+                WHERE member.tenant_id = :tenant_id
+                    AND member.workgroup_id = :workgroup_id
+                    AND membership.user_id = :user_id
+                    AND membership.status = 'ACTIVE'
+                    AND user_account.status = 'ACTIVE'
+                    AND tenant.status = 'ACTIVE'
+                    AND workgroup.status = 'ACTIVE'
+                SQL,
+            [
+                'tenant_id' => $tenantId,
+                'workgroup_id' => $workgroupId,
+                'user_id' => $userId,
+            ],
+        );
+
+        return match ($role) {
+            'MANAGER' => [
+                Permission::WorkgroupView->value,
+                Permission::WorkgroupManage->value,
+                Permission::WorkgroupMembersManage->value,
+            ],
+            'MEMBER' => [Permission::WorkgroupView->value],
+            default => [],
+        };
+    }
+
+    /**
+     * @param array<string, string> $parameters
+     *
+     * @return list<string>
+     */
+    private function codeList(string $sql, array $parameters): array
+    {
+        $codes = [];
+
+        foreach ($this->connection->fetchFirstColumn($sql, $parameters) as $code) {
+            if (is_string($code)) {
+                $codes[] = $code;
+            }
+        }
+
+        return $codes;
+    }
+
     private function hasResourceId(AuthorizationScope $scope): bool
     {
         return match ($scope->type) {

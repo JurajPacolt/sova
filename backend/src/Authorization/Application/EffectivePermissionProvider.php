@@ -13,4 +13,13 @@ interface EffectivePermissionProvider
         Permission $permission,
         AuthorizationScope $scope,
     ): bool;
+
+    /**
+     * Every permission the user effectively holds in the scope. Callers must
+     * still drop permissions the scope does not support: a tenant role may
+     * carry project-scoped codes that only apply inside a project.
+     *
+     * @return list<Permission>
+     */
+    public function listPermissions(string $userId, AuthorizationScope $scope): array;
 }

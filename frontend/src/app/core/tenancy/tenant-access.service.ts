@@ -35,8 +35,8 @@ export class TenantAccessService {
         }
 
         return this.api.getTenant(tenant.id).pipe(
+          tap((response) => this.store.setActiveTenant(response.tenant, response.permissions)),
           map((response) => response.tenant),
-          tap((confirmedTenant) => this.store.setActiveTenant(confirmedTenant)),
         );
       }),
     );

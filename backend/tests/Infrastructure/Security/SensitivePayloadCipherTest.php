@@ -35,10 +35,21 @@ final class SensitivePayloadCipherTest extends TestCase
         $encrypted = $cipher->encrypt([
             'normalized_email' => 'member@example.test',
         ]);
-        $lastCharacter = substr($encrypted->ciphertext, -1);
-        $tampered = substr($encrypted->ciphertext, 0, -1)
-            . ($lastCharacter === 'A' ? 'B' : 'A');
+        // The payload is base64url and its final character carries only the top
+        // bits of the last byte; the rest is padding. Editing that character
+        // therefore often decodes to identical bytes — not tampering at all —
+        // which made this test fail about a quarter of the time, depending on
+        // the random nonce. Every other position carries a full six significant
+        // bits, so a change there always alters the bytes the MAC covers.
+        $position = intdiv(strlen($encrypted->ciphertext), 2);
+        $tampered = substr_replace(
+            $encrypted->ciphertext,
+            $encrypted->ciphertext[$position] === 'A' ? 'B' : 'A',
+            $position,
+            1,
+        );
 
+        self::assertNotSame($encrypted->ciphertext, $tampered);
         $this->expectException(RuntimeException::class);
 
         $cipher->decrypt($encrypted->keyId, $tampered);

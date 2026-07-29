@@ -34,6 +34,29 @@ final readonly class AuthorizationService
         );
     }
 
+    /**
+     * The subject's effective permissions in the scope, for UI affordances.
+     * Never a substitute for `require()` on the operation itself.
+     *
+     * @return list<Permission>
+     */
+    public function grantedPermissions(
+        AuthorizationSubject $subject,
+        AuthorizationScope $scope,
+    ): array {
+        if ($subject->hasSuperadminBypass()) {
+            return array_values(array_filter(
+                Permission::cases(),
+                static fn(Permission $permission): bool => $scope->supports($permission),
+            ));
+        }
+
+        return array_values(array_filter(
+            $this->permissions->listPermissions($subject->effectiveUserId, $scope),
+            static fn(Permission $permission): bool => $scope->supports($permission),
+        ));
+    }
+
     public function require(
         AuthorizationSubject $subject,
         Permission $permission,

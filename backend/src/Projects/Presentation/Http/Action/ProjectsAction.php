@@ -49,16 +49,19 @@ final readonly class ProjectsAction
         );
 
         if ($request->getMethod() === 'GET') {
-            $this->authorization->require(
+            // Tenant administrators see every project; everyone else sees the
+            // tenant-visible ones plus the private projects they belong to.
+            $projects = $this->authorization->isGranted(
                 $subject,
                 Permission::TenantProjectsManage,
                 AuthorizationScope::tenant($tenant->id),
-            );
-            $projects = $this->administration->list($tenant->id);
+            )
+                ? $this->administration->list($tenant->id, $session->userId)
+                : $this->administration->listVisible($tenant->id, $session->userId);
 
             return JsonResponse::write($response, [
                 'projects' => array_map(
-                    $this->serializer->serialize(...),
+                    $this->serializer->serializeListItem(...),
                     $projects,
                 ),
             ]);

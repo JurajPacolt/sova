@@ -8,6 +8,7 @@ use DateTimeImmutable;
 use Doctrine\DBAL\Connection;
 use RuntimeException;
 use Sova\Projects\Application\ProjectDetails;
+use Sova\Projects\Application\ProjectListItem;
 use Sova\Projects\Application\ProjectRepository;
 use Sova\Projects\Domain\ProjectStatus;
 use Sova\Projects\Domain\ProjectVisibility;
@@ -17,15 +18,41 @@ final readonly class DoctrineProjectRepository implements ProjectRepository
 {
     public function __construct(private Connection $connection) {}
 
-    public function listForTenant(string $tenantId): array
+    public function listForTenant(string $tenantId, string $viewerUserId): array
     {
+        return $this->fetchListing($tenantId, $viewerUserId, null);
+    }
+
+    public function listVisibleForUser(string $tenantId, string $userId): array
+    {
+        return $this->fetchListing(
+            $tenantId,
+            $userId,
+            "(listing.visibility = 'TENANT' AND listing.viewer_is_member)"
+                . "\n    OR listing.viewer_roles <> ''",
+        );
+    }
+
+    /**
+     * @return list<ProjectListItem>
+     */
+    private function fetchListing(
+        string $tenantId,
+        string $viewerUserId,
+        ?string $visibilityCondition,
+    ): array {
         $rows = $this->connection->fetchAllAssociative(
-            $this->detailsSql() . "\nWHERE project.tenant_id = :tenant_id"
-                . "\nORDER BY LOWER(project.code), project.id",
-            ['tenant_id' => $tenantId],
+            sprintf(
+                "SELECT *\nFROM (\n%s\n) AS listing\n%sORDER BY LOWER(listing.code), listing.id",
+                $this->listingSql(),
+                $visibilityCondition === null
+                    ? ''
+                    : sprintf("WHERE %s\n", $visibilityCondition),
+            ),
+            ['tenant_id' => $tenantId, 'viewer_user_id' => $viewerUserId],
         );
 
-        return array_map($this->hydrate(...), $rows);
+        return array_map($this->hydrateListItem(...), $rows);
     }
 
     public function findForTenant(
@@ -106,6 +133,23 @@ final readonly class DoctrineProjectRepository implements ProjectRepository
 
     private function detailsSql(): string
     {
+        return $this->columnsSql() . "\n" . $this->fromSql();
+    }
+
+    /**
+     * Adds the requesting user's own project roles and tenant membership so a
+     * listing can be scoped to what that user is allowed to see.
+     */
+    private function listingSql(): string
+    {
+        return $this->columnsSql()
+            . ",\n" . $this->viewerColumnsSql()
+            . "\n" . $this->fromSql()
+            . "\nWHERE project.tenant_id = :tenant_id";
+    }
+
+    private function columnsSql(): string
+    {
         return <<<'SQL'
             SELECT
                 project.id,
@@ -126,6 +170,12 @@ final readonly class DoctrineProjectRepository implements ProjectRepository
                     WHERE assignment.tenant_id = project.tenant_id
                         AND assignment.project_id = project.id
                 ) AS member_count
+            SQL;
+    }
+
+    private function fromSql(): string
+    {
+        return <<<'SQL'
             FROM projects project
             LEFT JOIN tenant_memberships lead_membership
                 ON lead_membership.tenant_id = project.tenant_id
@@ -133,6 +183,86 @@ final readonly class DoctrineProjectRepository implements ProjectRepository
             LEFT JOIN users lead_user
                 ON lead_user.id = lead_membership.user_id
             SQL;
+    }
+
+    private function viewerColumnsSql(): string
+    {
+        return <<<'SQL'
+                COALESCE((
+                    SELECT string_agg(DISTINCT role.code, ',' ORDER BY role.code)
+                    FROM project_roles role
+                    WHERE role.tenant_id = project.tenant_id
+                        AND role.project_id = project.id
+                        AND role.status = 'ACTIVE'
+                        AND (
+                            EXISTS (
+                                SELECT 1
+                                FROM project_membership_role_assignments assignment
+                                INNER JOIN tenant_memberships assigned_membership
+                                    ON assigned_membership.tenant_id = assignment.tenant_id
+                                    AND assigned_membership.id = assignment.membership_id
+                                WHERE assignment.tenant_id = role.tenant_id
+                                    AND assignment.project_id = role.project_id
+                                    AND assignment.role_id = role.id
+                                    AND assigned_membership.user_id = :viewer_user_id
+                                    AND assigned_membership.status = 'ACTIVE'
+                            )
+                            OR EXISTS (
+                                SELECT 1
+                                FROM project_workgroups linked
+                                INNER JOIN workgroups workgroup
+                                    ON workgroup.tenant_id = linked.tenant_id
+                                    AND workgroup.id = linked.workgroup_id
+                                INNER JOIN workgroup_members workgroup_member
+                                    ON workgroup_member.tenant_id = linked.tenant_id
+                                    AND workgroup_member.workgroup_id = linked.workgroup_id
+                                INNER JOIN tenant_memberships linked_membership
+                                    ON linked_membership.tenant_id = workgroup_member.tenant_id
+                                    AND linked_membership.id = workgroup_member.membership_id
+                                WHERE linked.tenant_id = role.tenant_id
+                                    AND linked.project_id = role.project_id
+                                    AND linked.role_id = role.id
+                                    AND linked_membership.user_id = :viewer_user_id
+                                    AND linked_membership.status = 'ACTIVE'
+                                    AND workgroup.status = 'ACTIVE'
+                            )
+                        )
+                ), '') AS viewer_roles,
+                EXISTS (
+                    SELECT 1
+                    FROM tenant_memberships viewer_membership
+                    WHERE viewer_membership.tenant_id = project.tenant_id
+                        AND viewer_membership.user_id = :viewer_user_id
+                        AND viewer_membership.status = 'ACTIVE'
+                ) AS viewer_is_member
+            SQL;
+    }
+
+    /**
+     * @param array<string, mixed> $row
+     */
+    private function hydrateListItem(array $row): ProjectListItem
+    {
+        return new ProjectListItem($this->hydrate($row), $this->roleCodes($row));
+    }
+
+    /**
+     * @param array<string, mixed> $row
+     *
+     * @return list<string>
+     */
+    private function roleCodes(array $row): array
+    {
+        $value = $row['viewer_roles'] ?? '';
+
+        if (!is_string($value) || $value === '') {
+            return [];
+        }
+
+        return array_values(array_filter(
+            explode(',', $value),
+            static fn(string $code): bool => $code !== '',
+        ));
     }
 
     /**

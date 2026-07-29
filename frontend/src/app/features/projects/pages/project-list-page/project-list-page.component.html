@@ -3,29 +3,191 @@
   [title]="'projects.title' | translate"
   [subtitle]="'projects.subtitle' | translate: { count: activeProjectCount() }"
 >
-  <button actions class="btn btn-primary" type="button">{{ 'projects.new' | translate }}</button>
+  <button actions class="btn btn-primary" type="button" (click)="toggleCreateForm()">
+    @if (createFormVisible()) {
+      {{ 'common.cancel' | translate }}
+    } @else {
+      {{ 'projects.new' | translate }}
+    }
+  </button>
 </app-page-header>
 
+@if (createFormVisible()) {
+  <section class="card border-0 shadow-sm mb-4" aria-labelledby="create-project-title">
+    <div class="card-body">
+      <h2 id="create-project-title" class="h5">{{ 'projects.new' | translate }}</h2>
+
+      @if (createError(); as errorKey) {
+        <div class="alert alert-danger" role="alert">{{ errorKey | translate }}</div>
+      }
+
+      <form class="row g-3" [formGroup]="createForm" (ngSubmit)="createProject()">
+        <div class="col-12 col-lg-2">
+          <label class="form-label" for="project-code">{{ 'projects.code' | translate }}</label>
+          <input id="project-code" class="form-control" type="text" formControlName="code" />
+          <p class="form-text">{{ 'projects.codeHint' | translate }}</p>
+        </div>
+        <div class="col-12 col-lg-4">
+          <label class="form-label" for="project-name">{{ 'projects.name' | translate }}</label>
+          <input id="project-name" class="form-control" type="text" formControlName="name" />
+        </div>
+        <div class="col-12 col-lg-6">
+          <label class="form-label" for="project-description">
+            {{ 'projects.description' | translate }}
+          </label>
+          <input
+            id="project-description"
+            class="form-control"
+            type="text"
+            formControlName="description"
+          />
+        </div>
+        <div class="col-12 col-lg-3">
+          <label class="form-label" for="project-visibility">
+            {{ 'projects.visibility' | translate }}
+          </label>
+          <select id="project-visibility" class="form-select" formControlName="visibility">
+            <option value="TENANT">{{ 'projects.visibilityTenant' | translate }}</option>
+            <option value="PRIVATE">{{ 'projects.visibilityPrivate' | translate }}</option>
+          </select>
+        </div>
+        <div class="col-12 col-lg-5">
+          <label class="form-label" for="project-lead">{{ 'projects.lead' | translate }}</label>
+          <select id="project-lead" class="form-select" formControlName="lead_membership_id">
+            <option value="">{{ 'projects.noLead' | translate }}</option>
+            @for (membership of memberships(); track membership.id) {
+              <option [value]="membership.id">
+                {{ membership.user.display_name }} · {{ membership.user.email }}
+              </option>
+            }
+          </select>
+          <p class="form-text">{{ 'projects.leadHint' | translate }}</p>
+        </div>
+        <div class="col-12">
+          <button class="btn btn-primary" type="submit" [disabled]="creating()">
+            @if (creating()) {
+              {{ 'projects.creating' | translate }}
+            } @else {
+              {{ 'projects.create' | translate }}
+            }
+          </button>
+        </div>
+      </form>
+    </div>
+  </section>
+}
+
+@if (loadError()) {
+  <div class="alert alert-danger d-flex align-items-center justify-content-between gap-3">
+    <span>{{ 'projects.loadError' | translate }}</span>
+    <button class="btn btn-sm btn-outline-danger" type="button" (click)="refresh()">
+      {{ 'common.retry' | translate }}
+    </button>
+  </div>
+}
+
+<section class="row g-2 align-items-end mb-3" aria-label="{{ 'projects.filters' | translate }}">
+  <div class="col-12 col-md-6 col-lg-4">
+    <label class="form-label" for="project-search">{{ 'projects.search' | translate }}</label>
+    <input
+      id="project-search"
+      class="form-control"
+      type="search"
+      [value]="search()"
+      (input)="updateSearch($any($event.target).value)"
+    />
+  </div>
+  <div class="col-12 col-md-4 col-lg-3">
+    <label class="form-label" for="project-status">{{ 'projects.status' | translate }}</label>
+    <select
+      id="project-status"
+      class="form-select"
+      [value]="statusFilter()"
+      (change)="updateStatusFilter($any($event.target).value)"
+    >
+      <option value="ACTIVE">{{ 'common.active' | translate }}</option>
+      <option value="ARCHIVED">{{ 'common.archived' | translate }}</option>
+      <option value="ALL">{{ 'projects.allStatuses' | translate }}</option>
+    </select>
+  </div>
+</section>
+
+@if (loading() && projects().length === 0) {
+  <div class="d-flex align-items-center gap-2 text-body-secondary" role="status">
+    <span class="spinner-border spinner-border-sm" aria-hidden="true"></span>
+    <span>{{ 'common.loading' | translate }}</span>
+  </div>
+}
+
 <div class="row g-3">
-  @for (project of projects(); track project.code) {
+  @for (project of visibleProjects(); track project.id) {
     <div class="col-12 col-md-6 col-xl-4">
       <article class="card border-0 shadow-sm h-100">
         <div class="card-body">
           <div class="d-flex align-items-start justify-content-between gap-3">
             <span class="project-code">{{ project.code }}</span>
-            <span class="badge text-bg-success">{{ 'projects.active' | translate }}</span>
+            <div class="d-flex flex-wrap gap-1 justify-content-end">
+              <span
+                class="badge"
+                [class.text-bg-success]="project.status === 'ACTIVE'"
+                [class.text-bg-secondary]="project.status !== 'ACTIVE'"
+              >
+                {{
+                  (project.status === 'ACTIVE' ? 'common.active' : 'common.archived') | translate
+                }}
+              </span>
+              @if (project.visibility === 'PRIVATE') {
+                <span class="badge text-bg-dark">
+                  {{ 'projects.visibilityPrivate' | translate }}
+                </span>
+              }
+            </div>
           </div>
-          <h2 class="h5 mt-3">{{ project.nameKey | translate }}</h2>
-          <p class="text-body-secondary mb-0">
-            {{ 'projects.openIssues' | translate: { count: project.openIssues } }}
-          </p>
+
+          <h2 class="h5 mt-3 mb-1">{{ project.name }}</h2>
+          @if (project.description) {
+            <p class="text-body-secondary small mb-2">{{ project.description }}</p>
+          }
+
+          <dl class="row small mb-0">
+            <dt class="col-5 fw-normal text-body-secondary">
+              {{ 'projects.lead' | translate }}
+            </dt>
+            <dd class="col-7 mb-1">
+              {{ project.lead?.display_name ?? ('projects.noLead' | translate) }}
+            </dd>
+            <dt class="col-5 fw-normal text-body-secondary">
+              {{ 'projects.members' | translate }}
+            </dt>
+            <dd class="col-7 mb-1">{{ project.member_count }}</dd>
+            <dt class="col-5 fw-normal text-body-secondary">
+              {{ 'projects.yourRoles' | translate }}
+            </dt>
+            <dd class="col-7 mb-0">
+              @if (project.viewer_roles.length === 0) {
+                <span class="text-body-secondary">{{ 'projects.noRoles' | translate }}</span>
+              } @else {
+                <span class="d-flex flex-wrap gap-1">
+                  @for (role of project.viewer_roles; track role) {
+                    <span class="badge text-bg-light">{{ role }}</span>
+                  }
+                </span>
+              }
+            </dd>
+          </dl>
         </div>
         <div class="card-footer bg-transparent">
-          <button class="btn btn-sm btn-outline-primary" type="button">
+          <a class="btn btn-sm btn-outline-primary" [routerLink]="[project.id]">
             {{ 'projects.openProject' | translate }}
-          </button>
+          </a>
         </div>
       </article>
     </div>
+  } @empty {
+    @if (!loading() && !loadError()) {
+      <div class="col-12">
+        <p class="text-body-secondary py-4 mb-0">{{ 'projects.noProjects' | translate }}</p>
+      </div>
+    }
   }
 </div>
