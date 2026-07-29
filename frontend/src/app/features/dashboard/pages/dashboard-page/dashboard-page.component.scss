@@ -21,6 +21,20 @@
 
 .dashboard__cell {
   min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--sova-space-2);
+}
+
+.dashboard__grid--editing .dashboard__cell {
+  // An outline while arranging, so a widget's own bounds are visible even when
+  // its content stops short of them.
+  outline: 1px dashed var(--sova-color-border-strong);
+  outline-offset: var(--sova-space-1);
+}
+
+.dashboard__tools {
+  flex-wrap: wrap;
 }
 
 @media (min-width: 62em) {

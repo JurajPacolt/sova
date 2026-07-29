@@ -95,6 +95,43 @@ describe('DashboardPageComponent', () => {
     return fixture.nativeElement;
   }
 
+  function click(label: string): void {
+    const element: HTMLElement = fixture.nativeElement;
+    const target = [...element.querySelectorAll('button')].find(
+      (button) =>
+        button.textContent?.includes(label) === true || button.getAttribute('aria-label') === label,
+    );
+
+    if (target === undefined) {
+      throw new Error(`No button labelled "${label}".`);
+    }
+
+    target.click();
+    fixture.detectChanges();
+  }
+
+  /** The same click, but on a named widget rather than the first one. */
+  function clickIn(cellIndex: number, label: string): void {
+    const element: HTMLElement = fixture.nativeElement;
+    const cell = element.querySelectorAll('.dashboard__cell')[cellIndex];
+    const target = cell?.querySelector<HTMLButtonElement>(`[aria-label="${label}"]`);
+
+    if (target === null || target === undefined) {
+      throw new Error(`No "${label}" button in cell ${cellIndex}.`);
+    }
+
+    target.click();
+    fixture.detectChanges();
+  }
+
+  /** Enters edit mode and answers the two catalogue requests it triggers. */
+  function startEditing(): void {
+    click('Arrange');
+    http.expectOne(`/api/v1/tenants/${TENANT_ID}/widget-types`).flush({ widget_types: [] });
+    http.expectOne(`/api/v1/tenants/${TENANT_ID}/saved-queries`).flush({ saved_queries: [] });
+    fixture.detectChanges();
+  }
+
   /**
    * The server keeps the "last active" write out of `GET` so that a prefetch
    * cannot move where somebody lands next. Opening a dashboard directly must
@@ -162,6 +199,146 @@ describe('DashboardPageComponent', () => {
     expect(cell?.style.getPropertyValue('--widget-row')).toBe('3');
     expect(cell?.style.getPropertyValue('--widget-span')).toBe('4');
     expect(cell?.style.getPropertyValue('--widget-rows')).toBe('4');
+  });
+
+  /**
+   * Editing is a mode, not a mood (spec §7.3): nothing on the page can move a
+   * widget until somebody turns arranging on.
+   */
+  it('offers no arranging controls until edit mode is entered', () => {
+    const element = initialise([dashboard()], [widget({ id: 'a' })]);
+
+    expect(element.querySelector('[aria-label="Move right"]')).toBeNull();
+
+    startEditing();
+    expect(element.querySelector('[aria-label="Move right"]')).not.toBeNull();
+  });
+
+  it('collects moves into a draft and writes nothing until they are saved', () => {
+    const element = initialise([dashboard({ version: 4 })], [widget({ id: 'a', x: 0, y: 0 })]);
+    startEditing();
+
+    click('Move right');
+    click('Move down');
+
+    // The grid already shows the move…
+    const cell = element.querySelector<HTMLElement>('.dashboard__cell');
+    expect(cell?.style.getPropertyValue('--widget-column')).toBe('2');
+    expect(cell?.style.getPropertyValue('--widget-row')).toBe('2');
+    // …but nothing has been sent; `http.verify()` in afterEach proves it.
+  });
+
+  /**
+   * Two widgets passing each other is legal only as a pair, so the whole
+   * arrangement travels in one request, against the version it was made
+   * against.
+   */
+  it('saves the whole arrangement in one request against the dashboard version', () => {
+    initialise(
+      [dashboard({ version: 4 })],
+      [widget({ id: 'a', x: 0, y: 0, width: 4, height: 2 }), widget({ id: 'b', x: 4, y: 0 })],
+    );
+    startEditing();
+
+    click('Move down');
+    click('Save the arrangement');
+
+    const request = http.expectOne(`${DASHBOARDS}/${DASHBOARD_ID}/layout`);
+    expect(request.request.method).toBe('PUT');
+    expect(request.request.body.expected_version).toBe(4);
+    // Every widget, not only the one that moved.
+    expect(request.request.body.widgets).toHaveLength(2);
+    request.flush({ widgets: [] });
+
+    // The new version is read back, so the next save is not stale by design.
+    http.expectOne(`${DASHBOARDS}/${DASHBOARD_ID}`).flush({ dashboard: dashboard({ version: 5 }) });
+  });
+
+  it('refuses to save an overlap and says which rule was broken', () => {
+    const element = initialise(
+      [dashboard()],
+      [widget({ id: 'a', x: 0, y: 0, width: 4, height: 2 }), widget({ id: 'b', x: 4, y: 0 })],
+    );
+    startEditing();
+
+    // Walk the second widget onto the first.
+    clickIn(1, 'Move left');
+    clickIn(1, 'Move left');
+    clickIn(1, 'Move left');
+    clickIn(1, 'Move left');
+
+    expect(element.textContent).toContain('Two widgets overlap.');
+    const save = [...element.querySelectorAll('button')].find((button) =>
+      button.textContent?.includes('Save the arrangement'),
+    );
+    expect(save?.disabled).toBe(true);
+  });
+
+  /**
+   * Another tab's work is not this tab's to discard. A conflict is reported and
+   * re-applying is offered, never done quietly.
+   */
+  it('offers to re-apply after a version conflict instead of overwriting', () => {
+    const element = initialise([dashboard({ version: 4 })], [widget({ id: 'a' })]);
+    startEditing();
+
+    click('Move right');
+    click('Save the arrangement');
+    http.expectOne(`${DASHBOARDS}/${DASHBOARD_ID}/layout`).flush(
+      {
+        code: 'DASHBOARD_VERSION_CONFLICT',
+        type: '',
+        title: '',
+        status: 409,
+        detail: '',
+        instance: '',
+        request_id: '',
+      },
+      { status: 409, statusText: 'Conflict' },
+    );
+    fixture.detectChanges();
+
+    expect(element.textContent).toContain('Somebody else changed this dashboard');
+
+    click('Reload and apply my arrangement');
+    // It takes the other tab's dashboard as it now is…
+    http
+      .expectOne(`${DASHBOARDS}/${DASHBOARD_ID}/widgets`)
+      .flush({ widgets: [widget({ id: 'a' })] });
+    http.expectOne(`${DASHBOARDS}/${DASHBOARD_ID}`).flush({ dashboard: dashboard({ version: 9 }) });
+
+    // …and re-sends against the version that dashboard now carries.
+    const retry = http.expectOne(`${DASHBOARDS}/${DASHBOARD_ID}/layout`);
+    expect(retry.request.body.expected_version).toBe(9);
+    retry.flush({ widgets: [] });
+    http.expectOne(`${DASHBOARDS}/${DASHBOARD_ID}`).flush({ dashboard: dashboard({ version: 9 }) });
+  });
+
+  it('drops the draft when arranging is cancelled', () => {
+    const element = initialise([dashboard()], [widget({ id: 'a', x: 0 })]);
+    startEditing();
+
+    click('Move right');
+    click('Cancel');
+
+    const cell = element.querySelector<HTMLElement>('.dashboard__cell');
+    expect(cell?.style.getPropertyValue('--widget-column')).toBe('1');
+  });
+
+  it('removes a widget straight away, because that is not a layout change', () => {
+    initialise([dashboard()], [widget({ id: 'a' })]);
+    startEditing();
+
+    click('Remove');
+
+    const request = http.expectOne(`${DASHBOARDS}/${DASHBOARD_ID}/widgets/a`);
+    expect(request.request.method).toBe('DELETE');
+    request.flush(null, { status: 204, statusText: 'No Content' });
+    http.expectOne(`${DASHBOARDS}/${DASHBOARD_ID}`).flush({ dashboard: dashboard({ version: 5 }) });
+    fixture.detectChanges();
+
+    const element: HTMLElement = fixture.nativeElement;
+    expect(element.querySelectorAll('.dashboard__cell')).toHaveLength(0);
   });
 
   it('says a dashboard is gone rather than forbidden when its widgets cannot be read', () => {

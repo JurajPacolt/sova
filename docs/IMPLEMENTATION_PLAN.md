@@ -6,8 +6,8 @@
 | ---------------------- | --------------------------------------------------- |
 | Posledná aktualizácia  | 2026-07-29                                       |
 | Aktuálna fáza          | Fáza 7 – kompletné UI, uložené dotazy a dashboardy |
-| Aktuálny checkpoint    | F7.8e – UI dashboardov (prepínač, mriežka, widgety)   |
-| Nasledujúci checkpoint | F7.8f – režim úprav dashboardu a správa dashboardov  |
+| Aktuálny checkpoint    | F7.8f – režim úprav dashboardu                        |
+| Nasledujúci checkpoint | F7.8g – obrazovka „Spravovať dashboardy“ (§7.3)      |
 
 ## Ako plán udržiavať
 
@@ -752,10 +752,29 @@ editor SovaQL s filter builderom (z F5.3).
         výsek a dizajnový systém dodáva dve farby sérií zámerne – desať by bolo
         vymyslených, nie zvolených. Uložená konfigurácia sa nemení, mení sa iba
         vykreslenie; vlastná forma prstenca čaká na kategorickú paletu.
-  - [ ] Režim úprav: pridanie, konfigurácia a odobratie widgetu, presun a
-        zmena veľkosti proti `dashboard.version` s UX konfliktu (§7.4).
-  - [ ] Obrazovka „Spravovať dashboardy“ (§7.3): premenovanie, duplikovanie,
-        predvolený, poradie a odstránenie.
+  - [x] Režim úprav (§7.3, §7.4). **Úprava je režim, nie nálada**: kým ju
+        niekto nezapne, na stránke nie je nič, čo by widget pohlo. Presuny a
+        zmeny veľkosti sa zbierajú do **draftu** a odchádzajú jedinou
+        požiadavkou proti `dashboard.version` – dva widgety, ktoré idú cez
+        seba, sú legálne iba ako dvojica, takže endpoint na jeden widget by
+        musel odmietnuť prvú polovicu legálneho ťahu. Ovládanie je
+        **tlačidlové**, teda klávesnicová cesta; ťahanie myšou je nadstavba nad
+        tými istými ťahmi, nie ich náhrada.
+  - [x] Konflikt verzie sa **ponúkne, nikdy nevykoná potichu**: `409` ohlási, že
+        dashboard medzitým zmenil niekto iný, a tlačidlo „Načítať znova a
+        použiť moje rozloženie“ prevezme cudzí stav, ponechá vlastné presuny
+        pre widgety, ktoré ešte existujú, a pošle to znova proti novej verzii.
+        Prekrytie sa kontroluje aj lokálne – nie namiesto servera, ale aby ťah,
+        ktorý sa nedá uložiť, povedal to už počas ťahania.
+  - [x] Pridanie a odobratie widgetu. Formulár pýta **iba to, čo je widget** –
+        uložený dotaz, typ, názov – plus polia, bez ktorých typ nevie existovať
+        (`group_by` pre rozdelenie, dve rôzne osi pre maticu). Zvyšok dopĺňa
+        server svojimi predvolenými hodnotami; formulár, ktorý by zopakoval
+        celú schému, by bol jej druhá kópia, voľná rozísť sa s tou skutočnou.
+        Ponúkajú sa iba dotazy, na ktoré volajúci dosiahne, a iba nearchivované.
+  - [ ] Obrazovka „Spravovať dashboardy“ (§7.3): vytvorenie, premenovanie,
+        duplikovanie, predvolený, poradie a odstránenie.
+  - [ ] Konfigurácia existujúceho widgetu (zmena zdroja, názvu a nastavení typu).
 - [ ] Tabuľkový zoznam, Kanban a detail úlohy s plnými stavmi. **ROZPRACOVANÉ**
       – tabuľkový zoznam a detail sú hotové a napojené na API, Kanban a úplná
       sada stavov nie.
@@ -926,3 +945,4 @@ editor SovaQL s filter builderom (z F5.3).
 | 2026-07-29 | F7.8d štartovacia predloha dashboardu | Doména `StarterTemplate`/`TemplateQuery`/`TemplateWidget`, `StarterDashboardProvisioner`, `SavedQueryService::availableName()` a `DashboardService::availableName()`, provisioning v `DashboardsAction` (GET), `DashboardTemplateAction`, 1 nová cesta, `tests/Domain/StarterTemplateTest.php` (6) a `tests/Api/DashboardTemplateApiTest.php` (8), OpenAPI, PHPStan `max`, CS Fixer, plný `composer check` | Prešlo: **432/432 testov, 7 788 assertions** (predtým 418/7 449), 14 nových. Overené testom: manifest je platný a už kanonický SovaQL, nenesie UUID ani osobu, nepoužíva pole bez úložiska, každý widget ukazuje na deklarovaný dotaz a žiadny dotaz nezostane nevykreslený, rozloženie prejde tým istým validátorom ako klientske a preset sa uloží presne tak, ako je napísaný; prvé načítanie zoznamu vytvorí dashboard so 4 widgetmi nad 4 **súkromnými** dotazmi člena, ďalšie načítania už nič (žiadna druhá dávka dotazov) a **preferencia „aktívny“ ostane nezapísaná**; každý widget predlohy sa naozaj načíta (`200`), takže manifest je nielen uložiteľný, ale aj spustiteľný cez compiler a rozsah; obnova vytvorí `My work 2` s **novými** dotazmi (prienik zdrojov s originálom prázdny), pôvodný dashboard si nechá widgety aj predvolený príznak; člen bez `dashboard.create` (REPORTER) nedostane nič – ani dashboard, ani dotaz – a explicitná obnova mu vráti `403 PERMISSION_DENIED`. Zámerné rozhodnutia: predloha sa kopíruje cez tie isté služby a kontroly oprávnení ako ručná práca; súbeh rieši unikátny index namiesto zámku; obnova nikdy nepreberá predvolený príznak. |
 | 2026-07-29 | Rekonštrukcia `docs/openapi.json` | Nepotvrdená pracovná verzia kontraktu (87 ciest) bola omylom zahodená príkazom `git checkout docs/openapi.json`; commit aj `origin` mali iba starších 45 ciest a nikde na disku neexistovala kópia. Kontrakt bol znovu zostavený zo `config/routes.php`, akcií, serializerov a validátorov vstupu | Prešlo: `OpenApiContractTest` páruje **88/88 ciest a metód**, všetkých 173 `$ref` sa rozlíši a žiadna schéma nezostala nepoužitá. Pri rekonštrukcii sa navyše doplnilo 8 schém projektových endpointov (`CreateProjectRequest`, `ProjectList`, `ProjectResponse`, `ProjectRoleList`, `ProjectMemberList`, `ProjectWorkgroupLinkList`, `ChangeProjectStatusRequest`, `UpsertProjectWorkgroupRequest`), ktoré chýbali **už v commite** – dokument sa na ne odvolával, ale nedefinoval ich. Popisy a členenie schém sú nové znenie odvodené z kódu, nie doslovná kópia stratenej verzie. |
 | 2026-07-29 | F7.8e UI dashboardov | 20 nových modelov a 5 type guardov v `api.models.ts`, 5 metód v API klientovi, `DashboardWorkspaceService`, nový `DashboardEntryComponent` a `DashboardWidgetComponent`, prepísaná `dashboard-page` (skeleton s hardkódovanými dátami nahradený), kanonická route `dashboards/:dashboardId` + presmerovanie z `dashboard`, dva overené tokeny sérií v `styles.scss` a §3.4 dizajnového manuálu, **30 i18n kľúčov × 6 jazykov** (7 vzorových odstránených), 22 nových testov v 4 súboroch, `npm run check` na Node 24.15.0 | Prešlo: Prettier, strict typecheck, **156 testov v 43 súboroch** (predtým 134/39), production build 545,03 kB – nad 500 kB warningom, pod 1 MB limitom. Overené testom: preferencia „posledný aktívny“ sa **nezapíše otvorením stránky** a zapíše sa prepnutím; prepínač sa neukazuje, kým nie je medzi čím prepínať; widgety sa radia `y`, `x`, `id` a na mriežku sadajú podľa vlastných súradníc; nedostupný dashboard hlási „už nie je dostupný“, nie „zakázané“; stĺpce rozdelenia sa merajú voči najväčšiemu, nie voči súčtu; bunka matice vždy nesie číslo; legenda pribudne až s druhou sériou a vedľa grafu stojí skrytá tabuľka; widget ohlási vlastnú chybu a zopakuje sa bez reloadu; neznámy typ ani nedosiahnuteľný zdroj nespustia požiadavku. Dizajn: dvojica farieb sérií overená validátorom pre oba režimy zvlášť (light `ΔE 22,1`, dark `ΔE 18,9` deutan), preto má tmavý režim vlastný indigo stupeň. |
+| 2026-07-29 | F7.8f režim úprav dashboardu | 8 nových modelov v `api.models.ts`, 11 metód v API klientovi, 8 metód v `DashboardWorkspaceService`, nový `WidgetEditorComponent`, režim úprav v `dashboard-page` (draft rozloženia, presun/veľkosť, konflikt, pridanie a odobratie widgetu), **34 i18n kľúčov × 6 jazykov** vrátane 5 kľúčov katalógu widgetov, duplicitný `dashboard.widget.retry` zlúčený do `common.retry`, 13 nových testov, `npm run check` na Node 24.15.0 | Prešlo: Prettier, strict typecheck, **169 testov v 44 súboroch** (predtým 156/43), production build 546,00 kB – nad 500 kB warningom, pod 1 MB limitom. Overené testom: bez zapnutého režimu na stránke nie je ovládanie presunu; presuny sa zbierajú do draftu a **nič sa neodošle**, kým sa neuloží; uloženie posiela **celé** rozloženie proti verzii dashboardu a hneď načíta novú verziu; lokálne prekrytie zablokuje uloženie a povie prečo; `409` ponúkne opätovné použitie, ktoré prevezme cudzí stav a pošle sa proti **novej** verzii; „Zrušiť“ zahodí draft; odobratie widgetu je okamžitý zápis, nie zmena rozloženia; formulár pošle iba ukazovateľ a nechá server doplniť predvolené hodnoty, pýta `group_by` pre rozdelenie, odmietne maticu s rovnakou osou dvakrát a pri zmene typu zabudne osi predošlého typu. Kľúč typu widgetu sa pred zobrazením overí proti katalógu – rovnako ako pri SovaQL chybách, aby sa neznámy kľúč nevykreslil sám sebou. |

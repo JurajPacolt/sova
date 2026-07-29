@@ -1,0 +1,115 @@
+<form class="card border-0 shadow-sm mb-3" (ngSubmit)="submit()">
+  <div class="card-body">
+    <h2 class="h6">{{ 'dashboard.edit.addWidget' | translate }}</h2>
+
+    <div class="row g-3">
+      <div class="col-12 col-md-4">
+        <label class="form-label" for="widget-type">
+          {{ 'dashboard.edit.widgetType' | translate }}
+        </label>
+        <select
+          id="widget-type"
+          class="form-select"
+          [ngModel]="typeKey()"
+          name="typeKey"
+          (ngModelChange)="onTypeChange($event)"
+        >
+          <option value="">{{ 'dashboard.edit.choose' | translate }}</option>
+          @for (type of types(); track type.type_key) {
+            <!-- The label is a catalog key: the server ships no wording. -->
+            <option [value]="type.type_key">{{ labelKeyOf(type) | translate }}</option>
+          }
+        </select>
+      </div>
+
+      <div class="col-12 col-md-5">
+        <label class="form-label" for="widget-query">
+          {{ 'dashboard.edit.dataSource' | translate }}
+        </label>
+        <select
+          id="widget-query"
+          class="form-select"
+          [ngModel]="savedQueryId()"
+          name="savedQueryId"
+          (ngModelChange)="savedQueryId.set($event)"
+        >
+          <option value="">{{ 'dashboard.edit.choose' | translate }}</option>
+          @for (query of queries(); track query.id) {
+            <option [value]="query.id">{{ query.name }}</option>
+          }
+        </select>
+      </div>
+
+      <div class="col-12 col-md-3">
+        <label class="form-label" for="widget-title">
+          {{ 'dashboard.edit.widgetTitle' | translate }}
+        </label>
+        <input
+          id="widget-title"
+          class="form-control"
+          type="text"
+          maxlength="160"
+          [ngModel]="title()"
+          name="title"
+          (ngModelChange)="title.set($event)"
+        />
+      </div>
+
+      @if (needsGroupBy() || needsAxes()) {
+        <div class="col-12 col-md-4">
+          <label class="form-label" for="widget-group">
+            {{ (needsAxes() ? 'dashboard.edit.rows' : 'dashboard.edit.groupBy') | translate }}
+          </label>
+          <select
+            id="widget-group"
+            class="form-select"
+            [ngModel]="groupBy()"
+            name="groupBy"
+            (ngModelChange)="groupBy.set($event)"
+          >
+            <option value="">{{ 'dashboard.edit.choose' | translate }}</option>
+            @for (dimension of dimensions(); track dimension) {
+              <option [value]="dimension">{{ dimension }}</option>
+            }
+          </select>
+        </div>
+      }
+
+      @if (needsAxes()) {
+        <div class="col-12 col-md-4">
+          <label class="form-label" for="widget-columns">
+            {{ 'dashboard.edit.columns' | translate }}
+          </label>
+          <select
+            id="widget-columns"
+            class="form-select"
+            [ngModel]="columnBy()"
+            name="columnBy"
+            (ngModelChange)="columnBy.set($event)"
+          >
+            <option value="">{{ 'dashboard.edit.choose' | translate }}</option>
+            @for (dimension of dimensions(); track dimension) {
+              <option [value]="dimension">{{ dimension }}</option>
+            }
+          </select>
+          @if (groupBy() !== '' && groupBy() === columnBy()) {
+            <p class="form-text mb-0">{{ 'dashboard.edit.axesMustDiffer' | translate }}</p>
+          }
+        </div>
+      }
+    </div>
+
+    @if (failed(); as error) {
+      <p class="text-danger small mt-3 mb-0">{{ error | translate }}</p>
+    }
+  </div>
+
+  <div class="card-footer bg-body d-flex gap-2">
+    <button type="submit" class="btn btn-primary btn-sm" [disabled]="!complete() || saving()">
+      {{ 'dashboard.edit.add' | translate }}
+    </button>
+    <button type="button" class="btn btn-outline-secondary btn-sm" (click)="cancel()">
+      {{ 'common.cancel' | translate }}
+    </button>
+  </div>
+</form>

@@ -139,6 +139,7 @@ describe('DashboardWidgetComponent', () => {
 
     const element: HTMLElement = fixture.nativeElement;
     expect(element.textContent).toContain('This widget could not be loaded.');
+    expect(element.textContent).toContain('Try again');
 
     element.querySelector('button')?.click();
     fixture.detectChanges();

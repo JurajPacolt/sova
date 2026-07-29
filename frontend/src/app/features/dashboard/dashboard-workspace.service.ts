@@ -1,11 +1,16 @@
 import { inject, Injectable } from '@angular/core';
 import { map, Observable } from 'rxjs';
 import {
+  CreateWidgetRequest,
   Dashboard,
+  DashboardLayoutRequest,
   DashboardList,
   DashboardTemplateResponse,
   DashboardWidget,
+  SavedQuery,
+  UpdateWidgetRequest,
   WidgetData,
+  WidgetTypeDefinition,
 } from '../../core/api/api.models';
 import { SovaApiClient } from '../../core/api/sova-api-client.service';
 
@@ -49,6 +54,70 @@ export class DashboardWorkspaceService {
    */
   restoreFromTemplate(tenantId: string, name?: string): Observable<DashboardTemplateResponse> {
     return this.api.restoreDashboardFromTemplate(tenantId, name === undefined ? {} : { name });
+  }
+
+  /** One dashboard, for the version a layout has to be written against. */
+  get(tenantId: string, dashboardId: string): Observable<Dashboard> {
+    return this.api.getDashboard(tenantId, dashboardId).pipe(map((response) => response.dashboard));
+  }
+
+  /**
+   * The widget catalogue. Its labels are localisation keys, so the wording
+   * belongs to the six catalogs rather than to the server.
+   */
+  widgetTypes(tenantId: string): Observable<readonly WidgetTypeDefinition[]> {
+    return this.api.listWidgetTypes(tenantId).pipe(map((response) => response.widget_types));
+  }
+
+  /**
+   * Saved queries the caller can already open — read through the shared API
+   * client rather than through the issues feature, because a feature must not
+   * reach into another feature's internals. Archived ones are left out: a
+   * widget may not point at a query that has been retired.
+   */
+  savedQueries(tenantId: string): Observable<readonly SavedQuery[]> {
+    return this.api
+      .listSavedQueries(tenantId)
+      .pipe(map((response) => response.saved_queries.filter((query) => !query.archived)));
+  }
+
+  addWidget(
+    tenantId: string,
+    dashboardId: string,
+    request: CreateWidgetRequest,
+  ): Observable<DashboardWidget> {
+    return this.api
+      .createDashboardWidget(tenantId, dashboardId, request)
+      .pipe(map((response) => response.widget));
+  }
+
+  updateWidget(
+    tenantId: string,
+    dashboardId: string,
+    widgetId: string,
+    request: UpdateWidgetRequest,
+  ): Observable<DashboardWidget> {
+    return this.api
+      .updateDashboardWidget(tenantId, dashboardId, widgetId, request)
+      .pipe(map((response) => response.widget));
+  }
+
+  removeWidget(tenantId: string, dashboardId: string, widgetId: string): Observable<void> {
+    return this.api.deleteDashboardWidget(tenantId, dashboardId, widgetId);
+  }
+
+  /**
+   * The whole arrangement in one request. Two widgets moving past each other is
+   * legal only as a pair, so this is never split per widget.
+   */
+  applyLayout(
+    tenantId: string,
+    dashboardId: string,
+    request: DashboardLayoutRequest,
+  ): Observable<readonly DashboardWidget[]> {
+    return this.api
+      .applyDashboardLayout(tenantId, dashboardId, request)
+      .pipe(map((response) => response.widgets));
   }
 
   widgets(tenantId: string, dashboardId: string): Observable<readonly DashboardWidget[]> {

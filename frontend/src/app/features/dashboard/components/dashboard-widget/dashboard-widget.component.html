@@ -22,7 +22,7 @@
     } @else if (failed()) {
       <p class="small mb-2">{{ 'dashboard.widget.loadError' | translate }}</p>
       <button type="button" class="btn btn-sm btn-outline-secondary" (click)="load()">
-        {{ 'dashboard.widget.retry' | translate }}
+        {{ 'common.retry' | translate }}
       </button>
     } @else {
       @switch (widget().type_key) {

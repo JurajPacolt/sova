@@ -34,12 +34,19 @@ import {
   IssueTransitionList,
   IssueWatcherList,
   IssueWatchState,
+  CreateDashboardRequest,
+  CreateWidgetRequest,
   CurrentSessionResponse,
+  DashboardLayoutRequest,
   DashboardList,
   DashboardResponse,
   DashboardTemplateResponse,
   DashboardWidgetList,
+  DashboardWidgetResponse,
   EmailRequest,
+  UpdateDashboardRequest,
+  UpdateWidgetRequest,
+  WidgetTypeList,
   ExecuteIssueTransitionRequest,
   InvitationAcceptanceResponse,
   InvitationPreviewResponse,
@@ -712,6 +719,98 @@ export class SovaApiClient {
     );
   }
 
+  getDashboard(tenantId: string, dashboardId: string): Observable<DashboardResponse> {
+    return this.http.get<DashboardResponse>(this.dashboardPath(tenantId, dashboardId));
+  }
+
+  createDashboard(
+    tenantId: string,
+    request: CreateDashboardRequest,
+  ): Observable<DashboardResponse> {
+    return this.http.post<DashboardResponse>(this.dashboardsPath(tenantId), request);
+  }
+
+  updateDashboard(
+    tenantId: string,
+    dashboardId: string,
+    request: UpdateDashboardRequest,
+  ): Observable<DashboardResponse> {
+    return this.http.patch<DashboardResponse>(this.dashboardPath(tenantId, dashboardId), request);
+  }
+
+  deleteDashboard(tenantId: string, dashboardId: string): Observable<void> {
+    return this.http.delete<void>(this.dashboardPath(tenantId, dashboardId));
+  }
+
+  makeDashboardDefault(tenantId: string, dashboardId: string): Observable<DashboardResponse> {
+    return this.http.put<DashboardResponse>(
+      `${this.dashboardPath(tenantId, dashboardId)}/default`,
+      {},
+    );
+  }
+
+  /** The copy points at the same saved queries; duplicating those as well would
+   * double the member's query list every time they copied a dashboard. */
+  copyDashboard(
+    tenantId: string,
+    dashboardId: string,
+    request: CreateDashboardRequest,
+  ): Observable<DashboardResponse> {
+    return this.http.post<DashboardResponse>(
+      `${this.dashboardPath(tenantId, dashboardId)}/copy`,
+      request,
+    );
+  }
+
+  listWidgetTypes(tenantId: string): Observable<WidgetTypeList> {
+    return this.http.get<WidgetTypeList>(
+      `${API_ROOT}/tenants/${encodeURIComponent(tenantId)}/widget-types`,
+    );
+  }
+
+  createDashboardWidget(
+    tenantId: string,
+    dashboardId: string,
+    request: CreateWidgetRequest,
+  ): Observable<DashboardWidgetResponse> {
+    return this.http.post<DashboardWidgetResponse>(
+      `${this.dashboardPath(tenantId, dashboardId)}/widgets`,
+      request,
+    );
+  }
+
+  updateDashboardWidget(
+    tenantId: string,
+    dashboardId: string,
+    widgetId: string,
+    request: UpdateWidgetRequest,
+  ): Observable<DashboardWidgetResponse> {
+    return this.http.patch<DashboardWidgetResponse>(
+      this.widgetPath(tenantId, dashboardId, widgetId),
+      request,
+    );
+  }
+
+  deleteDashboardWidget(tenantId: string, dashboardId: string, widgetId: string): Observable<void> {
+    return this.http.delete<void>(this.widgetPath(tenantId, dashboardId, widgetId));
+  }
+
+  /**
+   * One request for the whole arrangement, against the dashboard's version. A
+   * stale version answers `409` and **nothing moves**, so a refused layout is
+   * never applied halfway.
+   */
+  applyDashboardLayout(
+    tenantId: string,
+    dashboardId: string,
+    request: DashboardLayoutRequest,
+  ): Observable<DashboardWidgetList> {
+    return this.http.put<DashboardWidgetList>(
+      `${this.dashboardPath(tenantId, dashboardId)}/layout`,
+      request,
+    );
+  }
+
   restoreDashboardFromTemplate(
     tenantId: string,
     request: RestoreDashboardTemplateRequest,
@@ -748,6 +847,10 @@ export class SovaApiClient {
 
   private dashboardPath(tenantId: string, dashboardId: string): string {
     return `${this.dashboardsPath(tenantId)}/${encodeURIComponent(dashboardId)}`;
+  }
+
+  private widgetPath(tenantId: string, dashboardId: string, widgetId: string): string {
+    return `${this.dashboardPath(tenantId, dashboardId)}/widgets/${encodeURIComponent(widgetId)}`;
   }
 
   private savedQueriesPath(tenantId: string): string {

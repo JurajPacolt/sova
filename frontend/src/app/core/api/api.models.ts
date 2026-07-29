@@ -948,8 +948,78 @@ export interface DashboardResponse {
   readonly dashboard: Dashboard;
 }
 
+export interface CreateDashboardRequest {
+  readonly name: string;
+}
+
+export interface UpdateDashboardRequest extends CreateDashboardRequest {
+  readonly expected_version: number;
+  readonly position?: number;
+}
+
 export interface RestoreDashboardTemplateRequest {
   readonly name?: string;
+}
+
+/**
+ * The catalogue this deployment ships. It is data — keys, versions, sizes and
+ * the fields a type may aggregate by — and carries no component name, so a
+ * stored string can never select something to run.
+ */
+export interface WidgetTypeDefinition {
+  readonly type_key: string;
+  readonly schema_version: number;
+  /** A localisation key. The server ships no user-facing wording. */
+  readonly label_key: string;
+  readonly description_key: string;
+  readonly min_width: number;
+  readonly min_height: number;
+  readonly default_width: number;
+  readonly default_height: number;
+  readonly max_width: number;
+  readonly max_height: number;
+  readonly dimensions: readonly string[];
+}
+
+export interface WidgetTypeList {
+  readonly widget_types: readonly WidgetTypeDefinition[];
+}
+
+export interface CreateWidgetRequest {
+  readonly saved_query_id: string;
+  readonly type_key: string;
+  readonly title?: string;
+  readonly configuration?: Readonly<Record<string, unknown>>;
+}
+
+export interface UpdateWidgetRequest {
+  readonly expected_version: number;
+  readonly saved_query_id: string;
+  readonly title?: string;
+  readonly configuration?: Readonly<Record<string, unknown>>;
+}
+
+export interface DashboardWidgetResponse {
+  readonly widget: DashboardWidget;
+}
+
+export interface WidgetPlacement {
+  readonly id: string;
+  readonly x: number;
+  readonly y: number;
+  readonly width: number;
+  readonly height: number;
+}
+
+/**
+ * A whole arrangement at once, against the dashboard's version. Moving two
+ * widgets past each other is only ever legal as a pair, so the request carries
+ * **every** widget of the dashboard — a partial layout is how two of them end
+ * up on top of each other.
+ */
+export interface DashboardLayoutRequest {
+  readonly expected_version: number;
+  readonly widgets: readonly WidgetPlacement[];
 }
 
 export interface DashboardTemplateResponse {
