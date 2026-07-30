@@ -21,13 +21,17 @@ use Sova\Dashboards\Presentation\Http\Action\WidgetDataAction;
 use Sova\Dashboards\Presentation\Http\Action\WidgetTypesAction;
 use Sova\Identity\Infrastructure\Http\Middleware\CsrfProtectionMiddleware;
 use Sova\Identity\Infrastructure\Http\Middleware\SessionAuthenticationMiddleware;
+use Sova\Identity\Presentation\Http\Action\BeginMfaEnrollmentAction;
 use Sova\Identity\Presentation\Http\Action\ChangeSystemUserStatusAction;
+use Sova\Identity\Presentation\Http\Action\ConfirmMfaEnrollmentAction;
 use Sova\Identity\Presentation\Http\Action\ForgotPasswordAction;
 use Sova\Identity\Presentation\Http\Action\GetCurrentSessionAction;
 use Sova\Identity\Presentation\Http\Action\ListSessionsAction;
 use Sova\Identity\Presentation\Http\Action\LoginAction;
 use Sova\Identity\Presentation\Http\Action\LogoutAction;
+use Sova\Identity\Presentation\Http\Action\MfaAction;
 use Sova\Identity\Presentation\Http\Action\MutateSystemSuperadminAction;
+use Sova\Identity\Presentation\Http\Action\RegenerateMfaRecoveryCodesAction;
 use Sova\Identity\Presentation\Http\Action\RequestEmailVerificationAction;
 use Sova\Identity\Presentation\Http\Action\ResetPasswordAction;
 use Sova\Identity\Presentation\Http\Action\RevokeSessionAction;
@@ -54,14 +58,17 @@ use Sova\Issues\Presentation\Http\Action\ValidateIssueQueryAction;
 use Sova\Notifications\Presentation\Http\Action\MarkNotificationsReadAction;
 use Sova\Notifications\Presentation\Http\Action\NotificationPreferencesAction;
 use Sova\Notifications\Presentation\Http\Action\NotificationsAction;
+use Sova\ProjectConfiguration\Presentation\Http\Action\ArchiveProjectIssueTypeAction;
 use Sova\ProjectConfiguration\Presentation\Http\Action\ConfigurationHistoryAction;
 use Sova\ProjectConfiguration\Presentation\Http\Action\ProjectConfigurationAction;
+use Sova\ProjectConfiguration\Presentation\Http\Action\ProjectIssueTypeAction;
+use Sova\ProjectConfiguration\Presentation\Http\Action\ProjectIssueTypesAction;
 use Sova\ProjectConfiguration\Presentation\Http\Action\PublishWorkflowAction;
 use Sova\ProjectConfiguration\Presentation\Http\Action\ValidateWorkflowDraftAction;
 use Sova\ProjectConfiguration\Presentation\Http\Action\WorkflowDraftAction;
 use Sova\ProjectConfiguration\Presentation\Http\Action\WorkflowImpactAction;
 use Sova\ProjectConfiguration\Presentation\Http\Action\WorkflowsAction;
-use Sova\Projects\Presentation\Http\Action\ChangeProjectStatusAction;
+use Sova\Projects\Presentation\Http\Action\ChangeProjectAction;
 use Sova\Projects\Presentation\Http\Action\MutateProjectRoleAssignmentAction;
 use Sova\Projects\Presentation\Http\Action\MutateProjectWorkgroupAction;
 use Sova\Projects\Presentation\Http\Action\ProjectMembersAction;
@@ -84,12 +91,16 @@ use Sova\Tenancy\Presentation\Http\Action\AcceptExistingAccountInvitationAction;
 use Sova\Tenancy\Presentation\Http\Action\AcceptNewAccountInvitationAction;
 use Sova\Tenancy\Presentation\Http\Action\ChangeSystemTenantStatusAction;
 use Sova\Tenancy\Presentation\Http\Action\ChangeTenantMembershipStatusAction;
-use Sova\Tenancy\Presentation\Http\Action\CreateInvitationAction;
 use Sova\Tenancy\Presentation\Http\Action\GetTenantAction;
 use Sova\Tenancy\Presentation\Http\Action\InspectInvitationAction;
+use Sova\Tenancy\Presentation\Http\Action\InvitationAction;
 use Sova\Tenancy\Presentation\Http\Action\ListTenantsAction;
+use Sova\Tenancy\Presentation\Http\Action\ResendInvitationAction;
 use Sova\Tenancy\Presentation\Http\Action\SystemTenantsAction;
+use Sova\Tenancy\Presentation\Http\Action\TenantInvitationsAction;
 use Sova\Tenancy\Presentation\Http\Action\TenantMembershipsAction;
+use Sova\Tenancy\Presentation\Http\Action\TenantSettingsAction;
+use Sova\Tenancy\Presentation\Http\Action\UpdateTenantSettingsAction;
 use Sova\Workgroups\Presentation\Http\Action\ChangeWorkgroupStatusAction;
 use Sova\Workgroups\Presentation\Http\Action\MutateWorkgroupMemberAction;
 use Sova\Workgroups\Presentation\Http\Action\WorkgroupMembersAction;
@@ -144,6 +155,27 @@ return static function (App $app): void {
                     ->get('/session', GetCurrentSessionAction::class)
                     ->setName('auth.session.current');
                 $session->get('/sessions', ListSessionsAction::class)->setName('auth.sessions');
+                $session
+                    ->map(['GET', 'DELETE'], '/mfa', MfaAction::class)
+                    ->setName('auth.mfa');
+                $session
+                    ->post(
+                        '/mfa/enrollment',
+                        BeginMfaEnrollmentAction::class,
+                    )
+                    ->setName('auth.mfa.enrollment.begin');
+                $session
+                    ->post(
+                        '/mfa/enrollment/confirm',
+                        ConfirmMfaEnrollmentAction::class,
+                    )
+                    ->setName('auth.mfa.enrollment.confirm');
+                $session
+                    ->post(
+                        '/mfa/recovery-codes',
+                        RegenerateMfaRecoveryCodesAction::class,
+                    )
+                    ->setName('auth.mfa.recovery-codes.regenerate');
                 $session->delete(
                     '/sessions/{sessionId}',
                     RevokeSessionAction::class,
@@ -169,11 +201,52 @@ return static function (App $app): void {
             ->add(SessionAuthenticationMiddleware::class);
 
         $group
-            ->post(
-                '/tenants/{tenantId}/invitations',
-                CreateInvitationAction::class,
+            ->get(
+                '/tenants/{tenantId}/settings',
+                TenantSettingsAction::class,
             )
-            ->setName('tenants.invitations.create')
+            ->setName('tenants.settings.get')
+            ->add(TenantContextMiddleware::class)
+            ->add(SessionAuthenticationMiddleware::class);
+
+        $group
+            ->patch(
+                '/tenants/{tenantId}/settings/{section}',
+                UpdateTenantSettingsAction::class,
+            )
+            ->setName('tenants.settings.update')
+            ->add(TenantContextMiddleware::class)
+            ->add(CsrfProtectionMiddleware::class)
+            ->add(SessionAuthenticationMiddleware::class);
+
+        $group
+            ->map(
+                ['GET', 'POST'],
+                '/tenants/{tenantId}/invitations',
+                TenantInvitationsAction::class,
+            )
+            ->setName('tenants.invitations.collection')
+            ->add(TenantContextMiddleware::class)
+            ->add(CsrfProtectionMiddleware::class)
+            ->add(SessionAuthenticationMiddleware::class);
+
+        $group
+            ->map(
+                ['PATCH', 'DELETE'],
+                '/tenants/{tenantId}/invitations/{invitationId}',
+                InvitationAction::class,
+            )
+            ->setName('tenants.invitations.mutate')
+            ->add(TenantContextMiddleware::class)
+            ->add(CsrfProtectionMiddleware::class)
+            ->add(SessionAuthenticationMiddleware::class);
+
+        $group
+            ->post(
+                '/tenants/{tenantId}/invitations/{invitationId}/resend',
+                ResendInvitationAction::class,
+            )
+            ->setName('tenants.invitations.resend')
             ->add(TenantContextMiddleware::class)
             ->add(CsrfProtectionMiddleware::class)
             ->add(SessionAuthenticationMiddleware::class);
@@ -305,9 +378,9 @@ return static function (App $app): void {
         $group
             ->patch(
                 '/tenants/{tenantId}/projects/{projectId}',
-                ChangeProjectStatusAction::class,
+                ChangeProjectAction::class,
             )
-            ->setName('tenants.projects.status')
+            ->setName('tenants.projects.change')
             ->add(TenantContextMiddleware::class)
             ->add(CsrfProtectionMiddleware::class)
             ->add(SessionAuthenticationMiddleware::class);
@@ -379,6 +452,38 @@ return static function (App $app): void {
             )
             ->setName('tenants.projects.configuration.history')
             ->add(TenantContextMiddleware::class)
+            ->add(SessionAuthenticationMiddleware::class);
+
+        $group
+            ->map(
+                ['GET', 'POST'],
+                '/tenants/{tenantId}/projects/{projectId}/issue-types',
+                ProjectIssueTypesAction::class,
+            )
+            ->setName('tenants.projects.issue-types.collection')
+            ->add(TenantContextMiddleware::class)
+            ->add(CsrfProtectionMiddleware::class)
+            ->add(SessionAuthenticationMiddleware::class);
+
+        $group
+            ->patch(
+                '/tenants/{tenantId}/projects/{projectId}/issue-types/{issueTypeId}',
+                ProjectIssueTypeAction::class,
+            )
+            ->setName('tenants.projects.issue-types.update')
+            ->add(TenantContextMiddleware::class)
+            ->add(CsrfProtectionMiddleware::class)
+            ->add(SessionAuthenticationMiddleware::class);
+
+        $group
+            ->post(
+                '/tenants/{tenantId}/projects/{projectId}'
+                    . '/issue-types/{issueTypeId}/archive',
+                ArchiveProjectIssueTypeAction::class,
+            )
+            ->setName('tenants.projects.issue-types.archive')
+            ->add(TenantContextMiddleware::class)
+            ->add(CsrfProtectionMiddleware::class)
             ->add(SessionAuthenticationMiddleware::class);
 
         $group

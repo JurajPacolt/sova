@@ -11,7 +11,12 @@ import {
   tap,
   throwError,
 } from 'rxjs';
-import { AccessibleTenant, LoginRequest, LoginResponse } from '../api/api.models';
+import {
+  AccessibleTenant,
+  CurrentSessionResponse,
+  LoginRequest,
+  LoginResponse,
+} from '../api/api.models';
 import { SovaApiClient } from '../api/sova-api-client.service';
 import { TenantAccessService } from '../tenancy/tenant-access.service';
 import { AuthSessionStore } from './auth-session.store';
@@ -33,16 +38,24 @@ export class AuthSessionService {
 
   login(credentials: LoginRequest): Observable<AuthenticatedSessionResult> {
     return this.api.login(credentials).pipe(
-      tap((response) => this.sessionStore.setAuthenticated(response.user)),
+      tap((response) => {
+        this.sessionStore.setAuthenticated(response.user, null, response.mfa);
+
+        if (response.mfa.enrollment_required) {
+          this.tenantAccess.clear();
+        }
+      }),
       switchMap((login) =>
-        this.tenantAccess.refresh().pipe(
-          map((tenants) => ({ login, tenants })),
-          catchError((error: unknown) =>
-            this.sessionStore.isAuthenticated()
-              ? of({ login, tenants: [] })
-              : throwError(() => error),
-          ),
-        ),
+        login.mfa.enrollment_required
+          ? of({ login, tenants: [] })
+          : this.tenantAccess.refresh().pipe(
+              map((tenants) => ({ login, tenants })),
+              catchError((error: unknown) =>
+                this.sessionStore.isAuthenticated()
+                  ? of({ login, tenants: [] })
+                  : throwError(() => error),
+              ),
+            ),
       ),
     );
   }
@@ -69,8 +82,7 @@ export class AuthSessionService {
       return this.restoreRequest;
     }
 
-    this.restoreRequest = this.api.getCurrentSession().pipe(
-      tap((response) => this.sessionStore.setAuthenticated(response.user, response.impersonation)),
+    this.restoreRequest = this.refreshCurrentSession().pipe(
       map(() => true),
       catchError((error: unknown) => {
         if (error instanceof HttpErrorResponse && isSessionRequiredError(error)) {
@@ -88,6 +100,16 @@ export class AuthSessionService {
     );
 
     return this.restoreRequest;
+  }
+
+  refreshCurrentSession(): Observable<CurrentSessionResponse> {
+    return this.api
+      .getCurrentSession()
+      .pipe(
+        tap((response) =>
+          this.sessionStore.setAuthenticated(response.user, response.impersonation, response.mfa),
+        ),
+      );
   }
 
   invalidate(): void {

@@ -6,12 +6,15 @@ import { LanguageSwitcherComponent } from '../../../shared/components/language-s
 import { ThemeSwitcherComponent } from '../../../shared/components/theme-switcher/theme-switcher.component';
 import { AuthSessionService } from '../../auth/auth-session.service';
 import { AuthSessionStore } from '../../auth/auth-session.store';
+import { SkipLinkDirective } from '../../a11y/skip-link.directive';
+import { ConnectivityService } from '../../errors/connectivity.service';
 import { TranslatePipe } from '../../i18n/translate.pipe';
 
 @Component({
   selector: 'app-system-shell',
   standalone: true,
   imports: [
+    SkipLinkDirective,
     LanguageSwitcherComponent,
     RouterLink,
     RouterLinkActive,
@@ -28,6 +31,7 @@ export class SystemShellComponent {
   private readonly destroyRef = inject(DestroyRef);
   private readonly router = inject(Router);
   protected readonly session = inject(AuthSessionStore);
+  protected readonly online = inject(ConnectivityService).online;
 
   protected readonly loggingOut = signal(false);
   protected readonly logoutError = signal(false);

@@ -39,7 +39,7 @@ final readonly class ArchiveSavedQueryAction
         ResponseInterface $response,
         array $args,
     ): ResponseInterface {
-        [, $tenant, $subject, $membershipId] = $this->context->resolve($request);
+        [$session, $tenant, $subject, $membershipId] = $this->context->resolve($request);
         $savedQueryId = $this->identifier($args['savedQueryId'] ?? '');
         $body = $request->getParsedBody();
         $payload = is_array($body) ? $body : [];
@@ -50,6 +50,9 @@ final readonly class ArchiveSavedQueryAction
             $savedQueryId,
             $membershipId,
             $this->version($payload['expected_version'] ?? null),
+            $session->actorUserId,
+            $this->context->requestId($request),
+            $this->context->ipAddress($request),
         );
 
         return JsonResponse::write($response, [

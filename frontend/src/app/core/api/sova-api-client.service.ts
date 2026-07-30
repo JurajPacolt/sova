@@ -4,13 +4,17 @@ import { Observable } from 'rxjs';
 import {
   AcceptedEmailRequest,
   AcceptNewAccountInvitationRequest,
+  ArchiveProjectIssueTypeRequest,
+  ChangeInvitationExpiryRequest,
   ChangeProjectStatusRequest,
+  ChangeProjectVisibilityRequest,
   ChangeSystemTenantStatusRequest,
   ChangeSystemUserStatusRequest,
   ChangeTenantMembershipStatusRequest,
   ChangeWorkgroupStatusRequest,
   CreatedInvitationResponse,
   CreateInvitationRequest,
+  CreateProjectIssueTypeRequest,
   CreateProjectRequest,
   CreateSystemTenantRequest,
   CreateSystemTenantResponse,
@@ -23,7 +27,16 @@ import {
   IssueLinkList,
   IssueQueryMetadata,
   IssueQueryValidationResponse,
+  ConfigurationHistoryList,
   ProjectConfiguration,
+  ProjectIssueTypeList,
+  ProjectIssueTypeResponse,
+  PublishedWorkflowResponse,
+  PublishWorkflowRequest,
+  UpdateWorkflowDraftRequest,
+  WorkflowDraftResponse,
+  WorkflowImpactResponse,
+  WorkflowValidationResponse,
   IssueCommentList,
   IssueCommentRequest,
   IssueCommentResponse,
@@ -53,6 +66,18 @@ import {
   InvitationTokenRequest,
   LoginRequest,
   LoginResponse,
+  BeginMfaEnrollmentRequest,
+  ConfirmMfaEnrollmentRequest,
+  MfaConfirmationResponse,
+  MfaEnrollmentResponse,
+  MfaRecoveryCodesResponse,
+  MfaStatusResponse,
+  RegenerateMfaRecoveryCodesRequest,
+  MarkNotificationsReadRequest,
+  MarkNotificationsReadResponse,
+  NotificationList,
+  NotificationPreferenceList,
+  ReplaceNotificationPreferencesRequest,
   ProjectList,
   ProjectMemberList,
   ProjectResponse,
@@ -76,12 +101,18 @@ import {
   SystemUserList,
   SystemUserResponse,
   TenantList,
+  TenantInvitationList,
+  TenantInvitationResponse,
   TenantMembershipList,
   TenantMembershipResponse,
   TenantResponse,
+  TenantSettingsResponse,
   TenantRoleList,
   TenantRoleResponse,
   UpdateTenantRoleRequest,
+  UpdateTenantGeneralSettingsRequest,
+  UpdateTenantLocalizationSettingsRequest,
+  UpdateProjectIssueTypeRequest,
   UpsertProjectWorkgroupRequest,
   UpsertWorkgroupMemberRequest,
   VerifyEmailRequest,
@@ -112,6 +143,27 @@ export class SovaApiClient {
 
   logout(): Observable<void> {
     return this.http.post<void>(`${API_ROOT}/auth/logout`, null);
+  }
+
+  getMfaStatus(): Observable<MfaStatusResponse> {
+    return this.http.get<MfaStatusResponse>(`${API_ROOT}/auth/mfa`);
+  }
+
+  beginMfaEnrollment(request: BeginMfaEnrollmentRequest): Observable<MfaEnrollmentResponse> {
+    return this.http.post<MfaEnrollmentResponse>(`${API_ROOT}/auth/mfa/enrollment`, request);
+  }
+
+  confirmMfaEnrollment(request: ConfirmMfaEnrollmentRequest): Observable<MfaConfirmationResponse> {
+    return this.http.post<MfaConfirmationResponse>(
+      `${API_ROOT}/auth/mfa/enrollment/confirm`,
+      request,
+    );
+  }
+
+  regenerateMfaRecoveryCodes(
+    request: RegenerateMfaRecoveryCodesRequest,
+  ): Observable<MfaRecoveryCodesResponse> {
+    return this.http.post<MfaRecoveryCodesResponse>(`${API_ROOT}/auth/mfa/recovery-codes`, request);
   }
 
   requestPasswordReset(request: EmailRequest): Observable<AcceptedEmailRequest> {
@@ -164,6 +216,32 @@ export class SovaApiClient {
 
   getTenant(tenantId: string): Observable<TenantResponse> {
     return this.http.get<TenantResponse>(`${API_ROOT}/tenants/${encodeURIComponent(tenantId)}`);
+  }
+
+  getTenantSettings(tenantId: string): Observable<TenantSettingsResponse> {
+    return this.http.get<TenantSettingsResponse>(
+      `${API_ROOT}/tenants/${encodeURIComponent(tenantId)}/settings`,
+    );
+  }
+
+  updateTenantGeneralSettings(
+    tenantId: string,
+    request: UpdateTenantGeneralSettingsRequest,
+  ): Observable<TenantSettingsResponse> {
+    return this.http.patch<TenantSettingsResponse>(
+      `${API_ROOT}/tenants/${encodeURIComponent(tenantId)}/settings/general`,
+      request,
+    );
+  }
+
+  updateTenantLocalizationSettings(
+    tenantId: string,
+    request: UpdateTenantLocalizationSettingsRequest,
+  ): Observable<TenantSettingsResponse> {
+    return this.http.patch<TenantSettingsResponse>(
+      `${API_ROOT}/tenants/${encodeURIComponent(tenantId)}/settings/localization`,
+      request,
+    );
   }
 
   listSystemTenants(): Observable<SystemTenantList> {
@@ -248,6 +326,42 @@ export class SovaApiClient {
     return this.http.post<CreatedInvitationResponse>(
       `${API_ROOT}/tenants/${encodeURIComponent(tenantId)}/invitations`,
       request,
+    );
+  }
+
+  listTenantInvitations(tenantId: string): Observable<TenantInvitationList> {
+    return this.http.get<TenantInvitationList>(
+      `${API_ROOT}/tenants/${encodeURIComponent(tenantId)}/invitations`,
+    );
+  }
+
+  changeTenantInvitationExpiry(
+    tenantId: string,
+    invitationId: string,
+    request: ChangeInvitationExpiryRequest,
+  ): Observable<TenantInvitationResponse> {
+    return this.http.patch<TenantInvitationResponse>(
+      `${API_ROOT}/tenants/${encodeURIComponent(tenantId)}/invitations/${encodeURIComponent(invitationId)}`,
+      request,
+    );
+  }
+
+  resendTenantInvitation(
+    tenantId: string,
+    invitationId: string,
+  ): Observable<TenantInvitationResponse> {
+    return this.http.post<TenantInvitationResponse>(
+      `${API_ROOT}/tenants/${encodeURIComponent(tenantId)}/invitations/${encodeURIComponent(invitationId)}/resend`,
+      null,
+    );
+  }
+
+  revokeTenantInvitation(
+    tenantId: string,
+    invitationId: string,
+  ): Observable<TenantInvitationResponse> {
+    return this.http.delete<TenantInvitationResponse>(
+      `${API_ROOT}/tenants/${encodeURIComponent(tenantId)}/invitations/${encodeURIComponent(invitationId)}`,
     );
   }
 
@@ -407,6 +521,17 @@ export class SovaApiClient {
     );
   }
 
+  changeProjectVisibility(
+    tenantId: string,
+    projectId: string,
+    request: ChangeProjectVisibilityRequest,
+  ): Observable<ProjectResponse> {
+    return this.http.patch<ProjectResponse>(
+      `${API_ROOT}/tenants/${encodeURIComponent(tenantId)}/projects/${encodeURIComponent(projectId)}`,
+      request,
+    );
+  }
+
   listProjectRoles(tenantId: string, projectId: string): Observable<ProjectRoleList> {
     return this.http.get<ProjectRoleList>(
       `${API_ROOT}/tenants/${encodeURIComponent(tenantId)}/projects/${encodeURIComponent(projectId)}/roles`,
@@ -559,6 +684,126 @@ export class SovaApiClient {
       `${API_ROOT}/tenants/${encodeURIComponent(tenantId)}` +
         `/projects/${encodeURIComponent(projectId)}/configuration`,
     );
+  }
+
+  getProjectConfigurationHistory(
+    tenantId: string,
+    projectId: string,
+  ): Observable<ConfigurationHistoryList> {
+    return this.http.get<ConfigurationHistoryList>(
+      `${this.projectPath(tenantId, projectId)}/configuration/history`,
+    );
+  }
+
+  listProjectIssueTypes(tenantId: string, projectId: string): Observable<ProjectIssueTypeList> {
+    return this.http.get<ProjectIssueTypeList>(this.issueTypesPath(tenantId, projectId));
+  }
+
+  createProjectIssueType(
+    tenantId: string,
+    projectId: string,
+    request: CreateProjectIssueTypeRequest,
+  ): Observable<ProjectIssueTypeResponse> {
+    return this.http.post<ProjectIssueTypeResponse>(
+      this.issueTypesPath(tenantId, projectId),
+      request,
+    );
+  }
+
+  updateProjectIssueType(
+    tenantId: string,
+    projectId: string,
+    issueTypeId: string,
+    request: UpdateProjectIssueTypeRequest,
+  ): Observable<ProjectIssueTypeResponse> {
+    return this.http.patch<ProjectIssueTypeResponse>(
+      `${this.issueTypesPath(tenantId, projectId)}/${encodeURIComponent(issueTypeId)}`,
+      request,
+    );
+  }
+
+  archiveProjectIssueType(
+    tenantId: string,
+    projectId: string,
+    issueTypeId: string,
+    request: ArchiveProjectIssueTypeRequest,
+  ): Observable<ProjectIssueTypeResponse> {
+    return this.http.post<ProjectIssueTypeResponse>(
+      `${this.issueTypesPath(tenantId, projectId)}/${encodeURIComponent(issueTypeId)}/archive`,
+      request,
+    );
+  }
+
+  /** Copies the published version into the single editable draft. */
+  createWorkflowDraft(
+    tenantId: string,
+    projectId: string,
+    workflowId: string,
+  ): Observable<WorkflowDraftResponse> {
+    return this.http.post<WorkflowDraftResponse>(
+      `${this.workflowPath(tenantId, projectId, workflowId)}/draft`,
+      {},
+    );
+  }
+
+  /** Replaces the draft's whole content against its optimistic version. */
+  updateWorkflowDraft(
+    tenantId: string,
+    projectId: string,
+    workflowId: string,
+    request: UpdateWorkflowDraftRequest,
+  ): Observable<WorkflowDraftResponse> {
+    return this.http.put<WorkflowDraftResponse>(
+      `${this.workflowPath(tenantId, projectId, workflowId)}/draft`,
+      request,
+    );
+  }
+
+  validateWorkflowDraft(
+    tenantId: string,
+    projectId: string,
+    workflowId: string,
+  ): Observable<WorkflowValidationResponse> {
+    return this.http.get<WorkflowValidationResponse>(
+      `${this.workflowPath(tenantId, projectId, workflowId)}/validation`,
+    );
+  }
+
+  getWorkflowImpact(
+    tenantId: string,
+    projectId: string,
+    workflowId: string,
+  ): Observable<WorkflowImpactResponse> {
+    return this.http.get<WorkflowImpactResponse>(
+      `${this.workflowPath(tenantId, projectId, workflowId)}/impact`,
+    );
+  }
+
+  publishWorkflow(
+    tenantId: string,
+    projectId: string,
+    workflowId: string,
+    request: PublishWorkflowRequest,
+  ): Observable<PublishedWorkflowResponse> {
+    return this.http.post<PublishedWorkflowResponse>(
+      `${this.workflowPath(tenantId, projectId, workflowId)}/publish`,
+      request,
+    );
+  }
+
+  private projectPath(tenantId: string, projectId: string): string {
+    return (
+      `${API_ROOT}/tenants/${encodeURIComponent(tenantId)}` +
+      `/projects/${encodeURIComponent(projectId)}`
+    );
+  }
+
+  private workflowPath(tenantId: string, projectId: string, workflowId: string): string {
+    return `${this.projectPath(tenantId, projectId)}/workflows/${encodeURIComponent(workflowId)}`;
+  }
+
+  private issueTypesPath(tenantId: string, projectId: string): string {
+    return `${this.projectPath(tenantId, projectId)}/issue-types`;
   }
 
   createIssue(
@@ -839,6 +1084,50 @@ export class SovaApiClient {
     return this.http.get<WidgetDataResponse>(
       `${this.dashboardPath(tenantId, dashboardId)}/widgets/${encodeURIComponent(widgetId)}/data`,
     );
+  }
+
+  /**
+   * The caller's own inbox. There is no identifier in the path because there is
+   * no other inbox to ask for: the server keys every statement on the caller's
+   * membership.
+   */
+  listNotifications(tenantId: string, unreadOnly = false): Observable<NotificationList> {
+    const params = unreadOnly ? new HttpParams().set('unread', 'true') : undefined;
+
+    return this.http.get<NotificationList>(this.notificationsPath(tenantId), { params });
+  }
+
+  markNotificationsRead(
+    tenantId: string,
+    request: MarkNotificationsReadRequest = {},
+  ): Observable<MarkNotificationsReadResponse> {
+    return this.http.post<MarkNotificationsReadResponse>(
+      `${this.notificationsPath(tenantId)}/read`,
+      request,
+    );
+  }
+
+  getNotificationPreferences(tenantId: string): Observable<NotificationPreferenceList> {
+    return this.http.get<NotificationPreferenceList>(this.notificationPreferencesPath(tenantId));
+  }
+
+  /** Replaces the whole set; the server fills in the defaults it is not sent. */
+  replaceNotificationPreferences(
+    tenantId: string,
+    request: ReplaceNotificationPreferencesRequest,
+  ): Observable<NotificationPreferenceList> {
+    return this.http.put<NotificationPreferenceList>(
+      this.notificationPreferencesPath(tenantId),
+      request,
+    );
+  }
+
+  private notificationsPath(tenantId: string): string {
+    return `${API_ROOT}/tenants/${encodeURIComponent(tenantId)}/notifications`;
+  }
+
+  private notificationPreferencesPath(tenantId: string): string {
+    return `${API_ROOT}/tenants/${encodeURIComponent(tenantId)}/notification-preferences`;
   }
 
   private dashboardsPath(tenantId: string): string {

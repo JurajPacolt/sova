@@ -9,7 +9,8 @@ inštalácii.
 
 ## Stav projektu
 
-> **Fáza identity a tenancy je hotová; nasledujú oprávnenia a administrácia.**
+> **Produktové MVP, automatizovaný rozsah Fázy 8 a opakovateľné staging
+> nasadenie sú implementované; nasleduje pilotný tenant.**
 
 Aktuálne je pripravené:
 
@@ -28,7 +29,8 @@ Aktuálne je pripravené:
 - lokalizácia pre SK, CS, EN, DE, PL a HU s detekciou prehliadača a EN fallbackom,
 - Vitest, Prettier, typecheck a produkčný build.
 - globálni používatelia, tenanty, členstvá a revokovateľné serverové relácie,
-- login, logout, správa relácií, CSRF ochrana, rate limiting a auth audit,
+- login, TOTP MFA s jednorazovými recovery kódmi, logout, správa relácií, CSRF
+  ochrana, rate limiting a auth audit,
 - aktívny tenantový kontext, cross-tenant ochrana a úplný `SUPERADMIN` prístup,
 - frontendový login, obnova session, výber tenantu a chránené tenantové routy,
 - bezpečná obnova hesla a overenie e-mailu cez šifrovaný outbox a jednorazové tokeny,
@@ -42,13 +44,22 @@ Aktuálne je pripravené:
   čítacie API, keyset stránkovanie a systémová auditná obrazovka,
 - kontrolovaná 15-minútová impersonácia s reautentifikáciou, tenantovým scope,
   dvojitou identitou v audite a trvalým varovným bannerom,
-- verzovaný OpenAPI 3.1 kontrakt a CI kontroly.
+- pracovné skupiny, projekty, súkromná viditeľnosť a projektové roly,
+- projektové typy úloh, verzované workflow, úlohy, komentáre, prílohy, väzby a
+  história,
+- SovaQL vyhľadávanie, uložené dotazy, dashboardy a in-app/e-mailové notifikácie,
+- kompletné tenantové, projektové a systémové administračné obrazovky,
+- verzovaný OpenAPI 3.1 kontrakt, CI, E2E kritických ciest, globálny
+  cross-tenant test, PostgreSQL RLS, štruktúrované redigované logy a runbook
+  zálohy/obnovy.
 
-Aktuálnym checkpointom je F3: projektové roly a zostávajúca administrácia.
-Tenantové roly a členstvá, systémová správa tenantov, oddelený `SUPERADMIN` kontext
-a append-only audit sú implementované. Projektové roly, tenantové administračné
-obrazovky a správa systémových používateľov/superadminov ešte zostávajú otvorené.
-Kontrolovaná impersonácia je implementovaná. Stav je priebežne vedený v
+Posledným uzavretým checkpointom je F9.1. Staging má nemenný aplikačný image,
+oddelené workery, dopredné migrácie, produkčné bezpečnostné poistky, ClamAV,
+izolovanú aplikačnú databázovú rolu, health overenie, rollback a jednorazový
+bezpečný bootstrap prvého `SUPERADMIN`. Aktuálnym checkpointom je F9.2 –
+pilotný tenant a spracovanie spätnej väzby. Manuálny posudok na reálnych
+zariadeniach s NVDA/VoiceOver a produkčné p95 ostávajú validačnými bránami
+pilota. Presný stav je priebežne vedený v
 [implementačnom pláne](./docs/IMPLEMENTATION_PLAN.md).
 
 ## Hlavné ciele
@@ -93,27 +104,27 @@ tenantov. Jeho členstvo, roly a oprávnenia sú pre každý tenant samostatné.
 
 ## Technologický stack
 
-| Oblasť                | Technológia                                   |
-| --------------------- | --------------------------------------------- |
-| Backend               | PHP 8.3–8.4                                   |
-| API framework         | Slim 4                                        |
-| API štýl              | REST, JSON, OpenAPI                           |
-| Frontend              | Angular 22                                    |
-| UI                    | Bootstrap 5                                   |
-| Lokalizácia           | SK, CS, EN, DE, PL, HU; predvolený jazyk EN   |
-| Primárna databáza     | PostgreSQL – odporúčaný návrh                 |
-| Cache/fronta/sessions | Redis – podľa konkrétneho nasadenia           |
-| Prílohy               | Privátne S3-kompatibilné objektové úložisko   |
-| Asynchrónne úlohy     | Samostatný background worker                  |
-| Autentifikácia        | Serverová relácia v bezpečnej HttpOnly cookie |
-| Heslá                 | Argon2id                                      |
+| Oblasť            | Technológia                                   |
+| ----------------- | --------------------------------------------- |
+| Backend           | PHP 8.3–8.4                                   |
+| API framework     | Slim 4                                        |
+| API štýl          | REST, JSON, OpenAPI                           |
+| Frontend          | Angular 22                                    |
+| UI                | Bootstrap 5                                   |
+| Lokalizácia       | SK, CS, EN, DE, PL, HU; predvolený jazyk EN   |
+| Primárna databáza | PostgreSQL 17                                 |
+| Fronta a sessions | PostgreSQL – transactional outbox a relácie   |
+| Prílohy           | Privátne úložisko za aplikačným adaptérom     |
+| Asynchrónne úlohy | Samostatné outbox a e-mailové workery         |
+| Autentifikácia    | Serverová relácia v bezpečnej HttpOnly cookie |
+| Heslá             | Argon2id                                      |
 
-PostgreSQL, Redis, objektové úložisko a spôsob relácií sú odporúčania z aktuálnej
-analýzy. Pred implementáciou majú byť potvrdené architektonickými rozhodnutiami.
+Produkčné objektové úložisko je infraštruktúrna väzba za existujúcim adaptérom;
+MVP dnes nepotrebuje Redis. Záväzné rozhodnutia sú v registri ADR.
 
-## Navrhovaná architektúra
+## Architektúra
 
-SOVA sa má začať ako **modulárny monolit** s oddeleným Angular klientom, Slim API a
+SOVA je **modulárny monolit** s oddeleným Angular klientom, Slim API a
 background workerom.
 
 ```mermaid
@@ -123,12 +134,10 @@ flowchart LR
     Proxy --> Static["Angular statické súbory"]
 
     API --> DB[("PostgreSQL")]
-    API --> Redis[("Redis")]
     API --> Storage[("Objektové úložisko")]
     API --> Outbox["Transactional outbox"]
 
     Worker["Background worker"] --> DB
-    Worker --> Redis
     Worker --> Storage
     Worker --> Email["E-mailová služba"]
 
@@ -211,21 +220,27 @@ MVP. Typy, stavy, prechody a mapovanie workflow musia byť konfigurovateľné u�
 
 ### Produktová a technická analýza
 
-| Dokument                                               | Popis                                                                                |
-| ------------------------------------------------------ | ------------------------------------------------------------------------------------ |
-| [Základné zadanie](./docs/zadanie.txt)                 | Pôvodné stručné požiadavky                                                           |
-| [Analýza projektu](./docs/ANALYZA_PROJEKTU.md)         | Funkčné moduly, architektúra, bezpečnosť, dáta, testovanie a realizácia              |
-| [Typy úloh a workflow](./docs/WORKFLOW-A-TYPY-ULOH.md) | Projektová konfigurácia, hierarchia, verzie, API, dáta a akceptačné testy            |
-| [SovaQL a dashboardy](./docs/SOVAQL-A-DASHBOARDY.md)   | Jira-like dotazy, uložené filtre, osobné dashboardy, widgety, API, dáta a bezpečnosť |
-| [Projektová pamäť](./docs/PROJECT_MEMORY.md)           | Záväzné technické rozhodnutia vrátane lokalizácie                                    |
-| [Implementačný plán](./docs/IMPLEMENTATION_PLAN.md)    | Trvalý stav fáz, checkpointov, hotových položiek a overení                           |
-| [OpenAPI kontrakt](./docs/openapi.json)                | Strojovo kontrolovaný kontrakt aktuálne implementovaných API endpointov              |
-| [Problem Details](./docs/PROBLEM_DETAILS.md)           | Stabilná taxonómia, doménové kódy a bezpečný formát API chýb                         |
-| [Autentifikácia](./docs/AUTHENTICATION.md)             | Serverové relácie, cookies, CSRF, rate limiting a bezpečnostný audit                 |
-| [Tenantový kontext](./docs/TENANCY.md)                 | Aktívne členstvá, SUPERADMIN prístup, audit a cross-tenant izolácia                  |
-| [Autorizácia](./docs/AUTHORIZATION.md)                 | Permission katalóg, predvolené roly, scopes a centrálne deny-by-default rozhodovanie |
-| [Bezpečnostný audit](./docs/SECURITY_AUDIT.md)         | Append-only ochrana, oprávnenia, filtre, redakcia a keyset stránkovanie              |
-| [Register ADR](./docs/adr/README.md)                   | Modulárny monolit, multitenancy, sessions, permissions, UUID, UTC, OpenAPI a outbox  |
+| Dokument                                               | Popis                                                                                 |
+| ------------------------------------------------------ | ------------------------------------------------------------------------------------- |
+| [Základné zadanie](./docs/zadanie.txt)                 | Pôvodné stručné požiadavky                                                            |
+| [Analýza projektu](./docs/ANALYZA_PROJEKTU.md)         | Funkčné moduly, architektúra, bezpečnosť, dáta, testovanie a realizácia               |
+| [Používateľská príručka](./docs/USER_GUIDE.md)         | Aktuálne pracovné toky, administrácia, MFA, chyby a hranice MVP                       |
+| [Pilotný plán](./docs/PILOT.md)                        | Go/no-go brány, pilotné scenáre, metriky, prístupnosť a feedback triage               |
+| [Typy úloh a workflow](./docs/WORKFLOW-A-TYPY-ULOH.md) | Projektová konfigurácia, hierarchia, verzie, API, dáta a akceptačné testy             |
+| [SovaQL a dashboardy](./docs/SOVAQL-A-DASHBOARDY.md)   | Jira-like dotazy, uložené filtre, osobné dashboardy, widgety, API, dáta a bezpečnosť  |
+| [Projektová pamäť](./docs/PROJECT_MEMORY.md)           | Záväzné technické rozhodnutia vrátane lokalizácie                                     |
+| [Implementačný plán](./docs/IMPLEMENTATION_PLAN.md)    | Trvalý stav fáz, checkpointov, hotových položiek a overení                            |
+| [OpenAPI kontrakt](./docs/openapi.json)                | Strojovo kontrolovaný kontrakt aktuálne implementovaných API endpointov               |
+| [Problem Details](./docs/PROBLEM_DETAILS.md)           | Stabilná taxonómia, doménové kódy a bezpečný formát API chýb                          |
+| [Autentifikácia](./docs/AUTHENTICATION.md)             | Serverové relácie, cookies, CSRF, rate limiting a bezpečnostný audit                  |
+| [Tenantový kontext](./docs/TENANCY.md)                 | Aktívne členstvá, SUPERADMIN prístup, audit a cross-tenant izolácia                   |
+| [Autorizácia](./docs/AUTHORIZATION.md)                 | Permission katalóg, predvolené roly, scopes a centrálne deny-by-default rozhodovanie  |
+| [Bezpečnostný audit](./docs/SECURITY_AUDIT.md)         | Append-only ochrana, oprávnenia, filtre, redakcia a keyset stránkovanie               |
+| [Threat model](./docs/THREAT_MODEL.md)                 | Hranice dôvery, implementované obrany a konkrétne zostatkové riziká                   |
+| [Prevádzkový runbook](./docs/OPERATIONS.md)            | Monitoring, incidenty, zálohovanie, restore drill a produkčná obnova                  |
+| [Staging runbook](./docs/STAGING.md)                   | Konfigurácia, TLS hrana, deploy, bootstrap, smoke, rollback a diagnostika             |
+| [Výkon a query plány](./docs/PERFORMANCE.md)           | Opakovateľný dataset, EXPLAIN regresie, indexy, N+1 budgety a hranice lokálneho smoke |
+| [Register ADR](./docs/adr/README.md)                   | Modulárny monolit, multitenancy, sessions, permissions, UUID, UTC, OpenAPI a outbox   |
 
 ### Webflow a používateľské toky
 

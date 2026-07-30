@@ -68,6 +68,14 @@ final readonly class WorkflowConfigurationRequestContext
         return $this->identifier($args['workflowId'] ?? '');
     }
 
+    /**
+     * @param array<string, string> $args
+     */
+    public function issueTypeId(array $args): string
+    {
+        return $this->identifier($args['issueTypeId'] ?? '');
+    }
+
     public function requestId(ServerRequestInterface $request): string
     {
         $value = $request->getAttribute(RequestIdMiddleware::ATTRIBUTE);

@@ -7,6 +7,7 @@ import {
   ProjectMember,
   ProjectRole,
   ProjectStatus,
+  ProjectVisibility,
   ProjectWorkgroupLink,
   TenantMembership,
   Workgroup,
@@ -35,6 +36,16 @@ export class ProjectAdministrationService {
   changeStatus(tenantId: string, projectId: string, status: ProjectStatus): Observable<Project> {
     return this.api
       .changeProjectStatus(tenantId, projectId, { status })
+      .pipe(map((response) => response.project));
+  }
+
+  changeVisibility(
+    tenantId: string,
+    projectId: string,
+    visibility: ProjectVisibility,
+  ): Observable<Project> {
+    return this.api
+      .changeProjectVisibility(tenantId, projectId, { visibility })
       .pipe(map((response) => response.project));
   }
 

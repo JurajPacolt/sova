@@ -7,10 +7,11 @@ import {
   OnInit,
   signal,
 } from '@angular/core';
+import { DatePipe } from '@angular/common';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
-import { finalize, forkJoin } from 'rxjs';
-import { TenantMembership, TenantRole } from '../../../../core/api/api.models';
+import { finalize, forkJoin, Observable, of } from 'rxjs';
+import { TenantInvitation, TenantMembership, TenantRole } from '../../../../core/api/api.models';
 import { AuthSessionStore } from '../../../../core/auth/auth-session.store';
 import { TranslatePipe } from '../../../../core/i18n/translate.pipe';
 import { TranslationKey } from '../../../../core/i18n/translations';
@@ -18,6 +19,8 @@ import { TenantStore } from '../../../../core/tenancy/tenant.store';
 import { PageHeaderComponent } from '../../../../shared/components/page-header/page-header.component';
 import { TenantMembershipAdministrationService } from '../../tenant-membership-administration.service';
 import { TenantRoleAdministrationService } from '../../tenant-role-administration.service';
+import { ErrorStateComponent } from '../../../../shared/components/error-state/error-state.component';
+import { AriaRequiredDirective } from '../../../../core/a11y/aria-required.directive';
 
 type MembershipStatus = TenantMembership['status'];
 
@@ -33,6 +36,13 @@ const TRANSITIONS: Readonly<Record<MembershipStatus, readonly MembershipStatus[]
   REMOVED: [],
 };
 
+const INVITATION_STATUS_KEYS: Readonly<Record<TenantInvitation['status'], TranslationKey>> = {
+  PENDING: 'tenantMembers.invitationPending',
+  ACCEPTED: 'tenantMembers.invitationAccepted',
+  REVOKED: 'tenantMembers.invitationRevoked',
+  EXPIRED: 'tenantMembers.invitationExpired',
+};
+
 interface LifecycleSelection {
   readonly membership: TenantMembership;
   readonly target: MembershipStatus;
@@ -45,7 +55,14 @@ interface RoleSelection {
 @Component({
   selector: 'app-tenant-members-page',
   standalone: true,
-  imports: [PageHeaderComponent, ReactiveFormsModule, TranslatePipe],
+  imports: [
+    AriaRequiredDirective,
+    DatePipe,
+    ErrorStateComponent,
+    PageHeaderComponent,
+    ReactiveFormsModule,
+    TranslatePipe,
+  ],
   templateUrl: './tenant-members-page.component.html',
   styleUrl: './tenant-members-page.component.scss',
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -60,10 +77,15 @@ export class TenantMembersPageComponent implements OnInit {
 
   private readonly tenantId = computed(() => this.tenantStore.activeTenantId());
 
+  protected readonly canInvite = computed(() =>
+    this.tenantStore.hasPermission('tenant.members.invite'),
+  );
   protected readonly memberships = signal<readonly TenantMembership[]>([]);
+  protected readonly invitations = signal<readonly TenantInvitation[]>([]);
   protected readonly roles = signal<readonly TenantRole[]>([]);
   protected readonly loading = signal(false);
-  protected readonly loadError = signal(false);
+  /** The failed request itself; the shared error state reads the status. */
+  protected readonly loadFailure = signal<unknown>(null);
   protected readonly activeCount = computed(
     () => this.memberships().filter((membership) => membership.status === 'ACTIVE').length,
   );
@@ -74,6 +96,14 @@ export class TenantMembersPageComponent implements OnInit {
   protected readonly inviting = signal(false);
   protected readonly inviteError = signal(false);
   protected readonly invitedEmail = signal<string | null>(null);
+  protected readonly invitationActionId = signal<string | null>(null);
+  protected readonly invitationActionError = signal(false);
+  protected readonly invitationActionSuccess = signal<TranslationKey | null>(null);
+  protected readonly expiryInvitation = signal<TenantInvitation | null>(null);
+  protected readonly revokeInvitationSelection = signal<TenantInvitation | null>(null);
+  protected readonly expiryForm = this.formBuilder.nonNullable.group({
+    expires_at: ['', Validators.required],
+  });
 
   protected readonly lifecycleSelection = signal<LifecycleSelection | null>(null);
   protected readonly lifecycleMembershipId = signal<string | null>(null);
@@ -97,10 +127,13 @@ export class TenantMembersPageComponent implements OnInit {
       return;
     }
 
-    this.loadError.set(false);
+    this.loadFailure.set(null);
     this.loading.set(true);
     forkJoin({
       memberships: this.administration.list(tenantId),
+      invitations: this.canInvite()
+        ? this.administration.listInvitations(tenantId)
+        : of<readonly TenantInvitation[]>([]),
       roleList: this.roleAdministration.list(tenantId),
     })
       .pipe(
@@ -108,11 +141,12 @@ export class TenantMembersPageComponent implements OnInit {
         finalize(() => this.loading.set(false)),
       )
       .subscribe({
-        next: ({ memberships, roleList }) => {
+        next: ({ memberships, invitations, roleList }) => {
           this.memberships.set(memberships);
+          this.invitations.set(invitations);
           this.roles.set(roleList.roles.filter((role) => role.status === 'ACTIVE'));
         },
-        error: () => this.loadError.set(true),
+        error: (failure: unknown) => this.loadFailure.set(failure),
       });
   }
 
@@ -137,6 +171,7 @@ export class TenantMembersPageComponent implements OnInit {
         next: (invitation) => {
           this.invitedEmail.set(invitation.email);
           this.inviteForm.reset();
+          this.refresh();
         },
         error: () => this.inviteError.set(true),
       });
@@ -148,6 +183,123 @@ export class TenantMembersPageComponent implements OnInit {
 
   protected statusKey(status: MembershipStatus): TranslationKey {
     return STATUS_KEYS[status];
+  }
+
+  protected invitationStatusKey(status: TenantInvitation['status']): TranslationKey {
+    return INVITATION_STATUS_KEYS[status];
+  }
+
+  protected openExpiry(invitation: TenantInvitation): void {
+    const expiry = new Date(invitation.expires_at);
+    const local = new Date(expiry.getTime() - expiry.getTimezoneOffset() * 60_000)
+      .toISOString()
+      .slice(0, 16);
+    this.invitationActionError.set(false);
+    this.invitationActionSuccess.set(null);
+    this.expiryForm.setValue({ expires_at: local });
+    this.expiryInvitation.set(invitation);
+    this.revokeInvitationSelection.set(null);
+  }
+
+  protected cancelExpiry(): void {
+    this.expiryInvitation.set(null);
+    this.expiryForm.reset();
+  }
+
+  protected saveExpiry(): void {
+    const tenantId = this.tenantId();
+    const invitation = this.expiryInvitation();
+
+    if (
+      tenantId === null ||
+      invitation === null ||
+      this.expiryForm.invalid ||
+      this.invitationActionId() !== null
+    ) {
+      this.expiryForm.markAllAsTouched();
+      return;
+    }
+
+    const expiresAt = new Date(this.expiryForm.getRawValue().expires_at);
+
+    if (Number.isNaN(expiresAt.getTime())) {
+      this.expiryForm.controls.expires_at.setErrors({ invalidDate: true });
+      return;
+    }
+
+    this.runInvitationAction(
+      invitation,
+      this.administration.changeInvitationExpiry(tenantId, invitation.id, expiresAt.toISOString()),
+      'tenantMembers.expiryChanged',
+      () => this.cancelExpiry(),
+    );
+  }
+
+  protected resendInvitation(invitation: TenantInvitation): void {
+    const tenantId = this.tenantId();
+
+    if (tenantId === null || this.invitationActionId() !== null) {
+      return;
+    }
+
+    this.runInvitationAction(
+      invitation,
+      this.administration.resendInvitation(tenantId, invitation.id),
+      'tenantMembers.invitationResent',
+    );
+  }
+
+  protected selectRevokeInvitation(invitation: TenantInvitation): void {
+    this.invitationActionError.set(false);
+    this.invitationActionSuccess.set(null);
+    this.expiryInvitation.set(null);
+    this.revokeInvitationSelection.set(invitation);
+  }
+
+  protected cancelRevokeInvitation(): void {
+    this.revokeInvitationSelection.set(null);
+  }
+
+  protected confirmRevokeInvitation(): void {
+    const tenantId = this.tenantId();
+    const invitation = this.revokeInvitationSelection();
+
+    if (tenantId === null || invitation === null || this.invitationActionId() !== null) {
+      return;
+    }
+
+    this.runInvitationAction(
+      invitation,
+      this.administration.revokeInvitation(tenantId, invitation.id),
+      'tenantMembers.invitationRevokedNotice',
+      () => this.cancelRevokeInvitation(),
+    );
+  }
+
+  private runInvitationAction(
+    invitation: TenantInvitation,
+    operation: Observable<TenantInvitation>,
+    successKey: TranslationKey,
+    afterSuccess?: () => void,
+  ): void {
+    this.invitationActionError.set(false);
+    this.invitationActionSuccess.set(null);
+    this.invitationActionId.set(invitation.id);
+    operation
+      .pipe(
+        takeUntilDestroyed(this.destroyRef),
+        finalize(() => this.invitationActionId.set(null)),
+      )
+      .subscribe({
+        next: (updated) => {
+          this.invitations.update((invitations) =>
+            invitations.map((current) => (current.id === updated.id ? updated : current)),
+          );
+          this.invitationActionSuccess.set(successKey);
+          afterSuccess?.();
+        },
+        error: () => this.invitationActionError.set(true),
+      });
   }
 
   protected transitions(status: MembershipStatus): readonly MembershipStatus[] {

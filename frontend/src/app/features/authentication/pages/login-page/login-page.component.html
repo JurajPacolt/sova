@@ -58,6 +58,30 @@
               }
             </div>
 
+            @if (mfaChallenge()) {
+              <div class="mb-3">
+                <label class="form-label" for="mfa-code">
+                  {{ 'auth.mfaCode' | translate }}
+                </label>
+                <input
+                  id="mfa-code"
+                  class="form-control"
+                  type="text"
+                  autocomplete="one-time-code"
+                  autocapitalize="characters"
+                  spellcheck="false"
+                  formControlName="mfa_code"
+                  [class.is-invalid]="
+                    form.controls.mfa_code.touched && form.controls.mfa_code.invalid
+                  "
+                />
+                <div class="form-text">{{ 'auth.mfaCodeHint' | translate }}</div>
+                @if (form.controls.mfa_code.touched && form.controls.mfa_code.invalid) {
+                  <div class="invalid-feedback">{{ 'auth.mfaCodeRequired' | translate }}</div>
+                }
+              </div>
+            }
+
             <button class="btn btn-primary w-100" type="submit" [disabled]="submitting()">
               @if (submitting()) {
                 {{ 'auth.submitting' | translate }}

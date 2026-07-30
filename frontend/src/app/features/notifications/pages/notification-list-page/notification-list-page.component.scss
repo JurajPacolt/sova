@@ -1,0 +1,14 @@
+:host {
+  display: block;
+  margin-inline: auto;
+  max-width: 70rem;
+}
+
+.notification-list__item {
+  background: var(--sova-color-surface);
+}
+
+/* The stripe repeats what the badge already says in words. */
+.notification-list__item--unread {
+  border-inline-start: 4px solid var(--sova-color-action-primary) !important;
+}

@@ -16,11 +16,20 @@ import { TranslatePipe } from '../../../../core/i18n/translate.pipe';
 import { TenantStore } from '../../../../core/tenancy/tenant.store';
 import { PageHeaderComponent } from '../../../../shared/components/page-header/page-header.component';
 import { TenantSecurityAuditService } from '../../tenant-security-audit.service';
+import { ErrorStateComponent } from '../../../../shared/components/error-state/error-state.component';
+import { AriaRequiredDirective } from '../../../../core/a11y/aria-required.directive';
 
 @Component({
   selector: 'app-tenant-audit-page',
   standalone: true,
-  imports: [DatePipe, PageHeaderComponent, ReactiveFormsModule, TranslatePipe],
+  imports: [
+    AriaRequiredDirective,
+    ErrorStateComponent,
+    DatePipe,
+    PageHeaderComponent,
+    ReactiveFormsModule,
+    TranslatePipe,
+  ],
   templateUrl: './tenant-audit-page.component.html',
   styleUrl: './tenant-audit-page.component.scss',
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -37,7 +46,8 @@ export class TenantAuditPageComponent implements OnInit {
   protected readonly nextCursor = signal<string | null>(null);
   protected readonly loading = signal(false);
   protected readonly loadingMore = signal(false);
-  protected readonly loadError = signal(false);
+  /** The failed request itself; the shared error state reads the status. */
+  protected readonly loadFailure = signal<unknown>(null);
   protected readonly exporting = signal(false);
   protected readonly exportError = signal(false);
   protected readonly filterForm = this.formBuilder.nonNullable.group({
@@ -97,7 +107,7 @@ export class TenantAuditPageComponent implements OnInit {
       return;
     }
 
-    this.loadError.set(false);
+    this.loadFailure.set(null);
     (reset ? this.loading : this.loadingMore).set(true);
     this.audit
       .list(tenantId, this.query(reset ? undefined : (this.nextCursor() ?? undefined)))
@@ -110,7 +120,7 @@ export class TenantAuditPageComponent implements OnInit {
           this.events.update((events) => (reset ? page.events : [...events, ...page.events]));
           this.nextCursor.set(page.next_cursor);
         },
-        error: () => this.loadError.set(true),
+        error: (failure: unknown) => this.loadFailure.set(failure),
       });
   }
 

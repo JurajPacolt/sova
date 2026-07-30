@@ -114,6 +114,84 @@ final readonly class DoctrineProjectRepository implements ProjectRepository
         );
     }
 
+    public function changeVisibility(
+        string $tenantId,
+        string $projectId,
+        ProjectVisibility $visibility,
+    ): void {
+        $this->connection->executeStatement(
+            <<<'SQL'
+                UPDATE projects
+                SET visibility = :visibility,
+                    updated_at = CURRENT_TIMESTAMP
+                WHERE tenant_id = :tenant_id
+                    AND id = :project_id
+                SQL,
+            [
+                'visibility' => $visibility->value,
+                'tenant_id' => $tenantId,
+                'project_id' => $projectId,
+            ],
+        );
+    }
+
+    public function hasActiveManager(
+        string $tenantId,
+        string $projectId,
+    ): bool {
+        return $this->connection->fetchOne(
+            <<<'SQL'
+                SELECT EXISTS (
+                    SELECT 1
+                    FROM project_roles role
+                    INNER JOIN project_role_permissions permission
+                        ON permission.tenant_id = role.tenant_id
+                        AND permission.project_id = role.project_id
+                        AND permission.role_id = role.id
+                        AND permission.permission_code = 'project.settings.manage'
+                    WHERE role.tenant_id = :tenant_id
+                        AND role.project_id = :project_id
+                        AND role.status = 'ACTIVE'
+                        AND (
+                            EXISTS (
+                                SELECT 1
+                                FROM project_membership_role_assignments assignment
+                                INNER JOIN tenant_memberships membership
+                                    ON membership.tenant_id = assignment.tenant_id
+                                    AND membership.id = assignment.membership_id
+                                WHERE assignment.tenant_id = role.tenant_id
+                                    AND assignment.project_id = role.project_id
+                                    AND assignment.role_id = role.id
+                                    AND membership.status = 'ACTIVE'
+                            )
+                            OR EXISTS (
+                                SELECT 1
+                                FROM project_workgroups linked
+                                INNER JOIN workgroups workgroup
+                                    ON workgroup.tenant_id = linked.tenant_id
+                                    AND workgroup.id = linked.workgroup_id
+                                    AND workgroup.status = 'ACTIVE'
+                                INNER JOIN workgroup_members workgroup_member
+                                    ON workgroup_member.tenant_id = linked.tenant_id
+                                    AND workgroup_member.workgroup_id = linked.workgroup_id
+                                INNER JOIN tenant_memberships membership
+                                    ON membership.tenant_id = workgroup_member.tenant_id
+                                    AND membership.id = workgroup_member.membership_id
+                                    AND membership.status = 'ACTIVE'
+                                WHERE linked.tenant_id = role.tenant_id
+                                    AND linked.project_id = role.project_id
+                                    AND linked.role_id = role.id
+                            )
+                        )
+                )
+                SQL,
+            [
+                'tenant_id' => $tenantId,
+                'project_id' => $projectId,
+            ],
+        ) === true;
+    }
+
     public function membershipStatus(
         string $tenantId,
         string $membershipId,

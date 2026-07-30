@@ -14,11 +14,20 @@ import { SecurityAuditEvent, SecurityAuditQuery } from '../../../../core/api/api
 import { TranslatePipe } from '../../../../core/i18n/translate.pipe';
 import { PageHeaderComponent } from '../../../../shared/components/page-header/page-header.component';
 import { SystemSecurityAuditService } from '../../system-security-audit.service';
+import { ErrorStateComponent } from '../../../../shared/components/error-state/error-state.component';
+import { AriaRequiredDirective } from '../../../../core/a11y/aria-required.directive';
 
 @Component({
   selector: 'app-system-security-audit-page',
   standalone: true,
-  imports: [DatePipe, PageHeaderComponent, ReactiveFormsModule, TranslatePipe],
+  imports: [
+    AriaRequiredDirective,
+    ErrorStateComponent,
+    DatePipe,
+    PageHeaderComponent,
+    ReactiveFormsModule,
+    TranslatePipe,
+  ],
   templateUrl: './system-security-audit-page.component.html',
   styleUrl: './system-security-audit-page.component.scss',
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -32,7 +41,8 @@ export class SystemSecurityAuditPageComponent implements OnInit {
   protected readonly nextCursor = signal<string | null>(null);
   protected readonly loading = signal(false);
   protected readonly loadingMore = signal(false);
-  protected readonly loadError = signal(false);
+  /** The failed request itself; the shared error state reads the status. */
+  protected readonly loadFailure = signal<unknown>(null);
   protected readonly filterForm = this.formBuilder.nonNullable.group({
     event_type: [''],
     outcome: [''],
@@ -68,7 +78,7 @@ export class SystemSecurityAuditPageComponent implements OnInit {
       return;
     }
 
-    this.loadError.set(false);
+    this.loadFailure.set(null);
     (reset ? this.loading : this.loadingMore).set(true);
     const rawFilters = this.filterForm.getRawValue();
     const outcome =
@@ -95,7 +105,7 @@ export class SystemSecurityAuditPageComponent implements OnInit {
           this.events.update((events) => (reset ? page.events : [...events, ...page.events]));
           this.nextCursor.set(page.next_cursor);
         },
-        error: () => this.loadError.set(true),
+        error: (failure: unknown) => this.loadFailure.set(failure),
       });
   }
 }

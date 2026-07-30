@@ -1,3 +1,4 @@
+import { HttpErrorResponse } from '@angular/common/http';
 import { TestBed } from '@angular/core/testing';
 import { provideRouter } from '@angular/router';
 import { of, throwError } from 'rxjs';
@@ -199,15 +200,26 @@ describe('ProjectListPageComponent', () => {
     );
   });
 
-  it('offers a retry when the listing fails', () => {
-    api.listProjects.mockReturnValue(throwError(() => ({ status: 500 })));
+  /**
+   * The failure carries what `HttpClient` really emits, because the shared
+   * error state reads the status off it: a stub shaped like `{ status }` would
+   * pass a test that production never runs.
+   */
+  it('offers a retry when the listing fails, in the same words as every screen', () => {
+    api.listProjects.mockReturnValue(
+      throwError(() => new HttpErrorResponse({ status: 500, statusText: 'Server Error' })),
+    );
 
     const fixture = TestBed.createComponent(ProjectListPageComponent);
     fixture.detectChanges();
 
-    expect((fixture.nativeElement as HTMLElement).textContent ?? '').toContain(
-      'Projects could not be loaded.',
-    );
+    const element = fixture.nativeElement as HTMLElement;
+    expect(element.textContent ?? '').toContain('The service failed to answer.');
+    expect(
+      Array.from(element.querySelectorAll('button')).some((button) =>
+        button.textContent?.includes('Try again'),
+      ),
+    ).toBe(true);
   });
 });
 

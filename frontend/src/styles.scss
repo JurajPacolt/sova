@@ -67,7 +67,10 @@
   --sova-color-text-muted: var(--sova-slate-600);
   --sova-color-text-subtle: var(--sova-slate-500);
   --sova-color-border: var(--sova-slate-300);
-  --sova-color-border-strong: var(--sova-slate-400);
+  // A boundary somebody has to be able to see: it marks the widget outlines in
+  // the dashboard's edit mode, so it clears 3:1 against the surface it sits on
+  // (WCAG 1.4.11). The lighter step this used to be measured 2.56:1.
+  --sova-color-border-strong: var(--sova-slate-500);
   --sova-color-control-border: var(--sova-slate-500);
   --sova-color-header: var(--sova-slate-900);
   --sova-color-action-primary: var(--sova-indigo-600);
@@ -84,6 +87,22 @@
   // flipped, which is why dark uses a different indigo step.
   --sova-color-chart-series-1: var(--sova-indigo-600);
   --sova-color-chart-series-2: var(--sova-teal-600);
+  // A categorical scale, for the one place where colour is the only thing
+  // separating two shapes: the slices of a ring. Six hues roughly 60° apart —
+  // a spread, not a hand-picked assortment — each clearing 3:1 against the
+  // surface it sits on (1.4.11), measured by `npm run check:contrast` in both
+  // themes. Hue alone is never asked to carry identity: neighbouring slices are
+  // parted by a surface-coloured gap, and the legend and the hidden table name
+  // every bucket with its count.
+  --sova-color-chart-categorical-1: #4f46e5; // indigo
+  --sova-color-chart-categorical-2: #0d9488; // teal
+  --sova-color-chart-categorical-3: #b45309; // amber
+  --sova-color-chart-categorical-4: #be123c; // rose
+  --sova-color-chart-categorical-5: #4d7c0f; // lime
+  --sova-color-chart-categorical-6: #a21caf; // fuchsia
+  // Everything past the sixth bucket. Deliberately neutral: it is not a seventh
+  // category, it is the remainder, and the legend says so with its own row.
+  --sova-color-chart-categorical-rest: var(--sova-color-text-subtle);
 
   --bs-primary: var(--sova-color-action-primary);
   --bs-primary-rgb: 79, 70, 229;
@@ -109,7 +128,9 @@
   --sova-color-text-muted: var(--sova-slate-300);
   --sova-color-text-subtle: var(--sova-slate-400);
   --sova-color-border: var(--sova-slate-700);
-  --sova-color-border-strong: var(--sova-slate-600);
+  // Lighter than its light-mode counterpart, because here it has to lift off a
+  // dark surface rather than sink into a pale one — 2.34:1 before, 6.92:1 now.
+  --sova-color-border-strong: var(--sova-slate-400);
   --sova-color-control-border: var(--sova-slate-500);
   --sova-color-header: var(--sova-slate-950);
   --sova-color-action-primary: var(--sova-indigo-400);
@@ -122,6 +143,16 @@
   --sova-color-selection: var(--sova-indigo-950);
   --sova-color-chart-series-1: var(--sova-indigo-500);
   --sova-color-chart-series-2: var(--sova-teal-600);
+  // The same six hues, lifted rather than inverted: here they have to rise off
+  // a dark surface, so each step is chosen against that surface instead of
+  // being the light value flipped.
+  --sova-color-chart-categorical-1: #818cf8; // indigo
+  --sova-color-chart-categorical-2: #2dd4bf; // teal
+  --sova-color-chart-categorical-3: #fbbf24; // amber
+  --sova-color-chart-categorical-4: #fb7185; // rose
+  --sova-color-chart-categorical-5: #a3e635; // lime
+  --sova-color-chart-categorical-6: #e879f9; // fuchsia
+  --sova-color-chart-categorical-rest: var(--sova-color-text-subtle);
 
   --bs-primary: var(--sova-color-action-primary);
   --bs-primary-rgb: 129, 140, 248;
@@ -183,14 +214,29 @@ body {
   min-height: 2.75rem;
 }
 
+// Bootstrap turns the outline off on its own controls and replaces it with a
+// soft, animated shadow — measured at a fraction of a pixel while it fades in,
+// and never reaching 3:1 against the surface. The bare element selectors below
+// lose to `.form-control:focus`, so the ring is spelled out for the classes too:
+// same specificity, and this sheet is loaded last.
 button,
 a,
 input,
 select,
-textarea {
+textarea,
+.btn,
+.form-control,
+.form-select,
+.form-check-input,
+.nav-link,
+.page-link,
+[tabindex]:not([tabindex='-1']) {
   &:focus-visible {
     outline: 0.1875rem solid var(--sova-color-focus);
     outline-offset: 0.125rem;
+    // Ours is a solid ring that the contrast check measures; Bootstrap's glow
+    // would only blur its edge.
+    box-shadow: none;
   }
 }
 
@@ -200,5 +246,10 @@ textarea {
   *::after {
     scroll-behavior: auto !important;
     transition-duration: 0.01ms !important;
+    // Transitions alone are not enough: the loading spinners are keyframe
+    // animations, and a spinner that keeps turning is exactly the motion
+    // somebody asked the system not to show them.
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
   }
 }

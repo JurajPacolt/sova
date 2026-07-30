@@ -14,6 +14,7 @@ import { TranslatePipe } from '../../../../core/i18n/translate.pipe';
 import { TranslationKey } from '../../../../core/i18n/translations';
 import { TenantStore } from '../../../../core/tenancy/tenant.store';
 import { DashboardWorkspaceService } from '../../dashboard-workspace.service';
+import { ErrorStateComponent } from '../../../../shared/components/error-state/error-state.component';
 
 /**
  * The bare `dashboards` path: it decides which dashboard to open and hands over.
@@ -32,7 +33,7 @@ import { DashboardWorkspaceService } from '../../dashboard-workspace.service';
 @Component({
   selector: 'app-dashboard-entry',
   standalone: true,
-  imports: [TranslatePipe],
+  imports: [ErrorStateComponent, TranslatePipe],
   templateUrl: './dashboard-entry.component.html',
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
@@ -47,6 +48,8 @@ export class DashboardEntryComponent implements OnInit {
 
   protected readonly loading = signal(true);
   protected readonly loadError = signal<TranslationKey | null>(null);
+  /** A failed resolution; the shared state decides what the status means. */
+  protected readonly loadFailure = signal<unknown>(null);
   protected readonly restoring = signal(false);
   protected readonly empty = signal(false);
 
@@ -80,12 +83,20 @@ export class DashboardEntryComponent implements OnInit {
       });
   }
 
+  /** Resolving again, which is what "try again" means on this screen. */
+  protected retry(): void {
+    this.loading.set(true);
+    this.loadFailure.set(null);
+    this.loadError.set(null);
+    this.resolve();
+  }
+
   private resolve(): void {
     const tenantId = this.tenantId();
 
     if (tenantId === null) {
       this.loading.set(false);
-      this.loadError.set('dashboard.loadError');
+      this.loadFailure.set(new Error('No active tenant.'));
 
       return;
     }
@@ -110,7 +121,7 @@ export class DashboardEntryComponent implements OnInit {
 
           this.show(target);
         },
-        error: () => this.loadError.set('dashboard.loadError'),
+        error: (failure: unknown) => this.loadFailure.set(failure),
       });
   }
 

@@ -21,11 +21,12 @@ import {
   IssueLinkRelation,
   IssueLinkType,
   IssueTransition,
-  isProblemDetails,
 } from '../../../../core/api/api.models';
+import { describeApiError, problemCode } from '../../../../core/errors/api-error';
 import { TranslatePipe } from '../../../../core/i18n/translate.pipe';
 import { TranslationKey } from '../../../../core/i18n/translations';
 import { TenantStore } from '../../../../core/tenancy/tenant.store';
+import { ErrorStateComponent } from '../../../../shared/components/error-state/error-state.component';
 import { PageHeaderComponent } from '../../../../shared/components/page-header/page-header.component';
 import { IssueWorkspaceService } from '../../issue-workspace.service';
 
@@ -41,7 +42,13 @@ import { IssueWorkspaceService } from '../../issue-workspace.service';
 @Component({
   selector: 'app-issue-detail-page',
   standalone: true,
-  imports: [PageHeaderComponent, ReactiveFormsModule, RouterLink, TranslatePipe],
+  imports: [
+    ErrorStateComponent,
+    PageHeaderComponent,
+    ReactiveFormsModule,
+    RouterLink,
+    TranslatePipe,
+  ],
   templateUrl: './issue-detail-page.component.html',
   styleUrl: './issue-detail-page.component.scss',
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -57,7 +64,22 @@ export class IssueDetailPageComponent implements OnInit {
 
   protected readonly issue = signal<Issue | null>(null);
   protected readonly loading = signal(true);
-  protected readonly loadError = signal<TranslationKey | null>(null);
+  protected readonly loadFailure = signal<unknown>(null);
+  /** The key resolved to nothing — no request failed, the issue is simply not there. */
+  protected readonly missing = signal(false);
+
+  /**
+   * A `404` says the same thing as an empty resolution: the issue does not
+   * exist, or it sits in a project this reader cannot see. The server answers
+   * both the same way on purpose, and so does this screen.
+   */
+  protected readonly loadErrorKey = computed<TranslationKey | null>(() => {
+    const failure = this.loadFailure();
+
+    return failure !== null && describeApiError(failure).status === 404
+      ? 'issue.detail.notFound'
+      : null;
+  });
 
   protected readonly transitions = signal<readonly IssueTransition[]>([]);
   protected readonly transitionVersion = signal<number>(0);
@@ -97,6 +119,14 @@ export class IssueDetailPageComponent implements OnInit {
   );
 
   ngOnInit(): void {
+    this.reload();
+  }
+
+  /** Everything the screen is made of, which is what "try again" means here. */
+  protected reload(): void {
+    this.loading.set(true);
+    this.loadFailure.set(null);
+    this.missing.set(false);
     this.resolve();
   }
 
@@ -219,7 +249,7 @@ export class IssueDetailPageComponent implements OnInit {
 
     if (tenantId === null) {
       this.loading.set(false);
-      this.loadError.set('issue.detail.loadError');
+      this.missing.set(true);
 
       return;
     }
@@ -233,16 +263,16 @@ export class IssueDetailPageComponent implements OnInit {
 
           if (hit === undefined) {
             this.loading.set(false);
-            this.loadError.set('issue.detail.notFound');
+            this.missing.set(true);
 
             return;
           }
 
           this.load(tenantId, hit.id);
         },
-        error: () => {
+        error: (failure: unknown) => {
           this.loading.set(false);
-          this.loadError.set('issue.detail.loadError');
+          this.loadFailure.set(failure);
         },
       });
   }
@@ -256,7 +286,7 @@ export class IssueDetailPageComponent implements OnInit {
       )
       .subscribe({
         next: (response) => this.issue.set(response.issue),
-        error: () => this.loadError.set('issue.detail.loadError'),
+        error: (failure: unknown) => this.loadFailure.set(failure),
       });
 
     this.loadTransitions(tenantId, issueId);
@@ -448,7 +478,7 @@ export class IssueDetailPageComponent implements OnInit {
    * trusting the name — so the client only translates the answer.
    */
   private uploadMessageFor(failure: unknown): TranslationKey {
-    switch (this.problemCodeOf(failure)) {
+    switch (problemCode(failure)) {
       case 'ATTACHMENT_TOO_LARGE':
         return 'issue.attachments.tooLarge';
       case 'ATTACHMENT_TYPE_NOT_ALLOWED':
@@ -459,7 +489,7 @@ export class IssueDetailPageComponent implements OnInit {
   }
 
   private linkMessageFor(failure: unknown): TranslationKey {
-    switch (this.problemCodeOf(failure)) {
+    switch (problemCode(failure)) {
       case 'ISSUE_LINK_EXISTS':
         return 'issue.links.exists';
       case 'ISSUE_NOT_FOUND':
@@ -467,16 +497,6 @@ export class IssueDetailPageComponent implements OnInit {
       default:
         return 'issue.links.error';
     }
-  }
-
-  private problemCodeOf(failure: unknown): string | null {
-    if (typeof failure !== 'object' || failure === null || !('error' in failure)) {
-      return null;
-    }
-
-    const body = (failure as { error: unknown }).error;
-
-    return isProblemDetails(body) ? body.code : null;
   }
 
   /**

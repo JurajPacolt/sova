@@ -309,6 +309,191 @@ final class WorkflowConfigurationApiTest extends TestCase
         );
     }
 
+    public function testIssueTypeAuthoringUsesBothConfigurationAndRecordVersions(): void
+    {
+        $login = $this->login('workflow-owner');
+        $workflowId = $this->workflowId();
+        $create = $this->issueTypeRequest(
+            $login,
+            'POST',
+            null,
+            [
+                'code' => 'INCIDENT',
+                'name' => 'Incident',
+                'description' => 'Customer-impacting incident.',
+                'hierarchy_level' => 0,
+                'position' => 60,
+                'icon' => 'alert',
+                'color_token' => 'danger',
+                'workflow_id' => $workflowId,
+                'expected_config_version' => 1,
+            ],
+        );
+        self::assertSame(201, $create->getStatusCode());
+        $created = $this->decode($create)['issue_type'] ?? null;
+        self::assertIsArray($created);
+        $issueTypeId = $created['id'] ?? null;
+        self::assertIsString($issueTypeId);
+        self::assertSame(1, $created['version'] ?? null);
+        self::assertSame('alert', $created['icon'] ?? null);
+        self::assertSame(2, $this->configurationRevision($login));
+
+        $stale = $this->issueTypeRequest(
+            $login,
+            'PATCH',
+            $issueTypeId,
+            [
+                'name' => 'Service incident',
+                'description' => 'Customer-impacting incident.',
+                'hierarchy_level' => 1,
+                'position' => 5,
+                'icon' => 'alert',
+                'color_token' => 'danger',
+                'workflow_id' => $workflowId,
+                'expected_config_version' => 1,
+                'expected_type_version' => 1,
+            ],
+        );
+        self::assertSame(409, $stale->getStatusCode());
+        self::assertSame(
+            'PROJECT_CONFIG_VERSION_CONFLICT',
+            $this->decode($stale)['code'] ?? null,
+        );
+
+        $update = $this->issueTypeRequest(
+            $login,
+            'PATCH',
+            $issueTypeId,
+            [
+                'name' => 'Service incident',
+                'description' => 'Customer-impacting incident.',
+                'hierarchy_level' => 1,
+                'position' => 5,
+                'icon' => 'alert',
+                'color_token' => 'danger',
+                'workflow_id' => $workflowId,
+                'expected_config_version' => 2,
+                'expected_type_version' => 1,
+            ],
+        );
+        self::assertSame(200, $update->getStatusCode());
+        $updated = $this->decode($update)['issue_type'] ?? null;
+        self::assertIsArray($updated);
+        self::assertSame('INCIDENT', $updated['code'] ?? null);
+        self::assertSame('Service incident', $updated['name'] ?? null);
+        self::assertSame(1, $updated['hierarchy_level'] ?? null);
+        self::assertSame(2, $updated['version'] ?? null);
+
+        $archive = $this->issueTypeRequest(
+            $login,
+            'POST',
+            $issueTypeId,
+            [
+                'expected_config_version' => 3,
+                'expected_type_version' => 2,
+            ],
+            true,
+        );
+        self::assertSame(200, $archive->getStatusCode());
+        $archived = $this->decode($archive)['issue_type'] ?? null;
+        self::assertIsArray($archived);
+        self::assertSame('ARCHIVED', $archived['status'] ?? null);
+        self::assertSame(3, $archived['version'] ?? null);
+        self::assertSame(4, $this->configurationRevision($login));
+
+        $repeated = $this->issueTypeRequest(
+            $login,
+            'POST',
+            $issueTypeId,
+            [
+                'expected_config_version' => 4,
+                'expected_type_version' => 3,
+            ],
+            true,
+        );
+        self::assertSame(200, $repeated->getStatusCode());
+        self::assertSame(4, $this->configurationRevision($login));
+
+        self::assertSame(
+            ['ISSUE_TYPE_CREATED', 'ISSUE_TYPE_UPDATED', 'ISSUE_TYPE_ARCHIVED'],
+            $this->connection->fetchFirstColumn(
+                <<<'SQL'
+                    SELECT event_type
+                    FROM project_configuration_history
+                    WHERE project_id = :project_id
+                        AND event_type LIKE 'ISSUE_TYPE_%'
+                    ORDER BY revision
+                    SQL,
+                ['project_id' => $this->projectId],
+            ),
+        );
+        self::assertSame(
+            ['ISSUE_TYPE_CREATED', 'ISSUE_TYPE_UPDATED', 'ISSUE_TYPE_ARCHIVED'],
+            $this->connection->fetchFirstColumn(
+                <<<'SQL'
+                    SELECT event_name
+                    FROM outbox_events
+                    WHERE aggregate_id = :project_id
+                        AND event_name LIKE 'ISSUE_TYPE_%'
+                    ORDER BY sequence_number
+                    SQL,
+                ['project_id' => $this->projectId],
+            ),
+        );
+    }
+
+    public function testIssueTypeHierarchyChangeCannotInvalidateExistingIssues(): void
+    {
+        $login = $this->login('workflow-owner');
+        $this->insertIssue('OPEN', $this->activeVersionId());
+        $task = $this->connection->fetchAssociative(
+            <<<'SQL'
+                SELECT id, name, description, position, icon, color_token, version
+                FROM project_issue_types
+                WHERE project_id = :project_id
+                    AND code = 'TASK'
+                SQL,
+            ['project_id' => $this->projectId],
+        );
+        self::assertIsArray($task);
+        $taskId = $task['id'] ?? null;
+        self::assertIsString($taskId);
+
+        $response = $this->issueTypeRequest(
+            $login,
+            'PATCH',
+            $taskId,
+            [
+                'name' => $task['name'],
+                'description' => $task['description'],
+                'hierarchy_level' => -1,
+                'position' => $task['position'],
+                'icon' => $task['icon'],
+                'color_token' => $task['color_token'],
+                'workflow_id' => $this->workflowId(),
+                'expected_config_version' => 1,
+                'expected_type_version' => $task['version'],
+            ],
+        );
+
+        self::assertSame(409, $response->getStatusCode());
+        self::assertSame(
+            'ISSUE_TYPE_HIERARCHY_IN_USE',
+            $this->decode($response)['code'] ?? null,
+        );
+        self::assertSame(1, $this->configurationRevision($login));
+    }
+
+    public function testMemberCannotAuthorIssueTypes(): void
+    {
+        $response = $this->issueTypeRequest(
+            $this->login('workflow-member'),
+            'GET',
+        );
+
+        self::assertSame(403, $response->getStatusCode());
+    }
+
     private function createDraft(ResponseInterface $login, string $workflowId): ResponseInterface
     {
         return $this->app->handle($this->authenticatedRequest(
@@ -321,6 +506,32 @@ final class WorkflowConfigurationApiTest extends TestCase
             ),
             $login,
         ));
+    }
+
+    /**
+     * @param array<string, mixed> $body
+     */
+    private function issueTypeRequest(
+        ResponseInterface $login,
+        string $method,
+        ?string $issueTypeId = null,
+        array $body = [],
+        bool $archive = false,
+    ): ResponseInterface {
+        $path = sprintf(
+            '/api/v1/tenants/%s/projects/%s/issue-types',
+            $this->tenantId,
+            $this->projectId,
+        );
+
+        if ($issueTypeId !== null) {
+            $path .= sprintf('/%s%s', $issueTypeId, $archive ? '/archive' : '');
+        }
+
+        return $this->app->handle(
+            $this->authenticatedRequest($method, $path, $login)
+                ->withParsedBody($body),
+        );
     }
 
     /**

@@ -52,6 +52,13 @@ final readonly class GetCurrentSessionAction
                 : $this->impersonations->serialize(
                     $session->impersonation,
                 ),
+            'mfa' => [
+                'enabled' => $session->mfaEnabled,
+                'verified' => $session->mfaVerified,
+                'enrollment_required' => $session->mfaEnrollmentRequired,
+                'recovery_codes_remaining' => $session
+                    ->mfaRecoveryCodesRemaining,
+            ],
         ]);
     }
 }

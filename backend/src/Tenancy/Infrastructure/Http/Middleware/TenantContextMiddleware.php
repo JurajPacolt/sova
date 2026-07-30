@@ -18,6 +18,7 @@ use Sova\Shared\Domain\Error\DomainProblemException;
 use Sova\Shared\Domain\Error\ProblemType;
 use Sova\Shared\Domain\ValueObject\UuidV7;
 use Sova\Shared\Infrastructure\Http\Middleware\RequestIdMiddleware;
+use Sova\Shared\Infrastructure\Persistence\TenantDatabaseScope;
 use Sova\Tenancy\Application\Access\TenantAccessRepository;
 use Throwable;
 
@@ -28,6 +29,7 @@ final readonly class TenantContextMiddleware implements MiddlewareInterface
     public function __construct(
         private TenantAccessRepository $tenants,
         private SecurityAuditRecorder $audit,
+        private TenantDatabaseScope $scope,
     ) {}
 
     public function process(
@@ -162,12 +164,21 @@ final readonly class TenantContextMiddleware implements MiddlewareInterface
 
         $request = $request->withAttribute(self::ATTRIBUTE, $tenant);
 
+        // From here on the database knows which tenant this request is about,
+        // so a statement that forgets its own predicate is filtered instead of
+        // answered. It wraps the handler only: the audit writes above and below
+        // belong to the system's view of the request, not to the tenant's.
+        $scoped = fn(): ResponseInterface => $this->scope->within(
+            $tenant->id,
+            static fn(): ResponseInterface => $handler->handle($request),
+        );
+
         if ($impersonation === null) {
-            return $handler->handle($request);
+            return $scoped();
         }
 
         try {
-            $response = $handler->handle($request);
+            $response = $scoped();
             $this->recordImpersonationRequest(
                 $request,
                 $session,

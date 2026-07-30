@@ -35,8 +35,11 @@ final readonly class LoginAction
         $payload = is_array($body) ? $body : [];
         $emailValue = $payload['email'] ?? null;
         $passwordValue = $payload['password'] ?? null;
+        $mfaCodeValue = $payload['mfa_code'] ?? null;
         $email = is_string($emailValue) ? trim($emailValue) : '';
         $password = is_string($passwordValue) ? $passwordValue : '';
+        $hasMfaCode = array_key_exists('mfa_code', $payload);
+        $mfaCode = is_string($mfaCodeValue) ? trim($mfaCodeValue) : null;
         $errors = [];
 
         if (
@@ -49,6 +52,13 @@ final readonly class LoginAction
 
         if ($password === '' || strlen($password) > 1024) {
             $errors['password'] = ['Enter your password.'];
+        }
+
+        if (
+            $hasMfaCode
+            && ($mfaCode === null || $mfaCode === '' || strlen($mfaCode) > 64)
+        ) {
+            $errors['mfa_code'] = ['Enter a valid authentication code.'];
         }
 
         if ($errors !== []) {
@@ -72,6 +82,7 @@ final readonly class LoginAction
             ipAddress: $ipAddress,
             userAgent: $userAgent === '' ? null : $userAgent,
             requestId: $requestId,
+            mfaCode: $mfaCode,
         );
         $response = JsonResponse::write($response, [
             'user' => [
@@ -79,11 +90,19 @@ final readonly class LoginAction
                 'email' => $result->user->email,
                 'display_name' => $result->user->displayName,
                 'preferred_locale' => $result->user->preferredLocale,
-                'is_superadmin' => $result->user->isSuperadmin,
+                'is_superadmin' => $result->isSuperadmin,
             ],
             'session' => [
                 'id' => $result->sessionId,
                 'expires_at' => $result->expiresAt->format(DATE_ATOM),
+            ],
+            'mfa' => [
+                'enabled' => $result->mfa->enabled,
+                'verified' => $result->mfa->verified,
+                'enrollment_required' => $result->mfa->enrollmentRequired,
+                'recovery_codes_remaining' => $result
+                    ->mfa
+                    ->recoveryCodesRemaining,
             ],
         ]);
 

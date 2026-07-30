@@ -81,6 +81,20 @@ každý neodstránený tenant a zapisuje bezpečnostný audit.
 | --------------------------------------------- | ---: | -------------------------------------------------------------- |
 | `LOGIN_INPUT_INVALID`                         |  422 | Neplatný tvar prihlasovacích údajov                            |
 | `INVALID_CREDENTIALS`                         |  401 | Jednotný výsledok neúspešného prihlásenia                      |
+| `MFA_CODE_REQUIRED`                           |  401 | Heslo je správne, ale login vyžaduje druhý faktor              |
+| `MFA_CODE_INVALID`                            |  401 | Neplatný, použitý alebo opakovaný TOTP/recovery kód            |
+| `MFA_ENROLLMENT_REQUIRED`                     |  403 | Produkčná admin relácia smie iba dokončiť enrollment           |
+| `MFA_ENROLLMENT_INPUT_INVALID`                |  422 | Chýba platné aktuálne heslo pre enrollment                     |
+| `MFA_CONFIRMATION_INPUT_INVALID`              |  422 | Potvrdenie nemá šesťmiestny TOTP                               |
+| `MFA_RECOVERY_CODES_INPUT_INVALID`            |  422 | Neplatný reauth vstup na nahradenie kódov                      |
+| `MFA_DISABLE_INPUT_INVALID`                   |  422 | Neplatný reauth vstup na vypnutie MFA                          |
+| `MFA_REAUTHENTICATION_FAILED`                 |  401 | Aktuálne heslo nebolo overené                                  |
+| `MFA_IMPERSONATION_FORBIDDEN`                 |  403 | MFA nemožno meniť počas impersonácie                           |
+| `MFA_ENROLLMENT_NOT_STARTED`                  |  409 | Chýba čakajúci TOTP enrollment                                 |
+| `MFA_ENROLLMENT_CHANGED`                      |  409 | Súbežná zmena zneplatnila potvrdenie                           |
+| `MFA_ALREADY_ENABLED`                         |  409 | MFA už je na účte aktivované                                   |
+| `MFA_NOT_ENABLED`                             |  409 | Operácia vyžaduje aktivované MFA                               |
+| `MFA_REQUIRED_FOR_SUPERADMIN`                 |  409 | Produkčný SUPERADMIN nesmie MFA vypnúť                         |
 | `LOGIN_RATE_LIMITED`                          |  429 | Prekročený login account alebo IP limit                        |
 | `SESSION_REQUIRED`                            |  401 | Chýbajúca, expirovaná, revokovaná alebo neaktívna relácia      |
 | `CSRF_TOKEN_INVALID`                          |  403 | Chýbajúci alebo nezhodný double-submit CSRF token              |
@@ -100,7 +114,14 @@ každý neodstránený tenant a zapisuje bezpečnostný audit.
 | `INVITATION_ACCOUNT_EXISTS`                   |  409 | Pozvaný e-mail už patrí existujúcemu účtu                      |
 | `INVITATION_ACCOUNT_MISMATCH`                 |  403 | Prihlásený účet sa nezhoduje s pozvaným e-mailom               |
 | `INVITATION_MEMBERSHIP_BLOCKED`               |  409 | Pozvánka nesmie reaktivovať zakázané alebo odstránené členstvo |
+| `INVITATION_NOT_FOUND`                        |  404 | Pozvánka neexistuje v aktuálnom tenantovi                      |
+| `INVITATION_NOT_PENDING`                      |  409 | Meniť možno iba čakajúcu a neexpirovanú pozvánku               |
+| `INVITATION_RESEND_RATE_LIMITED`              |  429 | Pozvánka bola znovu odoslaná príliš nedávno                    |
+| `INVITATION_EXPIRY_INVALID`                   |  422 | Nová expirácia nie je v povolenom časovom okne                 |
 | `TENANT_NOT_FOUND`                            |  404 | Jednotný výsledok neexistujúceho alebo neprístupného tenantu   |
+| `TENANT_SETTINGS_NOT_FOUND`                   |  404 | Nastavenia tenantu neexistujú                                  |
+| `TENANT_SETTINGS_SECTION_NOT_FOUND`           |  404 | Požadovaná sekcia nastavení nie je podporovaná                 |
+| `TENANT_SETTINGS_INPUT_INVALID`               |  422 | Neplatné všeobecné alebo lokalizačné nastavenia                |
 | `TENANT_ROLE_NOT_FOUND`                       |  404 | Rola neexistuje v aktuálnom tenantovi                          |
 | `TENANT_ROLE_INPUT_INVALID`                   |  422 | Neplatná definícia vlastnej tenantovej roly                    |
 | `TENANT_ROLE_CODE_CONFLICT`                   |  409 | Kód tenantovej roly už v tenantovi existuje                    |
@@ -134,3 +155,16 @@ každý neodstránený tenant a zapisuje bezpečnostný audit.
 | `IMPERSONATION_EXPIRED`                       |  409 | Kontext prekročil maximálnu 15-minútovú platnosť               |
 | `IMPERSONATION_INVALIDATED`                   |  409 | Účet, členstvo, tenant alebo systémová rola zanikli            |
 | `IMPERSONATION_OPERATION_FORBIDDEN`           |  403 | Identitná operácia nie je počas impersonácie povolená          |
+
+## Publikované projektové administračné kódy
+
+| Kód                                | HTTP | Význam                                                         |
+| ---------------------------------- | ---: | -------------------------------------------------------------- |
+| `PROJECT_PRIVATE_MANAGER_REQUIRED` |  409 | Súkromný projekt musí mať aktívneho správcu                    |
+| `ISSUE_TYPE_INPUT_INVALID`         |  422 | Neplatné polia projektového typu úlohy                         |
+| `ISSUE_TYPE_NOT_FOUND`             |  404 | Typ úlohy neexistuje v aktuálnom projekte                      |
+| `ISSUE_TYPE_CODE_TAKEN`            |  409 | Kód typu úlohy sa v projekte už používa                        |
+| `ISSUE_TYPE_VERSION_CONFLICT`      |  409 | Typ úlohy medzitým zmenila iná požiadavka                      |
+| `ISSUE_TYPE_ARCHIVED`              |  409 | Archivovaný typ úlohy nemožno upraviť                          |
+| `ISSUE_TYPE_HIERARCHY_IN_USE`      |  409 | Existujúce rodičovské väzby blokujú zmenu hierarchie           |
+| `ISSUE_TYPE_WORKFLOW_INVALID`      |  422 | Zvolené workflow nie je aktívne a publikované v tomto projekte |

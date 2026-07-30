@@ -49,6 +49,17 @@ interface ProjectRepository
         ProjectStatus $status,
     ): void;
 
+    public function changeVisibility(
+        string $tenantId,
+        string $projectId,
+        ProjectVisibility $visibility,
+    ): void;
+
+    public function hasActiveManager(
+        string $tenantId,
+        string $projectId,
+    ): bool;
+
     public function membershipStatus(
         string $tenantId,
         string $membershipId,

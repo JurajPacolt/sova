@@ -19,9 +19,11 @@ Kontext platí najviac 15 minút. Databázový constraint nedovolí uložiť dlh
 platnosť ani reautentifikáciu staršiu ako päť minút od začiatku. Na jednej relácii
 môže byť otvorená najviac jedna impersonácia.
 
-Aktuálna implementácia používa vetvu „MFA alebo reauth“ cez heslo. Povinné MFA pre
-produkčných `SUPERADMIN` účtov zostáva samostatným predprodukčným hardeningom;
-nesmie oslabiť už implementovaný dôvod, časový limit ani audit.
+Aktuálna implementácia citlivej impersonačnej operácie naďalej vyžaduje čerstvú
+reautentifikáciu heslom. Pri `APP_ENV=production` sa k tejto operácii dostane iba
+relácia `SUPERADMIN`, ktorá už pri login-e úspešne dokončila povinné MFA; relácia
+bez enrollmentu je serverom obmedzená iba na MFA setup a logout. MFA teda
+nenahrádza dôvod, časový limit ani audit impersonácie.
 
 ## Identity a autorizácia
 

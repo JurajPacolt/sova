@@ -16,6 +16,7 @@ interface UserSessionRepository
         DateTimeImmutable $expiresAt,
         ?string $ipAddress,
         ?string $userAgent,
+        ?DateTimeImmutable $mfaVerifiedAt,
     ): void;
 
     public function findActiveByTokenHash(string $tokenHash): ?SessionContext;
@@ -34,4 +35,18 @@ interface UserSessionRepository
     ): bool;
 
     public function revokeAllForUser(string $userId, string $reason): int;
+
+    public function markMfaVerified(
+        string $sessionId,
+        string $userId,
+        DateTimeImmutable $verifiedAt,
+    ): bool;
+
+    public function clearMfaVerificationForUser(string $userId): void;
+
+    public function revokeOtherForUser(
+        string $userId,
+        string $currentSessionId,
+        string $reason,
+    ): int;
 }

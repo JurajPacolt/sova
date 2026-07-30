@@ -16,6 +16,7 @@ import {
   IssueTransition,
   ProjectWorkflowStatus,
 } from '../../../../core/api/api.models';
+import { I18nService } from '../../../../core/i18n/i18n.service';
 import { TranslatePipe } from '../../../../core/i18n/translate.pipe';
 import { TranslationKey } from '../../../../core/i18n/translations';
 import { TenantStore } from '../../../../core/tenancy/tenant.store';
@@ -54,6 +55,10 @@ export class IssueBoardPageComponent implements OnInit {
   private readonly workspace = inject(IssueWorkspaceService);
   private readonly destroyRef = inject(DestroyRef);
   private readonly tenantStore = inject(TenantStore);
+  // The announcement is a string in a live region, not a pipe in a template:
+  // it has to exist at the moment the move succeeds, not when Angular next
+  // renders.
+  private readonly i18n = inject(I18nService);
 
   private readonly tenantId = computed(() => this.tenantStore.activeTenantId());
 
@@ -62,8 +67,24 @@ export class IssueBoardPageComponent implements OnInit {
   protected readonly loadError = signal<TranslationKey | null>(null);
   protected readonly moveError = signal<TranslationKey | null>(null);
 
+  /**
+   * What just happened to a card, for a reader who cannot see it land in
+   * another column (webflow §13.2). The keyboard path is the buttons; this is
+   * the other half of it — a move nobody is told about is a move that did not
+   * visibly happen.
+   */
+  protected readonly moveAnnouncement = signal<string | null>(null);
+
   private readonly statuses = signal<readonly ProjectWorkflowStatus[]>([]);
   private readonly issues = signal<readonly IssueSearchHit[]>([]);
+
+  /** The card under the pointer while a drag is in flight, and its target. */
+  protected readonly draggedIssueId = signal<string | null>(null);
+  protected readonly dropTargetCode = signal<string | null>(null);
+
+  protected readonly draggedIssue = computed<IssueSearchHit | null>(
+    () => this.issues().find((issue) => issue.id === this.draggedIssueId()) ?? null,
+  );
 
   protected readonly openCardId = signal<string | null>(null);
   protected readonly moves = signal<readonly IssueTransition[]>([]);
@@ -139,6 +160,7 @@ export class IssueBoardPageComponent implements OnInit {
     // ISSUE_TRANSITION_INVALID and look like a bug to the user.
     if (transition.required_fields.length > 0) {
       this.openCardId.set(null);
+      this.moveAnnouncement.set(null);
       this.moveError.set('issue.detail.resolutionRequired');
 
       return;
@@ -146,6 +168,7 @@ export class IssueBoardPageComponent implements OnInit {
 
     this.moving.set(true);
     this.moveError.set(null);
+    this.moveAnnouncement.set(null);
 
     this.workspace
       .executeTransition(tenantId, issue.id, transition.id, {
@@ -158,6 +181,14 @@ export class IssueBoardPageComponent implements OnInit {
       .subscribe({
         next: () => {
           this.openCardId.set(null);
+          this.moveAnnouncement.set(
+            // The status, not the transition: it is what the button offered
+            // ("Move to In progress") and what the column now says.
+            this.i18n.translate('issue.board.moved', {
+              key: issue.key,
+              status: transition.to_status.name,
+            }),
+          );
           // The card only settles in its new column once the server agreed, so
           // a refused move never leaves the board showing something untrue.
           this.loadIssues(tenantId, this.projectCode());
@@ -166,6 +197,96 @@ export class IssueBoardPageComponent implements OnInit {
           this.openCardId.set(null);
           this.moveError.set('issue.board.moveError');
         },
+      });
+  }
+
+  /**
+   * Pointer dragging, layered on the very same move.
+   *
+   * A drop names a **column**, not a transition, so the card's legal moves are
+   * fetched and the one that lands in that status is executed — the client still
+   * never sends a target status, and a column with no legal move into it is
+   * reported rather than attempted. The buttons remain the keyboard path and the
+   * only one that has to exist (WCAG 2.2, webflow §13.2); this is an addition on
+   * top, never a replacement.
+   */
+  protected startDrag(issue: IssueSearchHit, event: DragEvent): void {
+    this.draggedIssueId.set(issue.id);
+
+    // Truthiness rather than a null check: a synthetic event carries no
+    // transfer object at all, and the gesture must not depend on one.
+    const transfer = event.dataTransfer;
+
+    if (transfer) {
+      transfer.setData('text/plain', issue.key);
+      transfer.effectAllowed = 'move';
+    }
+  }
+
+  protected endDrag(): void {
+    this.draggedIssueId.set(null);
+    this.dropTargetCode.set(null);
+  }
+
+  protected allowDrop(column: BoardColumn, event: DragEvent): void {
+    if (this.draggedIssue() === null) {
+      return;
+    }
+
+    // Without this the browser refuses the drop entirely.
+    event.preventDefault();
+    this.dropTargetCode.set(column.status.code);
+
+    const transfer = event.dataTransfer;
+
+    if (transfer) {
+      transfer.dropEffect = 'move';
+    }
+  }
+
+  protected drop(column: BoardColumn, event: DragEvent): void {
+    event.preventDefault();
+
+    const issue = this.draggedIssue();
+    this.endDrag();
+
+    if (issue === null || issue.status.code === column.status.code) {
+      return;
+    }
+
+    const tenantId = this.tenantId();
+
+    if (tenantId === null || this.moving()) {
+      return;
+    }
+
+    this.moveError.set(null);
+    this.moveAnnouncement.set(null);
+    this.movesLoading.set(true);
+    this.workspace
+      .transitions(tenantId, issue.id)
+      .pipe(
+        finalize(() => this.movesLoading.set(false)),
+        takeUntilDestroyed(this.destroyRef),
+      )
+      .subscribe({
+        next: (response) => {
+          this.movesVersion.set(response.issue_version);
+          const transition = response.transitions.find(
+            (candidate) => candidate.to_status.id === column.status.id,
+          );
+
+          if (transition === undefined) {
+            // Not a failure to report as one: the workflow simply has no way
+            // from here to there, which is the backend's decision to make.
+            this.moveError.set('issue.board.noMoveToColumn');
+
+            return;
+          }
+
+          this.move(issue, transition);
+        },
+        error: () => this.moveError.set('issue.board.moveError'),
       });
   }
 

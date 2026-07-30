@@ -18,9 +18,18 @@ podľa významu vytvorte ADR v `docs/adr/`.
 
 - Verejná registrácia neexistuje. Používateľský účet vzniká iba cez platnú,
   jednorazovú pozvánku; nový tenant vytvára `SUPERADMIN`.
+- Úplne čistá inštalácia vytvorí prvý `SUPERADMIN` iba lokálnym CLI, ktoré číta
+  heslo zo štandardného vstupu, používa bežnú password policy a Argon2id a
+  zapisuje audit. Databázový advisory lock rieši súbeh; existujúci účet sa
+  nepovyšuje a po prvom `SUPERADMIN` grante sa bootstrap natrvalo uzavrie.
 - `SUPERADMIN` je oddelená systémová rola s úplným prístupom ku všetkým tenantom,
   ich nastaveniam aj obsahu. Tenantové členstvo nepotrebuje, ale vstup do
   tenantového kontextu musí byť explicitný a auditovaný.
+- Pri `APP_ENV=production` je použitie roly `SUPERADMIN` podmienené TOTP MFA na
+  konkrétnej serverovej relácii. Účet bez enrollmentu dostane iba obmedzenú
+  reláciu na setup a logout; backend, nie frontend, odmieta všetky ostatné
+  tenantové a systémové cesty. TOTP krok sa nedá zopakovať, recovery kódy sú
+  jednorazové a ich čitateľná sada sa vracia iba pri vydaní.
 - Impersonácia patrí do MVP. Vyžaduje dôvod, čerstvé overenie/MFA, krátku expiráciu,
   viditeľný banner a audit skutočného aj efektívneho aktéra.
 - Pracovná skupina je nositeľom projektového prístupu. Úloha môže mať súčasne
@@ -89,6 +98,16 @@ podľa významu vytvorte ADR v `docs/adr/`.
   kontextom; projektové dáta aj projektovým kontextom. Cudzie kľúče, kompozitné
   obmedzenia a automatizované negatívne testy musia brániť cross-tenant a
   cross-project prístupu aj pri ručne upravenej API požiadavke.
+- Tenantové tabuľky sú od 2026-07-29 chránené aj **Row-Level Security** (ADR 0010).
+  Politika číta session nastavenie `sova.tenant_id`, ktoré HTTP vrstva nastaví
+  okolo tenantovej požiadavky a v `finally` zruší. **Nenastavený rozsah znamená
+  „bez tenantového rozsahu", nie „žiadne riadky"** – prihlásenie, systémová
+  administrácia, workery aj migrácie musia vidieť naprieč tenantmi. RLS je
+  posledná vrstva, nie náhrada aplikačného filtra: repozitáre naďalej píšu
+  `tenant_id` do každého dotazu a cross-tenant testy zostávajú povinné.
+- Threat model je v `docs/THREAT_MODEL.md`. Prejde sa znova pri novej hranici
+  dôvery, novom úložisku obsahu od používateľa, zmene autentifikácie alebo modelu
+  oprávnení a pri čomkoľvek, čo obchádza aplikačnú vrstvu.
 - Prihlasovanie, relácie a obnova prístupu musia používať aktuálne bezpečné
   mechanizmy: Argon2id, bezpečné a rotované session identifikátory, cookies
   `Secure`, `HttpOnly` a primerané `SameSite`, CSRF ochranu, rate limiting a ochranu
@@ -165,19 +184,25 @@ podľa významu vytvorte ADR v `docs/adr/`.
   `AttachmentStorage` je port, takže privátne objektové úložisko z ADR 0009 sa
   neskôr vymení bez zásahu do pravidiel uploadu. Databáza drží iba metadáta.
 - O type súboru rozhoduje **obsah, nie názov**: `finfo` odsniffuje bajty a
-  allowlist je kľúčovaný detegovaným typom. Prípona smie výsledok iba *zúžiť*
+  allowlist je kľúčovaný detegovaným typom. Prípona smie výsledok iba _zúžiť_
   (CSV sniffnuté ako `text/plain`, OOXML sniffnuté ako ZIP), nikdy rozšíriť, a
   nesúhlas obsahu s príponou je odmietnutie, nie tichá oprava. Allowlist
-  kľúčovaný klientskym vstupom nie je allowlist.
+  kľúčovaný klientskym vstupom nie je allowlist. DOCX/XLSX/PPTX navyše musia
+  byť konzistentný OOXML ZIP balík s povinnými časťami; šifrované archívy,
+  symlinky, path traversal, neprimeraný počet položiek a nadmerná rozbalená
+  veľkosť sa odmietajú.
 - Kľúč úložiska generuje server z UUID (`<tenant>/<aa>/<bb>/<uuid>`) a adaptér
   ho validuje regulárnym výrazom aj pri čítaní — nič odvodené z nahraného mena
   sa nikdy nedostane do cesty na disku. Pôvodné meno je výhradne zobrazovacie
   metadáta. Veľkosť sa **meria na disku**, neberie sa z požiadavky.
-- Sken je port. Keď skener nie je nakonfigurovaný, zapíše sa `SKIPPED` — nie
-  predstieraný `CLEAN` — takže medzera je vidieť v dátach, a **produkcia s
-  `ATTACHMENT_SCANNER=none` odmietne naštartovať** (rovnaká poistka ako pri null
-  mail transporte). Stiahnuteľné sú iba `CLEAN` a `SKIPPED`; `PENDING` aj
-  `INFECTED` ostávajú nedostupné.
+- Sken je port. Produkčný adaptér streamuje do `clamd` cez `INSTREAM` ešte zo
+  serverového upload temp adresára, teda **pred** presunom do trvalého
+  privátneho úložiska. Iba explicitné `OK` je `CLEAN`; nález sa audituje, ale
+  infikované bajty sa neuložia. Výpadok alebo neznámy verdikt vráti uploadu
+  `503` a nevytvorí večný `PENDING` záznam, pretože synchrónny model nemá retry
+  worker. Keď skener nie je nakonfigurovaný, vývoj zapíše `SKIPPED` — nie
+  predstieraný `CLEAN` — a **produkcia s `ATTACHMENT_SCANNER=none` odmietne
+  naštartovať**. Stiahnuteľné sú iba `CLEAN` a `SKIPPED`.
 - Stiahnutie sa autorizuje pri každom volaní — žiadna verejná ani predpodpísaná
   URL — a odpoveď vždy nesie `Content-Disposition: attachment` a
   `X-Content-Type-Options: nosniff`. Používateľské bajty sa nikdy nerenderujú
@@ -191,10 +216,30 @@ podľa významu vytvorte ADR v `docs/adr/`.
 - Produkčné ciele sú dostupnosť 99,9 % mesačne po GA, `RPO ≤ 15 minút` a
   `RTO ≤ 4 hodiny`. PostgreSQL a objektové dáta majú 35-dňové obnovovacie okno a
   úplný restore drill sa vykonáva minimálne štvrťročne.
+- Lokálne `scripts/backup-local.sh` a `scripts/restore-drill-local.sh` overujú
+  dump, prílohy, inventáre a kontrolné súčty. Dump, klient aj cieľový server
+  musia mať rovnakú hlavnú verziu PostgreSQL. Úspešný lokálny drill
+  **nepreukazuje** produkčné PITR ani RPO/RTO; tie platia až po úplnom
+  produkčnom drille databázy a objektov.
 - Cieľom je spravovaná kontajnerová platforma v jednom regióne a najmenej dvoch
   zónach dostupnosti: statický Angular frontend, aspoň dve API repliky, samostatný
   worker, spravovaný PostgreSQL 17 s HA/PITR, privátne objektové úložisko, správca
   secrets a centrálna observabilita. Kubernetes nie je súčasťou MVP.
+- `compose.staging.yml` je referenčná **jednohostová staging topológia**, nie
+  náhrada produkčného cieľa vyššie. Release tagy sú nemenné; deploy pred štartom
+  produkčného image spustí celý backend a frontend gate, dopredné migrácie,
+  readiness a kontrolu `FORCE RLS`. PostgreSQL bootstrap rola je oddelená od
+  aplikačnej roly `NOSUPERUSER NOBYPASSRLS`; rollback prepína iba aplikáciu a
+  workery, nie databázové migrácie.
+- Kontajnerová runtime konfigurácia sa číta v poradí `$_ENV`, `$_SERVER`,
+  procesné `getenv()` a až potom predvolená hodnota. Fallback na procesné
+  prostredie je povinný, pretože PHP pod Apache nemusí podľa `variables_order`
+  naplniť superglobálne environment polia, hoci Docker premenná v procese
+  existuje. ClamAV má explicitný `PING` health check; HTTP readiness produkčného
+  web image sa na CLI workeroch vypína, keďže tam web server nebeží. Rovnaké
+  workery majú malý init proces a prepisujú zdedený Apache stop signal na
+  `SIGTERM`, aby shutdown alebo rollback dostal grace period namiesto následného
+  `SIGKILL`.
 - Úplný kontrakt je v
   [`ADR 0009`](./adr/0009-deployment-data-retention-and-recovery.md).
 
@@ -256,9 +301,9 @@ podľa významu vytvorte ADR v `docs/adr/`.
   (`422 HIERARCHY_INVALID`); aktuálny stav sa mapuje do cieľového workflowu cez
   `versionContainsStatus`, inak API žiada `target_status_id`
   (`409 ISSUE_TYPE_STATUS_MAPPING_REQUIRED`, cudzí stav `422
-  ISSUE_TYPE_STATUS_INVALID`). Ostatné kódy: `422 ISSUE_TYPE_UNCHANGED`, `409
-  ISSUE_VERSION_CONFLICT`. Zápis je jedna transakcia s `issue_history
-  ISSUE_TYPE_CHANGED` (JSONB metadáta starý/nový typ) a outbox udalosťou; granty pre
+ISSUE_TYPE_STATUS_INVALID`). Ostatné kódy: `422 ISSUE_TYPE_UNCHANGED`, `409
+ISSUE_VERSION_CONFLICT`. Zápis je jedna transakcia s `issue_history
+ISSUE_TYPE_CHANGED` (JSONB metadáta starý/nový typ) a outbox udalosťou; granty pre
   existujúce tenanty dopĺňa backfill migrácia `Version20260728130000`.
 - Záväzná implementačná špecifikácia je v
   [`WORKFLOW-A-TYPY-ULOH.md`](./WORKFLOW-A-TYPY-ULOH.md) a rozhodnutie v
@@ -275,7 +320,7 @@ Register prijatých rozhodnutí je v [`docs/adr`](./adr/README.md). Záväzné s
 - UUIDv7 pre technické identifikátory a UTC pre časové okamihy,
 - OpenAPI 3.1 ako autoritatívny HTTP kontrakt,
 - viacslovná (multi-verb) route na rovnakom vzore je jeden Slim `->map([...], vzor,
-  Action)` s jednou akciou vetviacou podľa HTTP metódy — `OpenApiContractTest` mapuje
+Action)` s jednou akciou vetviacou podľa HTTP metódy — `OpenApiContractTest` mapuje
   vzor→metódy a duplicitný vzor prepíše, takže oddelené `->post()`+`->put()` na tej
   istej ceste rozbijú route/OpenAPI paritu,
 - transactional outbox s at-least-once a idempotentnými handlermi.
@@ -417,7 +462,7 @@ Register prijatých rozhodnutí je v [`docs/adr`](./adr/README.md). Záväzné s
   (vlastný alebo zdieľaný s ním). Bez toho by sa dashboard stal spôsobom, ako
   spustiť cudzí súkromný dotaz vložením identifikátora. Neexistujúci,
   archivovaný aj cudzí zdroj odpovedajú zhodne `404
-  WIDGET_DATA_SOURCE_NOT_FOUND`.
+WIDGET_DATA_SOURCE_NOT_FOUND`.
 - Rozloženie sa aplikuje **celé naraz** proti `dashboard.version`: presun dvoch
   widgetov cez seba je legálny iba ako dvojica, takže endpoint na jeden widget
   by musel odmietnuť prvú polovicu legálneho ťahu. Telo musí umiestniť každý
@@ -519,10 +564,28 @@ Register prijatých rozhodnutí je v [`docs/adr`](./adr/README.md). Záväzné s
   odlišných kódov, zatiaľ čo `POST /issue-query/validate` vracia `200` s
   `valid:false` a úplnými rozsahmi pre editor. Statement timeout je `503`
   `QUERY_TIMEOUT` – dotaz bol platný a prijatý, prerušil ho server.
-- Index musí zodpovedať výrazu, ktorý compiler naozaj generuje. Fulltext GIN je
-  nad `to_tsvector('simple', title || ' ' || description)`, trigramový GIN nad
-  `title` (nie nad `LOWER(title)`, lebo `pg_trgm` rieši case folding `ILIKE`
-  sám). Bez trigramu robilo `title ~` sekvenčný scan – zmerané, nie odhadnuté.
+- Index musí zodpovedať výrazu, ktorý compiler naozaj generuje. Fulltext číta
+  uložený generovaný `search_vector`; jeho GIN je nad týmto stĺpcom. Trigramový
+  GIN je nad `title` (nie nad `LOWER(title)`, lebo `pg_trgm` rieši case folding
+  `ILIKE` sám). PostgreSQL však fulltext/trigram operátory neoznačuje ako
+  `LEAKPROOF`, preto ich pri `FORCE RLS` zámerne nepoužije pred tenantovou
+  politikou. Vtedy plán musí indexovať oba scope predikáty `tenant_id` aj
+  `project_id` a fulltext vyhodnocuje už uložený vector, nie drahé
+  `to_tsvector` pre každý riadok. Bezpečnostná bariéra sa kvôli
+  špecializovanému indexu nesmie obísť.
+- Rovnaké pravidlo platí pre doménové radenie: obyčajný index nad textovým
+  `priority` nevie obslúžiť `LOW < NORMAL < HIGH < CRITICAL`. Expression index
+  preto opakuje konštantný `CASE` z compilera a končí stabilným `id` keyset
+  tie-breakerom. Filter reportéra začína vždy `tenant_id, project_id`, pretože
+  vyhľadávanie mimo serverom odvodeného scope neexistuje.
+- `QueryPerformanceTest` je štrukturálna regresná brána, nie marketingové
+  benchmark číslo. V rollback transakcii a s reálnym tenantovým RLS scope
+  vytvorí 20 000 úloh a kontroluje `EXPLAIN ANALYZE` aj počet DBAL statementov.
+  Pri kontrole použiteľnosti indexov odradí `Seq Scan`: na malej teplej fixture
+  môže byť sekvenčný plán s `LIMIT 100` legitímne lacnejší, ale chýbajúci alebo
+  výrazovo nezhodný index musí stále test zhodiť. Lokálnych 500 ms na jeden SQL
+  nemožno volať produkčné p95; to sa potvrdzuje až na stagingu z HTTP
+  `duration_ms`.
 - Záväzná syntax, dátový model, API, bezpečnostné limity a akceptačné kritériá sú v
   [`SOVAQL-A-DASHBOARDY.md`](./SOVAQL-A-DASHBOARDY.md).
 

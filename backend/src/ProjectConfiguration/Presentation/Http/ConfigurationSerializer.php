@@ -32,6 +32,8 @@ final class ConfigurationSerializer
             'description' => $type->description,
             'hierarchy_level' => $type->hierarchyLevel->value,
             'position' => $type->position,
+            'icon' => $type->icon,
+            'color_token' => $type->colorToken,
             'status' => $type->status->value,
             'version' => $type->version,
             'workflow_id' => $type->workflowId,

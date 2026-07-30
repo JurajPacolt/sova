@@ -1,4 +1,4 @@
-<a class="visually-hidden-focusable skip-link" href="#main-content">
+<a class="visually-hidden-focusable skip-link" href="#main-content" appSkipLink>
   {{ 'nav.skipToContent' | translate }}
 </a>
 
@@ -71,8 +71,29 @@
           {{ 'system.contextTitle' | translate }}
         </a>
       }
+      <!--
+        A link, not a popover: the centre is a screen that already gets focus
+        after navigation, and a dropdown would need focus management that
+        Bootstrap's JavaScript is deliberately not here to provide. The count
+        travels in the accessible name, so it is not carried by the badge alone.
+      -->
+      <a
+        class="btn btn-sm btn-outline-light position-relative"
+        routerLink="notifications"
+        [attr.aria-label]="'notifications.badge' | translate: { count: unreadNotifications() }"
+      >
+        <span aria-hidden="true">🔔</span>
+        @if (unreadNotifications() > 0) {
+          <span class="badge rounded-pill text-bg-danger ms-1" aria-hidden="true">
+            {{ unreadNotifications() }}
+          </span>
+        }
+      </a>
       <app-language-switcher />
       <app-theme-switcher />
+      <a class="btn btn-sm btn-outline-light d-none d-xl-inline-flex" routerLink="/mfa/setup">
+        {{ 'mfa.title' | translate }}
+      </a>
       <span class="tenant-name d-none d-sm-inline">{{ tenantName() }}</span>
       <button
         class="btn btn-sm btn-outline-light"
@@ -111,6 +132,14 @@
     </aside>
 
     <main id="main-content" class="tenant-content" tabindex="-1">
+      @if (!online()) {
+        <!--
+          The connection, not the data (webflow §10). Screens keep what they
+          already have and mark it out of date; nothing is repeated on its own,
+          because a mutation sent twice is worse than one sent late.
+        -->
+        <div class="alert alert-warning" role="status">{{ 'error.offlineBanner' | translate }}</div>
+      }
       @if (logoutError()) {
         <div class="alert alert-danger" role="alert">
           {{ 'auth.logoutError' | translate }}

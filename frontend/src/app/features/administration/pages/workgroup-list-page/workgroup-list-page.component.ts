@@ -16,11 +16,19 @@ import { TenantStore } from '../../../../core/tenancy/tenant.store';
 import { PageHeaderComponent } from '../../../../shared/components/page-header/page-header.component';
 import { TenantMembershipAdministrationService } from '../../tenant-membership-administration.service';
 import { WorkgroupAdministrationService } from '../../workgroup-administration.service';
+import { ErrorStateComponent } from '../../../../shared/components/error-state/error-state.component';
+import { AriaRequiredDirective } from '../../../../core/a11y/aria-required.directive';
 
 @Component({
   selector: 'app-workgroup-list-page',
   standalone: true,
-  imports: [PageHeaderComponent, ReactiveFormsModule, TranslatePipe],
+  imports: [
+    AriaRequiredDirective,
+    ErrorStateComponent,
+    PageHeaderComponent,
+    ReactiveFormsModule,
+    TranslatePipe,
+  ],
   templateUrl: './workgroup-list-page.component.html',
   styleUrl: './workgroup-list-page.component.scss',
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -37,7 +45,8 @@ export class WorkgroupListPageComponent implements OnInit {
   protected readonly workgroups = signal<readonly Workgroup[]>([]);
   protected readonly tenantMemberships = signal<readonly TenantMembership[]>([]);
   protected readonly loading = signal(false);
-  protected readonly loadError = signal(false);
+  /** The failed request itself; the shared error state reads the status. */
+  protected readonly loadFailure = signal<unknown>(null);
   protected readonly activeCount = computed(
     () => this.workgroups().filter((workgroup) => workgroup.status === 'ACTIVE').length,
   );
@@ -74,7 +83,7 @@ export class WorkgroupListPageComponent implements OnInit {
       return;
     }
 
-    this.loadError.set(false);
+    this.loadFailure.set(null);
     this.loading.set(true);
     forkJoin({
       workgroups: this.administration.list(tenantId),
@@ -91,7 +100,7 @@ export class WorkgroupListPageComponent implements OnInit {
             memberships.filter((membership) => membership.status === 'ACTIVE'),
           );
         },
-        error: () => this.loadError.set(true),
+        error: (failure: unknown) => this.loadFailure.set(failure),
       });
   }
 

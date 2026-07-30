@@ -1,5 +1,7 @@
 @if (loading()) {
   <p class="text-body-secondary" role="status">{{ 'common.loading' | translate }}</p>
+} @else if (loadFailure(); as failure) {
+  <app-error-state [error]="failure" (retry)="retry()" />
 } @else if (loadError(); as error) {
   <div class="alert alert-warning" role="alert">{{ error | translate }}</div>
 } @else if (empty()) {

@@ -1,0 +1,200 @@
+name: sova-staging
+
+x-app-environment: &app-environment
+  APP_ENV: production
+  APP_DEBUG: "false"
+  APP_VERSION: ${SOVA_IMAGE_TAG:?Set SOVA_IMAGE_TAG in deploy/staging/.env}
+  APP_PUBLIC_URL: ${SOVA_PUBLIC_URL:?Set SOVA_PUBLIC_URL in deploy/staging/.env}
+  LOG_LEVEL: info
+  LOG_PATH: php://stderr
+  DATABASE_HOST: postgres
+  DATABASE_PORT: "5432"
+  DATABASE_NAME: ${SOVA_DATABASE_NAME:-sova}
+  DATABASE_USER: ${SOVA_DATABASE_USER:-sova_app}
+  DATABASE_PASSWORD: ${SOVA_DATABASE_PASSWORD:?Set SOVA_DATABASE_PASSWORD in deploy/staging/.env}
+  DATABASE_SERVER_VERSION: "17"
+  DATABASE_SSL_MODE: disable
+  AUTH_COOKIE_SECURE: "true"
+  AUTH_COOKIE_SAME_SITE: Lax
+  AUTH_RATE_LIMIT_SECRET: ${SOVA_AUTH_RATE_LIMIT_SECRET:?Set SOVA_AUTH_RATE_LIMIT_SECRET in deploy/staging/.env}
+  SENSITIVE_PAYLOAD_KEY_ID: ${SOVA_SENSITIVE_PAYLOAD_KEY_ID:?Set SOVA_SENSITIVE_PAYLOAD_KEY_ID in deploy/staging/.env}
+  SENSITIVE_PAYLOAD_KEY: ${SOVA_SENSITIVE_PAYLOAD_KEY:?Set SOVA_SENSITIVE_PAYLOAD_KEY in deploy/staging/.env}
+  ATTACHMENT_STORAGE_PATH: /var/lib/sova/attachments
+  ATTACHMENT_SCANNER: clamav
+  ATTACHMENT_SCANNER_HOST: clamav
+  ATTACHMENT_SCANNER_PORT: "3310"
+  MAILER_DSN: smtp://mailpit:1025
+  MAILER_FROM: ${SOVA_MAILER_FROM:?Set SOVA_MAILER_FROM in deploy/staging/.env}
+  CORS_ALLOWED_ORIGINS: ${SOVA_PUBLIC_URL:?Set SOVA_PUBLIC_URL in deploy/staging/.env}
+
+x-app-service: &app-service
+  image: sova-app:${SOVA_IMAGE_TAG:?Set SOVA_IMAGE_TAG in deploy/staging/.env}
+  pull_policy: never
+  restart: unless-stopped
+  environment: *app-environment
+  volumes:
+    - sova_attachments:/var/lib/sova/attachments
+  networks:
+    - backend
+  depends_on:
+    postgres:
+      condition: service_healthy
+    clamav:
+      condition: service_healthy
+    migrate:
+      condition: service_completed_successfully
+  security_opt:
+    - no-new-privileges:true
+
+services:
+  postgres:
+    image: postgres:17.10-bookworm
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${SOVA_DATABASE_NAME:-sova}
+      POSTGRES_USER: ${SOVA_POSTGRES_ADMIN_USER:-sova_bootstrap}
+      POSTGRES_PASSWORD: ${SOVA_POSTGRES_ADMIN_PASSWORD:?Set SOVA_POSTGRES_ADMIN_PASSWORD in deploy/staging/.env}
+      SOVA_DATABASE_USER: ${SOVA_DATABASE_USER:-sova_app}
+      SOVA_DATABASE_PASSWORD: ${SOVA_DATABASE_PASSWORD:?Set SOVA_DATABASE_PASSWORD in deploy/staging/.env}
+    volumes:
+      - sova_postgres_data:/var/lib/postgresql/data
+      - ./deploy/staging/postgres-init.sh:/docker-entrypoint-initdb.d/10-sova-app-role.sh:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+      start_period: 10s
+    networks:
+      - backend
+    security_opt:
+      - no-new-privileges:true
+
+  clamav:
+    image: clamav/clamav:1.5.2
+    restart: unless-stopped
+    volumes:
+      - sova_clamav_database:/var/lib/clamav
+    healthcheck:
+      test: ["CMD", "/usr/local/bin/clamdcheck.sh"]
+      interval: 10s
+      timeout: 5s
+      retries: 60
+      start_period: 120s
+    networks:
+      - backend
+      - egress
+    mem_limit: 4g
+    security_opt:
+      - no-new-privileges:true
+
+  mailpit:
+    image: axllent/mailpit:v1.30.0
+    restart: unless-stopped
+    environment:
+      MP_MAX_MESSAGES: "500"
+      MP_MAX_AGE: 7d
+      MP_SMTP_AUTH_ACCEPT_ANY: "0"
+      MP_SMTP_AUTH_ALLOW_INSECURE: "0"
+      MP_ALLOW_INTERNAL_HTTP_REQUESTS: "false"
+    ports:
+      - "127.0.0.1:${SOVA_MAILPIT_PORT:-8025}:8025"
+    networks:
+      - backend
+    security_opt:
+      - no-new-privileges:true
+
+  migrate:
+    image: sova-app:${SOVA_IMAGE_TAG:?Set SOVA_IMAGE_TAG in deploy/staging/.env}
+    pull_policy: never
+    restart: "no"
+    entrypoint: ["docker-php-entrypoint"]
+    user: www-data
+    command:
+      [
+        "vendor/bin/doctrine-migrations",
+        "migrations:migrate",
+        "--no-interaction",
+      ]
+    environment: *app-environment
+    networks:
+      - backend
+    depends_on:
+      postgres:
+        condition: service_healthy
+    security_opt:
+      - no-new-privileges:true
+
+  test:
+    profiles: ["test"]
+    image: sova-test:${SOVA_IMAGE_TAG:?Set SOVA_IMAGE_TAG in deploy/staging/.env}
+    pull_policy: never
+    build:
+      context: .
+      dockerfile: deploy/staging/Dockerfile
+      target: test
+    restart: "no"
+    environment:
+      <<: *app-environment
+      APP_ENV: test
+      APP_DEBUG: "false"
+      AUTH_COOKIE_SECURE: "false"
+      ATTACHMENT_SCANNER: none
+      RUN_DATABASE_TESTS: "true"
+    networks:
+      - backend
+    depends_on:
+      postgres:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+    security_opt:
+      - no-new-privileges:true
+
+  web:
+    <<: *app-service
+    build:
+      context: .
+      dockerfile: deploy/staging/Dockerfile
+      target: web
+    ports:
+      - "127.0.0.1:${SOVA_HTTP_PORT:-8080}:80"
+    environment:
+      <<: *app-environment
+      SOVA_TRUSTED_PROXY_CIDRS: ${SOVA_TRUSTED_PROXY_CIDRS:-}
+    networks:
+      - edge
+      - backend
+
+  outbox-worker:
+    <<: *app-service
+    init: true
+    entrypoint: ["docker-php-entrypoint"]
+    user: www-data
+    command: ["php", "bin/outbox-worker.php"]
+    stop_signal: SIGTERM
+    stop_grace_period: 30s
+    healthcheck:
+      disable: true
+
+  email-worker:
+    <<: *app-service
+    init: true
+    entrypoint: ["docker-php-entrypoint"]
+    user: www-data
+    command: ["php", "bin/email-worker.php"]
+    stop_signal: SIGTERM
+    stop_grace_period: 30s
+    healthcheck:
+      disable: true
+
+networks:
+  edge:
+  egress:
+  backend:
+    internal: true
+
+volumes:
+  sova_attachments:
+  sova_clamav_database:
+  sova_postgres_data:

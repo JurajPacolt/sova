@@ -1,4 +1,5 @@
 import { ComponentRef } from '@angular/core';
+import { HttpErrorResponse } from '@angular/common/http';
 import { TestBed } from '@angular/core/testing';
 import { provideRouter } from '@angular/router';
 import { of, throwError } from 'rxjs';
@@ -89,6 +90,7 @@ describe('ProjectDetailPageComponent', () => {
     listTenantMemberships: vi.fn(),
     listWorkgroups: vi.fn(),
     changeProjectStatus: vi.fn(),
+    changeProjectVisibility: vi.fn(),
     assignProjectRole: vi.fn(),
     unassignProjectRole: vi.fn(),
     linkProjectWorkgroup: vi.fn(),
@@ -153,9 +155,14 @@ describe('ProjectDetailPageComponent', () => {
   });
 
   it('keeps the header usable when the detail sections are forbidden', () => {
-    api.listProjectMembers.mockReturnValue(throwError(() => ({ status: 403 })));
-    api.listProjectRoles.mockReturnValue(throwError(() => ({ status: 403 })));
-    api.listProjectWorkgroups.mockReturnValue(throwError(() => ({ status: 403 })));
+    // What `HttpClient` actually emits: the section decides on the status, so
+    // a plain `{ status }` stub would prove nothing about production.
+    const forbidden = (): never => {
+      throw new HttpErrorResponse({ status: 403, statusText: 'Forbidden' });
+    };
+    api.listProjectMembers.mockReturnValue(throwError(forbidden));
+    api.listProjectRoles.mockReturnValue(throwError(forbidden));
+    api.listProjectWorkgroups.mockReturnValue(throwError(forbidden));
 
     const { element } = render();
 
@@ -224,5 +231,53 @@ describe('ProjectDetailPageComponent', () => {
       status: 'ARCHIVED',
     });
     expect(element.textContent ?? '').toContain('Reactivate');
+  });
+
+  it('makes a private project tenant-visible without a destructive confirmation', () => {
+    api.changeProjectVisibility.mockReturnValue(
+      of({ project: { ...PROJECT, visibility: 'TENANT' } }),
+    );
+
+    const { element, detectChanges } = render();
+    const visibilityButton = Array.from(element.querySelectorAll('button')).find(
+      (button) => button.textContent?.trim() === 'Make tenant-wide',
+    );
+    visibilityButton!.dispatchEvent(new Event('click'));
+    detectChanges();
+
+    expect(api.changeProjectVisibility).toHaveBeenCalledWith(TENANT.id, PROJECT.id, {
+      visibility: 'TENANT',
+    });
+    expect(element.textContent ?? '').toContain('Make private');
+  });
+
+  it('previews the access impact before making a project private', () => {
+    api.listProjects.mockReturnValue(
+      of({ projects: [{ ...PROJECT, visibility: 'TENANT' as const }] }),
+    );
+    api.changeProjectVisibility.mockReturnValue(
+      of({ project: { ...PROJECT, visibility: 'PRIVATE' } }),
+    );
+
+    const { element, detectChanges } = render();
+    const visibilityButton = Array.from(element.querySelectorAll('button')).find(
+      (button) => button.textContent?.trim() === 'Make private',
+    );
+    visibilityButton!.dispatchEvent(new Event('click'));
+    detectChanges();
+
+    expect(api.changeProjectVisibility).not.toHaveBeenCalled();
+    expect(element.textContent ?? '').toContain(
+      'Tenant members without an explicit project role or linked workgroup will lose access.',
+    );
+
+    const confirmButton = Array.from(element.querySelectorAll('button')).find(
+      (button) => button.textContent?.trim() === 'Confirm private visibility',
+    );
+    confirmButton!.dispatchEvent(new Event('click'));
+
+    expect(api.changeProjectVisibility).toHaveBeenCalledWith(TENANT.id, PROJECT.id, {
+      visibility: 'PRIVATE',
+    });
   });
 });

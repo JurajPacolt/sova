@@ -17,6 +17,7 @@ import { TenantStore } from '../../../../core/tenancy/tenant.store';
 import { LanguageSwitcherComponent } from '../../../../shared/components/language-switcher/language-switcher.component';
 import { PageHeaderComponent } from '../../../../shared/components/page-header/page-header.component';
 import { ThemeSwitcherComponent } from '../../../../shared/components/theme-switcher/theme-switcher.component';
+import { ErrorStateComponent } from '../../../../shared/components/error-state/error-state.component';
 
 const STATUS_KEYS: Readonly<Record<TenantStatus, TranslationKey>> = {
   ACTIVE: 'common.active',
@@ -35,6 +36,7 @@ const ACCESS_KEYS: Readonly<Record<TenantAccess['type'], TranslationKey>> = {
   selector: 'app-tenant-selection-page',
   standalone: true,
   imports: [
+    ErrorStateComponent,
     LanguageSwitcherComponent,
     PageHeaderComponent,
     RouterLink,
@@ -52,7 +54,8 @@ export class TenantSelectionPageComponent implements OnInit {
 
   protected readonly tenants = this.tenantStore.tenants;
   protected readonly loading = this.tenantStore.loading;
-  protected readonly loadError = signal(false);
+  /** The failed request itself; the shared error state reads the status. */
+  protected readonly loadFailure = signal<unknown>(null);
   protected readonly activeTenants = computed(() =>
     this.tenants().filter((tenant) => tenant.status === 'ACTIVE'),
   );
@@ -62,12 +65,12 @@ export class TenantSelectionPageComponent implements OnInit {
   }
 
   protected refresh(): void {
-    this.loadError.set(false);
+    this.loadFailure.set(null);
     this.tenantAccess
       .refresh()
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({
-        error: () => this.loadError.set(true),
+        error: (failure: unknown) => this.loadFailure.set(failure),
       });
   }
 

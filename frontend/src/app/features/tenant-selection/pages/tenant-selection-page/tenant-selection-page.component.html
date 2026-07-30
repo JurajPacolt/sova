@@ -10,13 +10,8 @@
     [subtitle]="'tenant.subtitle' | translate"
   />
 
-  @if (loadError()) {
-    <div class="alert alert-danger d-flex align-items-center justify-content-between gap-3">
-      <span>{{ 'tenant.loadError' | translate }}</span>
-      <button class="btn btn-sm btn-outline-danger" type="button" (click)="refresh()">
-        {{ 'common.retry' | translate }}
-      </button>
-    </div>
+  @if (loadFailure(); as failure) {
+    <app-error-state [error]="failure" (retry)="refresh()" />
   }
 
   @if (loading() && tenants().length === 0) {
@@ -57,7 +52,7 @@
         </article>
       </div>
     } @empty {
-      @if (!loading() && !loadError()) {
+      @if (!loading() && loadFailure() === null) {
         <p>{{ 'tenant.noMemberships' | translate }}</p>
       }
     }

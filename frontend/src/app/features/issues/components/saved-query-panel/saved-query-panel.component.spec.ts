@@ -244,4 +244,57 @@ describe('SavedQueryPanelComponent', () => {
     clickButton('Archived (1)');
     expect(fixture.nativeElement.textContent).toContain('Old work');
   });
+  it('renames without touching the stored query text', () => {
+    initialise([savedQuery()]);
+    fixture.componentInstance.query.set('project = SOMETHING ELSE');
+
+    clickButton('Rename');
+    (
+      fixture.componentInstance as unknown as { renameName: { set(value: string): void } }
+    ).renameName.set('  Weekly review  ');
+    submitForm();
+
+    const request = http.expectOne(`${SAVED_QUERIES}/019f9f00-0000-7000-8000-0000000000aa`);
+
+    expect(request.request.method).toBe('PATCH');
+    // The stored raw text, never what happens to be in the editor: a rename
+    // that quietly rewrote the query would be the one change nobody asked for.
+    expect(request.request.body).toEqual({
+      expected_version: 1,
+      name: 'Weekly review',
+      description: '',
+      query: 'project = app and priority = high',
+    });
+
+    request.flush({ saved_query: savedQuery({ name: 'Weekly review', version: 2 }) });
+    http.expectOne(SAVED_QUERIES).flush({ saved_queries: [savedQuery({ name: 'Weekly review' })] });
+  });
+
+  it('blames the owner, not the editor, when a foreign rename hits a taken name', () => {
+    initialise([savedQuery({ viewer_is_owner: false, viewer_access: 'EDIT' })]);
+
+    clickButton('Rename');
+    (
+      fixture.componentInstance as unknown as { renameName: { set(value: string): void } }
+    ).renameName.set('Their name');
+    submitForm();
+
+    http.expectOne(`${SAVED_QUERIES}/019f9f00-0000-7000-8000-0000000000aa`).flush(
+      {
+        type: 'about:blank',
+        title: 'Conflict',
+        status: 409,
+        detail: 'The name is taken.',
+        instance: SAVED_QUERIES,
+        request_id: 'req-9',
+        code: 'SAVED_QUERY_NAME_TAKEN',
+      },
+      { status: 409, statusText: 'Conflict' },
+    );
+    fixture.detectChanges();
+
+    expect(fixture.nativeElement.textContent).toContain(
+      'The owner already has a query with that name.',
+    );
+  });
 });

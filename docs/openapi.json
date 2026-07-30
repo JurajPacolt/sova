@@ -177,6 +177,220 @@
         }
       }
     },
+    "/api/v1/auth/mfa": {
+      "get": {
+        "operationId": "getMfaStatus",
+        "summary": "Get multi-factor authentication status",
+        "description": "Returns only status and the remaining recovery-code count. No secret or recovery code is returned.",
+        "tags": ["Authentication"],
+        "security": [
+          {
+            "sessionCookie": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Current MFA status.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MfaStatusResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "default": {
+            "$ref": "#/components/responses/Problem"
+          }
+        }
+      },
+      "delete": {
+        "operationId": "disableMfa",
+        "summary": "Disable multi-factor authentication",
+        "description": "Requires current-password and MFA reauthentication. A production SUPERADMIN cannot disable MFA.",
+        "tags": ["Authentication"],
+        "security": [
+          {
+            "sessionCookie": [],
+            "csrfHeader": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MfaReauthenticationRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "204": {
+            "description": "MFA was disabled and other sessions were revoked."
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "409": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "422": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "default": {
+            "$ref": "#/components/responses/Problem"
+          }
+        }
+      }
+    },
+    "/api/v1/auth/mfa/enrollment": {
+      "post": {
+        "operationId": "beginMfaEnrollment",
+        "summary": "Begin TOTP enrollment",
+        "description": "Reauthenticates with the current password and replaces any unconfirmed enrollment. The secret and otpauth URI are returned only in this no-store response.",
+        "tags": ["Authentication"],
+        "security": [
+          {
+            "sessionCookie": [],
+            "csrfHeader": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/BeginMfaEnrollmentRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Pending TOTP enrollment details.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MfaEnrollmentResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "409": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "422": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "default": {
+            "$ref": "#/components/responses/Problem"
+          }
+        }
+      }
+    },
+    "/api/v1/auth/mfa/enrollment/confirm": {
+      "post": {
+        "operationId": "confirmMfaEnrollment",
+        "summary": "Confirm and enable TOTP",
+        "description": "Verifies a six-digit TOTP, marks the current session MFA-verified, revokes other sessions, and returns a new recovery-code set exactly once.",
+        "tags": ["Authentication"],
+        "security": [
+          {
+            "sessionCookie": [],
+            "csrfHeader": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ConfirmMfaEnrollmentRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "MFA is enabled; save the one-time recovery-code response.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MfaConfirmationResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "409": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "422": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "default": {
+            "$ref": "#/components/responses/Problem"
+          }
+        }
+      }
+    },
+    "/api/v1/auth/mfa/recovery-codes": {
+      "post": {
+        "operationId": "regenerateMfaRecoveryCodes",
+        "summary": "Replace recovery codes",
+        "description": "Requires current-password and MFA reauthentication. Every previous recovery code becomes invalid immediately.",
+        "tags": ["Authentication"],
+        "security": [
+          {
+            "sessionCookie": [],
+            "csrfHeader": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MfaReauthenticationRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The new recovery-code set, returned exactly once.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MfaRecoveryCodesResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "409": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "422": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "default": {
+            "$ref": "#/components/responses/Problem"
+          }
+        }
+      }
+    },
     "/api/v1/auth/password/forgot": {
       "post": {
         "operationId": "requestPasswordReset",
@@ -1222,7 +1436,183 @@
         }
       }
     },
+    "/api/v1/tenants/{tenantId}/settings": {
+      "get": {
+        "operationId": "getTenantSettings",
+        "summary": "Read supported tenant settings",
+        "description": "Requires tenant.settings.manage. General information and localization are independent mutation sections.",
+        "tags": ["Tenancy"],
+        "security": [
+          {
+            "sessionCookie": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "tenantId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The supported tenant settings and optimistic revision.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TenantSettingsResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "404": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "default": {
+            "$ref": "#/components/responses/Problem"
+          }
+        }
+      }
+    },
+    "/api/v1/tenants/{tenantId}/settings/{section}": {
+      "patch": {
+        "operationId": "updateTenantSettingsSection",
+        "summary": "Update one tenant settings section",
+        "description": "Requires tenant.settings.manage. Each section is validated and committed independently against the tenant revision.",
+        "tags": ["Tenancy"],
+        "security": [
+          {
+            "sessionCookie": [],
+            "csrfHeader": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "tenantId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "section",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "enum": ["general", "localization"]
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "oneOf": [
+                  {
+                    "$ref": "#/components/schemas/UpdateTenantGeneralSettingsRequest"
+                  },
+                  {
+                    "$ref": "#/components/schemas/UpdateTenantLocalizationSettingsRequest"
+                  }
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The section was saved and the tenant revision advanced.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TenantSettingsResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "404": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "409": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "422": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "default": {
+            "$ref": "#/components/responses/Problem"
+          }
+        }
+      }
+    },
     "/api/v1/tenants/{tenantId}/invitations": {
+      "get": {
+        "operationId": "listTenantInvitations",
+        "summary": "List tenant invitations",
+        "description": "Requires tenant.members.invite or the SUPERADMIN bypass. Expired pending records are projected as EXPIRED.",
+        "tags": ["Tenancy"],
+        "security": [
+          {
+            "sessionCookie": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "tenantId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The newest tenant invitations, up to the administrative limit.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TenantInvitationList"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "404": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "default": {
+            "$ref": "#/components/responses/Problem"
+          }
+        }
+      },
       "post": {
         "operationId": "createTenantInvitation",
         "summary": "Create and queue a tenant invitation",
@@ -1280,6 +1670,203 @@
             "$ref": "#/components/responses/Problem"
           },
           "422": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "default": {
+            "$ref": "#/components/responses/Problem"
+          }
+        }
+      }
+    },
+    "/api/v1/tenants/{tenantId}/invitations/{invitationId}": {
+      "patch": {
+        "operationId": "changeTenantInvitationExpiry",
+        "summary": "Change the expiry of a pending tenant invitation",
+        "description": "Requires tenant.members.invite. The new expiry must remain within the configured invitation lifetime.",
+        "tags": ["Tenancy"],
+        "security": [
+          {
+            "sessionCookie": [],
+            "csrfHeader": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "tenantId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "invitationId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ChangeInvitationExpiryRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The invitation expiry was changed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TenantInvitationResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "404": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "409": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "422": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "default": {
+            "$ref": "#/components/responses/Problem"
+          }
+        }
+      },
+      "delete": {
+        "operationId": "revokeTenantInvitation",
+        "summary": "Revoke a pending tenant invitation",
+        "description": "Requires tenant.members.invite. Revocation also destroys queued encrypted delivery payloads.",
+        "tags": ["Tenancy"],
+        "security": [
+          {
+            "sessionCookie": [],
+            "csrfHeader": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "tenantId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "invitationId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The invitation was revoked.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TenantInvitationResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "404": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "409": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "default": {
+            "$ref": "#/components/responses/Problem"
+          }
+        }
+      }
+    },
+    "/api/v1/tenants/{tenantId}/invitations/{invitationId}/resend": {
+      "post": {
+        "operationId": "resendTenantInvitation",
+        "summary": "Rotate and resend a pending tenant invitation",
+        "description": "Requires tenant.members.invite. The previous token and any queued delivery are invalidated before a new encrypted delivery event is created. A persistent cooldown rate-limits this operation.",
+        "tags": ["Tenancy"],
+        "security": [
+          {
+            "sessionCookie": [],
+            "csrfHeader": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "tenantId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "invitationId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "A delivery event with a rotated token was queued.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TenantInvitationResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "404": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "409": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "429": {
             "$ref": "#/components/responses/Problem"
           },
           "default": {
@@ -1979,9 +2566,9 @@
     },
     "/api/v1/tenants/{tenantId}/projects/{projectId}": {
       "patch": {
-        "operationId": "changeProjectStatus",
-        "summary": "Change a project lifecycle status",
-        "description": "Requires tenant.projects.manage, or project.settings.manage on this specific project. ACTIVE and ARCHIVED toggle in either direction; repeating the current status is idempotent.",
+        "operationId": "changeProject",
+        "summary": "Change a project status or visibility",
+        "description": "Requires tenant.projects.manage, or project.settings.manage on this specific project. The request changes exactly one field. Status and visibility changes are idempotent. PRIVATE visibility requires at least one active member who retains project.settings.manage through a direct project role or linked workgroup.",
         "tags": ["Projects"],
         "security": [
           {
@@ -2014,14 +2601,14 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/ChangeProjectStatusRequest"
+                "$ref": "#/components/schemas/ChangeProjectRequest"
               }
             }
           }
         },
         "responses": {
           "200": {
-            "description": "The project is in the requested status.",
+            "description": "The project has the requested status or visibility.",
             "headers": {
               "X-Request-ID": {
                 "$ref": "#/components/headers/RequestId"
@@ -3169,7 +3756,8 @@
         "tags": ["Issues"],
         "security": [
           {
-            "sessionCookie": []
+            "sessionCookie": [],
+            "csrfHeader": []
           }
         ],
         "parameters": [
@@ -3247,7 +3835,8 @@
         "tags": ["Issues"],
         "security": [
           {
-            "sessionCookie": []
+            "sessionCookie": [],
+            "csrfHeader": []
           }
         ],
         "parameters": [
@@ -3313,7 +3902,8 @@
         "tags": ["Issues"],
         "security": [
           {
-            "sessionCookie": []
+            "sessionCookie": [],
+            "csrfHeader": []
           }
         ],
         "parameters": [
@@ -3550,7 +4140,8 @@
         "tags": ["Issues"],
         "security": [
           {
-            "sessionCookie": []
+            "sessionCookie": [],
+            "csrfHeader": []
           }
         ],
         "parameters": [
@@ -3637,7 +4228,8 @@
         "tags": ["Issues"],
         "security": [
           {
-            "sessionCookie": []
+            "sessionCookie": [],
+            "csrfHeader": []
           }
         ],
         "parameters": [
@@ -3837,7 +4429,8 @@
         "tags": ["Issues"],
         "security": [
           {
-            "sessionCookie": []
+            "sessionCookie": [],
+            "csrfHeader": []
           }
         ],
         "parameters": [
@@ -3912,7 +4505,8 @@
         "tags": ["Issues"],
         "security": [
           {
-            "sessionCookie": []
+            "sessionCookie": [],
+            "csrfHeader": []
           }
         ],
         "parameters": [
@@ -3997,7 +4591,8 @@
         "tags": ["Issues"],
         "security": [
           {
-            "sessionCookie": []
+            "sessionCookie": [],
+            "csrfHeader": []
           }
         ],
         "parameters": [
@@ -4130,7 +4725,8 @@
         "tags": ["Issues"],
         "security": [
           {
-            "sessionCookie": []
+            "sessionCookie": [],
+            "csrfHeader": []
           }
         ],
         "parameters": [
@@ -4190,7 +4786,8 @@
         "tags": ["Issues"],
         "security": [
           {
-            "sessionCookie": []
+            "sessionCookie": [],
+            "csrfHeader": []
           }
         ],
         "parameters": [
@@ -4312,7 +4909,8 @@
         "tags": ["Issues"],
         "security": [
           {
-            "sessionCookie": []
+            "sessionCookie": [],
+            "csrfHeader": []
           }
         ],
         "parameters": [
@@ -4390,7 +4988,8 @@
         "tags": ["Issues"],
         "security": [
           {
-            "sessionCookie": []
+            "sessionCookie": [],
+            "csrfHeader": []
           }
         ],
         "parameters": [
@@ -4517,11 +5116,12 @@
       "post": {
         "operationId": "uploadIssueAttachment",
         "summary": "Attach a file to an issue",
-        "description": "Requires `attachment.upload`. `multipart/form-data` with one file per request. The media type is sniffed from the bytes and matched against an allowlist — an extension may narrow the verdict, never widen it — and the size is measured on disk, not taken from the request. Without a configured scanner the file is stored as `SKIPPED`, never as a pretended `CLEAN`.",
+        "description": "Requires `attachment.upload`. `multipart/form-data` with one file per request. The media type is sniffed from the bytes and matched against an allowlist — an extension may narrow the verdict, never widen it — and the size is measured on disk, not taken from the request. OOXML packages are structurally inspected. Production scans the quarantined upload before persistent storage; an unavailable scanner returns `503 ATTACHMENT_SCAN_UNAVAILABLE` without creating an attachment.",
         "tags": ["Issues"],
         "security": [
           {
-            "sessionCookie": []
+            "sessionCookie": [],
+            "csrfHeader": []
           }
         ],
         "parameters": [
@@ -4594,6 +5194,9 @@
             "$ref": "#/components/responses/Problem"
           },
           "422": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "503": {
             "$ref": "#/components/responses/Problem"
           },
           "default": {
@@ -4695,7 +5298,8 @@
         "tags": ["Issues"],
         "security": [
           {
-            "sessionCookie": []
+            "sessionCookie": [],
+            "csrfHeader": []
           }
         ],
         "parameters": [
@@ -4886,6 +5490,321 @@
         }
       }
     },
+    "/api/v1/tenants/{tenantId}/projects/{projectId}/issue-types": {
+      "get": {
+        "operationId": "listProjectIssueTypes",
+        "summary": "List project issue types for authoring",
+        "description": "Requires project.workflow.manage, or tenant.projects.manage.",
+        "tags": ["Project configuration"],
+        "security": [
+          {
+            "sessionCookie": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "tenantId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "projectId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "All active and archived issue types.",
+            "headers": {
+              "X-Request-ID": {
+                "$ref": "#/components/headers/RequestId"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProjectIssueTypeListResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "404": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "default": {
+            "$ref": "#/components/responses/Problem"
+          }
+        }
+      },
+      "post": {
+        "operationId": "createProjectIssueType",
+        "summary": "Create an active project issue type",
+        "description": "Requires project.workflow.manage, or tenant.projects.manage. The immutable code remains reserved after archival. The workflow must be active and published.",
+        "tags": ["Project configuration"],
+        "security": [
+          {
+            "sessionCookie": [],
+            "csrfHeader": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "tenantId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "projectId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateProjectIssueTypeRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "The issue type was created and the configuration revision advanced.",
+            "headers": {
+              "X-Request-ID": {
+                "$ref": "#/components/headers/RequestId"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProjectIssueTypeResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "404": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "409": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "422": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "default": {
+            "$ref": "#/components/responses/Problem"
+          }
+        }
+      }
+    },
+    "/api/v1/tenants/{tenantId}/projects/{projectId}/issue-types/{issueTypeId}": {
+      "patch": {
+        "operationId": "updateProjectIssueType",
+        "summary": "Update a project issue type",
+        "description": "The code is immutable. Both the project configuration revision and issue-type record version prevent lost updates. A hierarchy change is rejected when existing parent or child links would become invalid.",
+        "tags": ["Project configuration"],
+        "security": [
+          {
+            "sessionCookie": [],
+            "csrfHeader": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "tenantId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "projectId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "issueTypeId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateProjectIssueTypeRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The current issue type.",
+            "headers": {
+              "X-Request-ID": {
+                "$ref": "#/components/headers/RequestId"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProjectIssueTypeResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "404": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "409": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "422": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "default": {
+            "$ref": "#/components/responses/Problem"
+          }
+        }
+      }
+    },
+    "/api/v1/tenants/{tenantId}/projects/{projectId}/issue-types/{issueTypeId}/archive": {
+      "post": {
+        "operationId": "archiveProjectIssueType",
+        "summary": "Archive a project issue type",
+        "description": "Archival preserves existing issues but removes the type from creation and type-change choices. Repeating the current archived version is idempotent.",
+        "tags": ["Project configuration"],
+        "security": [
+          {
+            "sessionCookie": [],
+            "csrfHeader": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "tenantId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "projectId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "issueTypeId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ArchiveProjectIssueTypeRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The archived issue type.",
+            "headers": {
+              "X-Request-ID": {
+                "$ref": "#/components/headers/RequestId"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProjectIssueTypeResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "404": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "409": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "422": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "default": {
+            "$ref": "#/components/responses/Problem"
+          }
+        }
+      }
+    },
     "/api/v1/tenants/{tenantId}/projects/{projectId}/workflows": {
       "get": {
         "operationId": "listWorkflows",
@@ -4956,7 +5875,8 @@
         "tags": ["Project configuration"],
         "security": [
           {
-            "sessionCookie": []
+            "sessionCookie": [],
+            "csrfHeader": []
           }
         ],
         "parameters": [
@@ -5028,7 +5948,8 @@
         "tags": ["Project configuration"],
         "security": [
           {
-            "sessionCookie": []
+            "sessionCookie": [],
+            "csrfHeader": []
           }
         ],
         "parameters": [
@@ -5257,7 +6178,8 @@
         "tags": ["Project configuration"],
         "security": [
           {
-            "sessionCookie": []
+            "sessionCookie": [],
+            "csrfHeader": []
           }
         ],
         "parameters": [
@@ -5392,7 +6314,8 @@
         "tags": ["Saved queries"],
         "security": [
           {
-            "sessionCookie": []
+            "sessionCookie": [],
+            "csrfHeader": []
           }
         ],
         "parameters": [
@@ -5518,7 +6441,8 @@
         "tags": ["Saved queries"],
         "security": [
           {
-            "sessionCookie": []
+            "sessionCookie": [],
+            "csrfHeader": []
           }
         ],
         "parameters": [
@@ -5596,7 +6520,8 @@
         "tags": ["Saved queries"],
         "security": [
           {
-            "sessionCookie": []
+            "sessionCookie": [],
+            "csrfHeader": []
           }
         ],
         "parameters": [
@@ -5734,7 +6659,8 @@
         "tags": ["Saved queries"],
         "security": [
           {
-            "sessionCookie": []
+            "sessionCookie": [],
+            "csrfHeader": []
           }
         ],
         "parameters": [
@@ -5812,7 +6738,8 @@
         "tags": ["Saved queries"],
         "security": [
           {
-            "sessionCookie": []
+            "sessionCookie": [],
+            "csrfHeader": []
           }
         ],
         "parameters": [
@@ -5872,7 +6799,8 @@
         "tags": ["Saved queries"],
         "security": [
           {
-            "sessionCookie": []
+            "sessionCookie": [],
+            "csrfHeader": []
           }
         ],
         "parameters": [
@@ -5994,7 +6922,8 @@
         "tags": ["Notifications"],
         "security": [
           {
-            "sessionCookie": []
+            "sessionCookie": [],
+            "csrfHeader": []
           }
         ],
         "parameters": [
@@ -6105,7 +7034,8 @@
         "tags": ["Notifications"],
         "security": [
           {
-            "sessionCookie": []
+            "sessionCookie": [],
+            "csrfHeader": []
           }
         ],
         "parameters": [
@@ -6216,7 +7146,8 @@
         "tags": ["Dashboards"],
         "security": [
           {
-            "sessionCookie": []
+            "sessionCookie": [],
+            "csrfHeader": []
           }
         ],
         "parameters": [
@@ -6282,7 +7213,8 @@
         "tags": ["Dashboards"],
         "security": [
           {
-            "sessionCookie": []
+            "sessionCookie": [],
+            "csrfHeader": []
           }
         ],
         "parameters": [
@@ -6408,7 +7340,8 @@
         "tags": ["Dashboards"],
         "security": [
           {
-            "sessionCookie": []
+            "sessionCookie": [],
+            "csrfHeader": []
           }
         ],
         "parameters": [
@@ -6484,7 +7417,8 @@
         "tags": ["Dashboards"],
         "security": [
           {
-            "sessionCookie": []
+            "sessionCookie": [],
+            "csrfHeader": []
           }
         ],
         "parameters": [
@@ -6542,7 +7476,8 @@
         "tags": ["Dashboards"],
         "security": [
           {
-            "sessionCookie": []
+            "sessionCookie": [],
+            "csrfHeader": []
           }
         ],
         "parameters": [
@@ -6604,7 +7539,8 @@
         "tags": ["Dashboards"],
         "security": [
           {
-            "sessionCookie": []
+            "sessionCookie": [],
+            "csrfHeader": []
           }
         ],
         "parameters": [
@@ -6666,7 +7602,8 @@
         "tags": ["Dashboards"],
         "security": [
           {
-            "sessionCookie": []
+            "sessionCookie": [],
+            "csrfHeader": []
           }
         ],
         "parameters": [
@@ -6804,7 +7741,8 @@
         "tags": ["Dashboards"],
         "security": [
           {
-            "sessionCookie": []
+            "sessionCookie": [],
+            "csrfHeader": []
           }
         ],
         "parameters": [
@@ -6879,7 +7817,8 @@
         "tags": ["Dashboards"],
         "security": [
           {
-            "sessionCookie": []
+            "sessionCookie": [],
+            "csrfHeader": []
           }
         ],
         "parameters": [
@@ -6964,7 +7903,8 @@
         "tags": ["Dashboards"],
         "security": [
           {
-            "sessionCookie": []
+            "sessionCookie": [],
+            "csrfHeader": []
           }
         ],
         "parameters": [
@@ -7028,7 +7968,8 @@
         "tags": ["Dashboards"],
         "security": [
           {
-            "sessionCookie": []
+            "sessionCookie": [],
+            "csrfHeader": []
           }
         ],
         "parameters": [
@@ -7379,26 +8320,36 @@
             "minLength": 1,
             "maxLength": 1024,
             "writeOnly": true
+          },
+          "mfa_code": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 64,
+            "writeOnly": true,
+            "description": "Six-digit TOTP or one-time recovery code. Required when MFA is enabled."
           }
         }
       },
       "LoginResponse": {
         "type": "object",
         "additionalProperties": false,
-        "required": ["user", "session"],
+        "required": ["user", "session", "mfa"],
         "properties": {
           "user": {
             "$ref": "#/components/schemas/AuthenticatedUser"
           },
           "session": {
             "$ref": "#/components/schemas/CreatedSession"
+          },
+          "mfa": {
+            "$ref": "#/components/schemas/MfaStatus"
           }
         }
       },
       "CurrentSessionResponse": {
         "type": "object",
         "additionalProperties": false,
-        "required": ["user", "impersonation"],
+        "required": ["user", "impersonation", "mfa"],
         "properties": {
           "user": {
             "$ref": "#/components/schemas/AuthenticatedUser"
@@ -7412,8 +8363,146 @@
                 "type": "null"
               }
             ]
+          },
+          "mfa": {
+            "$ref": "#/components/schemas/MfaStatus"
           }
         }
+      },
+      "MfaStatus": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "enabled",
+          "verified",
+          "enrollment_required",
+          "recovery_codes_remaining"
+        ],
+        "properties": {
+          "enabled": {
+            "type": "boolean"
+          },
+          "verified": {
+            "type": "boolean",
+            "description": "Whether this server session completed MFA."
+          },
+          "enrollment_required": {
+            "type": "boolean",
+            "description": "True for a production SUPERADMIN session restricted to MFA enrollment."
+          },
+          "recovery_codes_remaining": {
+            "type": "integer",
+            "minimum": 0
+          }
+        }
+      },
+      "MfaStatusResponse": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["mfa"],
+        "properties": {
+          "mfa": {
+            "$ref": "#/components/schemas/MfaStatus"
+          }
+        }
+      },
+      "BeginMfaEnrollmentRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["current_password"],
+        "properties": {
+          "current_password": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 1024,
+            "writeOnly": true
+          }
+        }
+      },
+      "MfaEnrollmentResponse": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["secret", "otpauth_uri"],
+        "properties": {
+          "secret": {
+            "type": "string",
+            "pattern": "^[A-Z2-7]{32}$",
+            "writeOnly": true
+          },
+          "otpauth_uri": {
+            "type": "string",
+            "pattern": "^otpauth://totp/",
+            "writeOnly": true
+          }
+        }
+      },
+      "ConfirmMfaEnrollmentRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["code"],
+        "properties": {
+          "code": {
+            "type": "string",
+            "pattern": "^[0-9]{6}$",
+            "writeOnly": true
+          }
+        }
+      },
+      "MfaReauthenticationRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["current_password", "code"],
+        "properties": {
+          "current_password": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 1024,
+            "writeOnly": true
+          },
+          "code": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 64,
+            "writeOnly": true
+          }
+        }
+      },
+      "MfaRecoveryCodesResponse": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["recovery_codes"],
+        "properties": {
+          "recovery_codes": {
+            "type": "array",
+            "minItems": 10,
+            "maxItems": 10,
+            "items": {
+              "type": "string",
+              "pattern": "^[A-HJ-NP-Z2-9]{4}(?:-[A-HJ-NP-Z2-9]{4}){3}$",
+              "writeOnly": true
+            }
+          },
+          "recovery_codes_remaining": {
+            "type": "integer",
+            "minimum": 0
+          }
+        }
+      },
+      "MfaConfirmationResponse": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/MfaRecoveryCodesResponse"
+          },
+          {
+            "type": "object",
+            "required": ["mfa"],
+            "properties": {
+              "mfa": {
+                "$ref": "#/components/schemas/MfaStatus"
+              }
+            }
+          }
+        ]
       },
       "StartImpersonationRequest": {
         "type": "object",
@@ -7799,6 +8888,101 @@
           }
         }
       },
+      "TenantInvitation": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "tenant_id",
+          "email",
+          "status",
+          "invited_by_display_name",
+          "initial_role_code",
+          "expires_at",
+          "created_at",
+          "updated_at",
+          "accepted_at",
+          "revoked_at"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "tenant_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "email": {
+            "type": "string",
+            "format": "email"
+          },
+          "status": {
+            "type": "string",
+            "enum": ["PENDING", "ACCEPTED", "REVOKED", "EXPIRED"]
+          },
+          "invited_by_display_name": {
+            "type": "string"
+          },
+          "initial_role_code": {
+            "type": ["string", "null"]
+          },
+          "expires_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "accepted_at": {
+            "type": ["string", "null"],
+            "format": "date-time"
+          },
+          "revoked_at": {
+            "type": ["string", "null"],
+            "format": "date-time"
+          }
+        }
+      },
+      "TenantInvitationList": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["invitations"],
+        "properties": {
+          "invitations": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/TenantInvitation"
+            }
+          }
+        }
+      },
+      "TenantInvitationResponse": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["invitation"],
+        "properties": {
+          "invitation": {
+            "$ref": "#/components/schemas/TenantInvitation"
+          }
+        }
+      },
+      "ChangeInvitationExpiryRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["expires_at"],
+        "properties": {
+          "expires_at": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
       "AuthenticatedUser": {
         "type": "object",
         "additionalProperties": false,
@@ -7919,6 +9103,89 @@
         "properties": {
           "tenant": {
             "$ref": "#/components/schemas/AccessibleTenant"
+          }
+        }
+      },
+      "TenantSettings": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "tenant_id",
+          "name",
+          "slug",
+          "default_locale",
+          "timezone",
+          "revision"
+        ],
+        "properties": {
+          "tenant_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200
+          },
+          "slug": {
+            "type": "string"
+          },
+          "default_locale": {
+            "type": "string",
+            "enum": ["sk", "en", "cs", "de", "hu", "pl"]
+          },
+          "timezone": {
+            "type": "string",
+            "maxLength": 64
+          },
+          "revision": {
+            "type": "integer",
+            "minimum": 1
+          }
+        }
+      },
+      "TenantSettingsResponse": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["settings"],
+        "properties": {
+          "settings": {
+            "$ref": "#/components/schemas/TenantSettings"
+          }
+        }
+      },
+      "UpdateTenantGeneralSettingsRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["name", "expected_revision"],
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200
+          },
+          "expected_revision": {
+            "type": "integer",
+            "minimum": 1
+          }
+        }
+      },
+      "UpdateTenantLocalizationSettingsRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["default_locale", "timezone", "expected_revision"],
+        "properties": {
+          "default_locale": {
+            "type": "string",
+            "enum": ["sk", "en", "cs", "de", "hu", "pl"]
+          },
+          "timezone": {
+            "type": "string",
+            "maxLength": 64
+          },
+          "expected_revision": {
+            "type": "integer",
+            "minimum": 1
           }
         }
       },
@@ -9234,6 +10501,7 @@
           "assignee",
           "assignee_workgroup",
           "parent_key",
+          "blocked",
           "resolution",
           "resolved_at",
           "created_at",
@@ -9332,6 +10600,10 @@
                 "type": "null"
               }
             ]
+          },
+          "blocked": {
+            "type": "boolean",
+            "description": "Whether an issue the caller may also see blocks this one and is not done yet."
           },
           "resolution": {
             "oneOf": [
@@ -10215,6 +11487,8 @@
           "description",
           "hierarchy_level",
           "position",
+          "icon",
+          "color_token",
           "status",
           "version",
           "workflow_id"
@@ -10245,6 +11519,14 @@
           "position": {
             "type": "integer"
           },
+          "icon": {
+            "type": "string",
+            "maxLength": 48
+          },
+          "color_token": {
+            "type": "string",
+            "maxLength": 48
+          },
           "status": {
             "type": "string",
             "enum": ["ACTIVE", "ARCHIVED"]
@@ -10262,6 +11544,154 @@
                 "type": "null"
               }
             ]
+          }
+        }
+      },
+      "ProjectIssueTypeListResponse": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["issue_types"],
+        "properties": {
+          "issue_types": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ProjectIssueType"
+            }
+          }
+        }
+      },
+      "ProjectIssueTypeResponse": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["issue_type"],
+        "properties": {
+          "issue_type": {
+            "$ref": "#/components/schemas/ProjectIssueType"
+          }
+        }
+      },
+      "CreateProjectIssueTypeRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "code",
+          "name",
+          "description",
+          "hierarchy_level",
+          "position",
+          "icon",
+          "color_token",
+          "workflow_id",
+          "expected_config_version"
+        ],
+        "properties": {
+          "code": {
+            "type": "string",
+            "pattern": "^[A-Z][A-Z0-9_]{1,31}$"
+          },
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 120
+          },
+          "description": {
+            "type": "string",
+            "maxLength": 500
+          },
+          "hierarchy_level": {
+            "type": "integer",
+            "enum": [-1, 0, 1]
+          },
+          "position": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 10000
+          },
+          "icon": {
+            "type": "string",
+            "pattern": "^[a-z0-9-]{0,48}$"
+          },
+          "color_token": {
+            "type": "string",
+            "pattern": "^[a-z0-9-]{0,48}$"
+          },
+          "workflow_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "expected_config_version": {
+            "type": "integer",
+            "minimum": 1
+          }
+        }
+      },
+      "UpdateProjectIssueTypeRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "name",
+          "description",
+          "hierarchy_level",
+          "position",
+          "icon",
+          "color_token",
+          "workflow_id",
+          "expected_config_version",
+          "expected_type_version"
+        ],
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 120
+          },
+          "description": {
+            "type": "string",
+            "maxLength": 500
+          },
+          "hierarchy_level": {
+            "type": "integer",
+            "enum": [-1, 0, 1]
+          },
+          "position": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 10000
+          },
+          "icon": {
+            "type": "string",
+            "pattern": "^[a-z0-9-]{0,48}$"
+          },
+          "color_token": {
+            "type": "string",
+            "pattern": "^[a-z0-9-]{0,48}$"
+          },
+          "workflow_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "expected_config_version": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "expected_type_version": {
+            "type": "integer",
+            "minimum": 1
+          }
+        }
+      },
+      "ArchiveProjectIssueTypeRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["expected_config_version", "expected_type_version"],
+        "properties": {
+          "expected_config_version": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "expected_type_version": {
+            "type": "integer",
+            "minimum": 1
           }
         }
       },
@@ -12203,17 +13633,33 @@
           }
         }
       },
-      "ChangeProjectStatusRequest": {
-        "type": "object",
-        "additionalProperties": false,
-        "required": ["status"],
-        "properties": {
-          "status": {
-            "type": "string",
-            "enum": ["ACTIVE", "ARCHIVED"],
-            "description": "Archiving is reversible and idempotent; an archived project grants no project permission."
+      "ChangeProjectRequest": {
+        "oneOf": [
+          {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["status"],
+            "properties": {
+              "status": {
+                "type": "string",
+                "enum": ["ACTIVE", "ARCHIVED"],
+                "description": "Archiving is reversible and idempotent; an archived project grants no project permission."
+              }
+            }
+          },
+          {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["visibility"],
+            "properties": {
+              "visibility": {
+                "type": "string",
+                "enum": ["TENANT", "PRIVATE"],
+                "description": "PRIVATE removes tenant-wide discovery and requires an active project manager."
+              }
+            }
           }
-        }
+        ]
       },
       "ProjectRole": {
         "type": "object",

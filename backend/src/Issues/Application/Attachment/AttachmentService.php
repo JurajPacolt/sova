@@ -24,11 +24,11 @@ use Sova\Shared\Infrastructure\Configuration\Settings;
  * identifiers, so nothing derived from the uploaded filename ever reaches the
  * filesystem.
  *
- * Bytes are written before the row exists and the row is written before the
- * scan verdict, which means a crash can leave an orphaned object or a file
- * stuck at `PENDING`. That is the safe direction: an unreferenced blob wastes
- * space, whereas a row without bytes would be a broken download and a cleared
- * file that was never scanned would be a hole.
+ * The server upload temp directory is the first quarantine. It is scanned
+ * before `FilesystemAttachmentStorage` atomically moves it to private
+ * persistent storage; otherwise the scanner would try to open a path that no
+ * longer exists. An infected upload gets an auditable row and history event,
+ * but its bytes never enter persistent storage.
  */
 final readonly class AttachmentService
 {
@@ -38,6 +38,7 @@ final readonly class AttachmentService
         private AttachmentRepository $attachments,
         private AttachmentStorage $storage,
         private AttachmentScanner $scanner,
+        private OfficeDocumentInspector $officeDocuments,
         private AttachmentPolicy $policy,
         private IssueRepository $issues,
         Settings $settings,
@@ -74,6 +75,19 @@ final readonly class AttachmentService
             );
         }
 
+        if (
+            str_starts_with(
+                $mediaType,
+                'application/vnd.openxmlformats-officedocument.',
+            )
+            && !$this->officeDocuments->matches($upload->temporaryPath, $mediaType)
+        ) {
+            throw $this->rejected(
+                AttachmentPolicy::TYPE_NOT_ALLOWED,
+                'This file type cannot be attached.',
+            );
+        }
+
         $checksum = hash_file('sha256', $upload->temporaryPath);
 
         if ($checksum === false) {
@@ -85,7 +99,15 @@ final readonly class AttachmentService
 
         $attachmentId = (string) UuidV7::generate();
         $storageKey = $this->storageKey($issue->tenantId, $attachmentId);
-        $this->storage->store($storageKey, $upload->temporaryPath);
+        $verdict = $this->scanner->scan($storageKey, $upload->temporaryPath);
+
+        if ($verdict === ScanStatus::Pending) {
+            throw new DomainProblemException(
+                ProblemType::ServiceUnavailable,
+                'ATTACHMENT_SCAN_UNAVAILABLE',
+                'The attachment scanner is temporarily unavailable.',
+            );
+        }
 
         $details = new AttachmentDetails(
             $attachmentId,
@@ -104,16 +126,11 @@ final readonly class AttachmentService
             new DateTimeImmutable(),
         );
 
-        $this->attachments->create($details);
-
-        $verdict = $this->scanner->scan($storageKey, $upload->temporaryPath);
-
-        if ($verdict === ScanStatus::Infected) {
-            // The bytes go immediately; the row stays so the history and the
-            // audit still show that something was rejected.
-            $this->storage->delete($storageKey);
+        if ($verdict !== ScanStatus::Infected) {
+            $this->storage->store($storageKey, $upload->temporaryPath);
         }
 
+        $this->attachments->create($details);
         $this->attachments->updateScanStatus($issue->tenantId, $attachmentId, $verdict);
         $this->record($issue, $attachmentId, 'ATTACHMENT_ADDED', $actorUserId, [
             'attachment_id' => $attachmentId,

@@ -22,13 +22,24 @@ import { TranslationKey } from '../../../../core/i18n/translations';
 import { TenantStore } from '../../../../core/tenancy/tenant.store';
 import { PageHeaderComponent } from '../../../../shared/components/page-header/page-header.component';
 import { ProjectAdministrationService } from '../../project-administration.service';
+import { ErrorStateComponent } from '../../../../shared/components/error-state/error-state.component';
+import { FocusSummaryDirective } from '../../../../core/a11y/focus-summary.directive';
+import { AriaRequiredDirective } from '../../../../core/a11y/aria-required.directive';
 
 type StatusFilter = 'ALL' | ProjectStatus;
 
 @Component({
   selector: 'app-project-list-page',
   standalone: true,
-  imports: [PageHeaderComponent, ReactiveFormsModule, RouterLink, TranslatePipe],
+  imports: [
+    AriaRequiredDirective,
+    ErrorStateComponent,
+    FocusSummaryDirective,
+    PageHeaderComponent,
+    ReactiveFormsModule,
+    RouterLink,
+    TranslatePipe,
+  ],
   templateUrl: './project-list-page.component.html',
   styleUrl: './project-list-page.component.scss',
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -44,7 +55,8 @@ export class ProjectListPageComponent implements OnInit {
   protected readonly projects = signal<readonly ProjectListItem[]>([]);
   protected readonly memberships = signal<readonly TenantMembership[]>([]);
   protected readonly loading = signal(false);
-  protected readonly loadError = signal(false);
+  /** The failed request itself; the shared error state reads the status. */
+  protected readonly loadFailure = signal<unknown>(null);
 
   protected readonly search = signal('');
   protected readonly statusFilter = signal<StatusFilter>('ACTIVE');
@@ -96,7 +108,7 @@ export class ProjectListPageComponent implements OnInit {
       return;
     }
 
-    this.loadError.set(false);
+    this.loadFailure.set(null);
     this.loading.set(true);
     this.administration
       .list(tenantId)
@@ -106,7 +118,7 @@ export class ProjectListPageComponent implements OnInit {
       )
       .subscribe({
         next: (projects) => this.projects.set(projects),
-        error: () => this.loadError.set(true),
+        error: (failure: unknown) => this.loadFailure.set(failure),
       });
   }
 

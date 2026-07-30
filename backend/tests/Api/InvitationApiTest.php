@@ -347,6 +347,229 @@ final class InvitationApiTest extends TestCase
         self::assertSame(201, $response->getStatusCode());
     }
 
+    public function testInvitationListAndResendRotateTheOnlyUsableToken(): void
+    {
+        $login = $this->login(
+            'superadmin-invite@example.test',
+            'Superadmin invitation passphrase',
+        );
+        $created = $this->createInvitation(
+            $login,
+            'managed-invite@example.test',
+        );
+        self::assertSame(201, $created->getStatusCode());
+        $createdPayload = $this->decode($created);
+        $invitationPayload = $createdPayload['invitation'] ?? null;
+        self::assertIsArray($invitationPayload);
+        $invitationId = $invitationPayload['id'] ?? null;
+        self::assertIsString($invitationId);
+
+        $listed = $this->authenticatedRequest(
+            $login,
+            'GET',
+            sprintf('/api/v1/tenants/%s/invitations', $this->tenantId),
+        );
+        self::assertSame(200, $listed->getStatusCode());
+        $invitations = $this->decode($listed)['invitations'] ?? null;
+        self::assertIsArray($invitations);
+        self::assertCount(1, $invitations);
+        $listedInvitation = $invitations[0] ?? null;
+        self::assertIsArray($listedInvitation);
+        self::assertSame(
+            'managed-invite@example.test',
+            $listedInvitation['email'] ?? null,
+        );
+        self::assertSame('PENDING', $listedInvitation['status'] ?? null);
+
+        $rateLimited = $this->authenticatedRequest(
+            $login,
+            'POST',
+            sprintf(
+                '/api/v1/tenants/%s/invitations/%s/resend',
+                $this->tenantId,
+                $invitationId,
+            ),
+        );
+        self::assertSame(429, $rateLimited->getStatusCode());
+        self::assertSame(
+            'INVITATION_RESEND_RATE_LIMITED',
+            $this->decode($rateLimited)['code'] ?? null,
+        );
+
+        $firstMailer = new CapturingInvitationMailer();
+        self::assertSame(1, $this->invitationWorker($firstMailer)->runBatch());
+        $firstToken = $firstMailer->messages[0]['token'];
+        $firstHash = hash('sha256', $firstToken);
+        $this->connection->executeStatement(
+            <<<'SQL'
+                UPDATE outbox_events
+                SET created_at = created_at - INTERVAL '2 minutes'
+                WHERE aggregate_type = 'TENANT_INVITATION'
+                    AND aggregate_id = :invitation_id
+                SQL,
+            ['invitation_id' => $invitationId],
+        );
+
+        $resent = $this->authenticatedRequest(
+            $login,
+            'POST',
+            sprintf(
+                '/api/v1/tenants/%s/invitations/%s/resend',
+                $this->tenantId,
+                $invitationId,
+            ),
+        );
+        self::assertSame(200, $resent->getStatusCode());
+        self::assertNotSame(
+            $firstHash,
+            $this->connection->fetchOne(
+                'SELECT token_hash FROM tenant_invitations WHERE id = :id',
+                ['id' => $invitationId],
+            ),
+        );
+        self::assertSame(
+            [1, 2],
+            array_map(
+                $this->integerValue(...),
+                $this->connection->fetchFirstColumn(
+                    <<<'SQL'
+                        SELECT sequence_number
+                        FROM outbox_events
+                        WHERE aggregate_type = 'TENANT_INVITATION'
+                            AND aggregate_id = :invitation_id
+                        ORDER BY sequence_number
+                        SQL,
+                    ['invitation_id' => $invitationId],
+                ),
+            ),
+        );
+        self::assertSame(
+            410,
+            $this->post(
+                '/api/v1/auth/invitations/inspect',
+                ['token' => $firstToken],
+            )->getStatusCode(),
+        );
+
+        $secondMailer = new CapturingInvitationMailer();
+        self::assertSame(1, $this->invitationWorker($secondMailer)->runBatch());
+        self::assertCount(1, $secondMailer->messages);
+        self::assertNotSame(
+            $firstToken,
+            $secondMailer->messages[0]['token'],
+        );
+        self::assertSame(
+            1,
+            $this->connection->fetchOne(
+                <<<'SQL'
+                    SELECT COUNT(*)
+                    FROM security_audit_events
+                    WHERE tenant_id = :tenant_id
+                        AND event_type = 'TENANT_INVITATION_RESENT'
+                        AND metadata->>'invitation_id' = :invitation_id
+                    SQL,
+                [
+                    'tenant_id' => $this->tenantId,
+                    'invitation_id' => $invitationId,
+                ],
+            ),
+        );
+    }
+
+    public function testPendingInvitationExpiryCanChangeAndRevocationPurgesDelivery(): void
+    {
+        $login = $this->login(
+            'superadmin-invite@example.test',
+            'Superadmin invitation passphrase',
+        );
+        $created = $this->createInvitation(
+            $login,
+            'revoked-invite@example.test',
+        );
+        $payload = $this->decode($created)['invitation'] ?? null;
+        self::assertIsArray($payload);
+        $invitationId = $payload['id'] ?? null;
+        self::assertIsString($invitationId);
+        $newExpiry = (new \DateTimeImmutable('+2 days'))->format(DATE_ATOM);
+
+        $changed = $this->authenticatedRequest(
+            $login,
+            'PATCH',
+            sprintf(
+                '/api/v1/tenants/%s/invitations/%s',
+                $this->tenantId,
+                $invitationId,
+            ),
+            ['expires_at' => $newExpiry],
+        );
+        self::assertSame(200, $changed->getStatusCode());
+        $changedInvitation = $this->decode($changed)['invitation'] ?? null;
+        self::assertIsArray($changedInvitation);
+        $changedExpiry = $changedInvitation['expires_at'] ?? null;
+        self::assertIsString($changedExpiry);
+        self::assertSame(
+            (new \DateTimeImmutable($newExpiry))->getTimestamp(),
+            (new \DateTimeImmutable($changedExpiry))->getTimestamp(),
+        );
+
+        $revoked = $this->authenticatedRequest(
+            $login,
+            'DELETE',
+            sprintf(
+                '/api/v1/tenants/%s/invitations/%s',
+                $this->tenantId,
+                $invitationId,
+            ),
+        );
+        self::assertSame(200, $revoked->getStatusCode());
+        $revokedInvitation = $this->decode($revoked)['invitation'] ?? null;
+        self::assertIsArray($revokedInvitation);
+        self::assertSame(
+            'REVOKED',
+            $revokedInvitation['status'] ?? null,
+        );
+        self::assertSame(
+            0,
+            $this->connection->fetchOne(
+                <<<'SQL'
+                    SELECT COUNT(*)
+                    FROM outbox_sensitive_payloads sensitive
+                    INNER JOIN outbox_events event ON event.id = sensitive.event_id
+                    WHERE event.aggregate_type = 'TENANT_INVITATION'
+                        AND event.aggregate_id = :invitation_id
+                    SQL,
+                ['invitation_id' => $invitationId],
+            ),
+        );
+        self::assertSame(
+            409,
+            $this->authenticatedRequest(
+                $login,
+                'POST',
+                sprintf(
+                    '/api/v1/tenants/%s/invitations/%s/resend',
+                    $this->tenantId,
+                    $invitationId,
+                ),
+            )->getStatusCode(),
+        );
+        self::assertSame(
+            2,
+            $this->connection->fetchOne(
+                <<<'SQL'
+                    SELECT COUNT(*)
+                    FROM security_audit_events
+                    WHERE tenant_id = :tenant_id
+                        AND event_type IN (
+                            'TENANT_INVITATION_EXPIRY_CHANGED',
+                            'TENANT_INVITATION_REVOKED'
+                        )
+                    SQL,
+                ['tenant_id' => $this->tenantId],
+            ),
+        );
+    }
+
     private function insertExistingUserMembership(): string
     {
         $membershipId = (string) UuidV7::generate();
@@ -409,6 +632,37 @@ final class InvitationApiTest extends TestCase
                 )
                 ->withParsedBody(['email' => $email]),
         );
+    }
+
+    /**
+     * @param array<string, mixed>|null $payload
+     */
+    private function authenticatedRequest(
+        ResponseInterface $login,
+        string $method,
+        string $uri,
+        ?array $payload = null,
+    ): ResponseInterface {
+        $request = $this->request($method, $uri)
+            ->withCookieParams([
+                'sova_session' => $this->cookieValue(
+                    $login,
+                    'sova_session',
+                ),
+            ]);
+
+        if ($method !== 'GET') {
+            $request = $request->withHeader(
+                'X-CSRF-Token',
+                $this->cookieValue($login, 'sova_csrf'),
+            );
+        }
+
+        if ($payload !== null) {
+            $request = $request->withParsedBody($payload);
+        }
+
+        return $this->app->handle($request);
     }
 
     private function acceptNew(
@@ -544,6 +798,19 @@ final class InvitationApiTest extends TestCase
         }
 
         self::fail(sprintf('Cookie "%s" was not set.', $cookieName));
+    }
+
+    private function integerValue(mixed $value): int
+    {
+        if (is_int($value)) {
+            return $value;
+        }
+
+        if (is_string($value) && ctype_digit($value)) {
+            return (int) $value;
+        }
+
+        self::fail('Expected an integer database value.');
     }
 }
 

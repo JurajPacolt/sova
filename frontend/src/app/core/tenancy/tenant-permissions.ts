@@ -5,6 +5,7 @@
 
 /** Any of these makes some part of the tenant administration reachable. */
 export const ADMINISTRATION_PERMISSIONS = [
+  'tenant.settings.manage',
   'tenant.members.view',
   'tenant.members.manage',
   'tenant.roles.view',

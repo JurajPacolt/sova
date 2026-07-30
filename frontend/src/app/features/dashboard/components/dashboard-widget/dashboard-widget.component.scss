@@ -82,6 +82,41 @@
   background-color: var(--sova-color-chart-series-2);
 }
 
+.widget__donut-layout {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--sova-space-3);
+}
+
+.widget__donut {
+  inline-size: 7rem;
+  block-size: 7rem;
+  flex: 0 0 auto;
+}
+
+/* The hole and the gaps between arcs are this circle showing through. */
+.widget__donut-track {
+  fill: none;
+  stroke: var(--sova-color-surface);
+  stroke-width: 6;
+}
+
+.widget__donut-slice {
+  fill: none;
+  stroke-width: 6;
+  /* Twelve o'clock, so the first slice starts where a reader looks first. */
+  transform: rotate(-90deg);
+  transform-origin: 50% 50%;
+}
+
+.widget__donut-legend {
+  flex: 1 1 10rem;
+  min-inline-size: 0;
+  display: grid;
+  gap: var(--sova-space-1);
+}
+
 .widget__chart {
   inline-size: 100%;
   block-size: 7rem;

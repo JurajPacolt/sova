@@ -22,6 +22,8 @@ import { ImpersonationSessionService } from '../../../../core/auth/impersonation
 import { TranslationKey } from '../../../../core/i18n/translations';
 import { PageHeaderComponent } from '../../../../shared/components/page-header/page-header.component';
 import { SystemTenantAdministrationService } from '../../system-tenant-administration.service';
+import { ErrorStateComponent } from '../../../../shared/components/error-state/error-state.component';
+import { AriaRequiredDirective } from '../../../../core/a11y/aria-required.directive';
 
 const STATUS_KEYS: Readonly<Record<TenantStatus, TranslationKey>> = {
   ACTIVE: 'common.active',
@@ -54,7 +56,14 @@ interface ImpersonationSelection {
 @Component({
   selector: 'app-system-tenant-list-page',
   standalone: true,
-  imports: [PageHeaderComponent, ReactiveFormsModule, RouterLink, TranslatePipe],
+  imports: [
+    AriaRequiredDirective,
+    ErrorStateComponent,
+    PageHeaderComponent,
+    ReactiveFormsModule,
+    RouterLink,
+    TranslatePipe,
+  ],
   templateUrl: './system-tenant-list-page.component.html',
   styleUrl: './system-tenant-list-page.component.scss',
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -68,7 +77,8 @@ export class SystemTenantListPageComponent implements OnInit {
 
   protected readonly tenants = signal<readonly SystemTenant[]>([]);
   protected readonly loading = signal(false);
-  protected readonly loadError = signal(false);
+  /** The failed request itself; the shared error state reads the status. */
+  protected readonly loadFailure = signal<unknown>(null);
   protected readonly creating = signal(false);
   protected readonly createError = signal(false);
   protected readonly createdOwnerEmail = signal<string | null>(null);
@@ -104,7 +114,7 @@ export class SystemTenantListPageComponent implements OnInit {
   }
 
   protected refresh(): void {
-    this.loadError.set(false);
+    this.loadFailure.set(null);
     this.loading.set(true);
     this.administration
       .list()
@@ -114,7 +124,7 @@ export class SystemTenantListPageComponent implements OnInit {
       )
       .subscribe({
         next: (tenants) => this.tenants.set(tenants),
-        error: () => this.loadError.set(true),
+        error: (failure: unknown) => this.loadFailure.set(failure),
       });
   }
 

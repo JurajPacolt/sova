@@ -66,10 +66,28 @@ export const routes = [
           ),
       },
       {
+        path: 'notifications',
+        loadChildren: () =>
+          import('./features/notifications/notifications.routes').then(
+            (routesModule) => routesModule.NOTIFICATION_ROUTES,
+          ),
+      },
+      {
         path: 'admin',
         loadChildren: () =>
           import('./features/administration/administration.routes').then(
             (routesModule) => routesModule.ADMINISTRATION_ROUTES,
+          ),
+      },
+      {
+        // Where `permissionGuard` sends a caller who may not open a screen. It
+        // lives inside the tenant shell on purpose: the navigation and the
+        // tenant they are in stay visible, so this is a closed door rather than
+        // the floor disappearing.
+        path: 'forbidden',
+        loadComponent: () =>
+          import('./shared/components/forbidden/forbidden.component').then(
+            (componentModule) => componentModule.ForbiddenComponent,
           ),
       },
     ],

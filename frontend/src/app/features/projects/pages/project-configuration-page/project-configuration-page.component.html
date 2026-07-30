@@ -1,0 +1,868 @@
+<app-page-header
+  [eyebrow]="'projectConfig.eyebrow' | translate"
+  [title]="'projectConfig.title' | translate"
+  [subtitle]="'projectConfig.subtitle' | translate: { revision: configuration()?.revision ?? 0 }"
+/>
+
+<p>
+  <a class="btn btn-sm btn-outline-secondary" [routerLink]="['..']">
+    {{ 'projectConfig.backToProject' | translate }}
+  </a>
+</p>
+
+@if (loadFailure(); as failure) {
+  <app-error-state [error]="failure" (retry)="refresh()" />
+}
+
+@if (loading() && configuration() === null) {
+  <div class="d-flex align-items-center gap-2 text-body-secondary" role="status">
+    <span class="spinner-border spinner-border-sm" aria-hidden="true"></span>
+    <span>{{ 'common.loading' | translate }}</span>
+  </div>
+} @else if (configuration(); as config) {
+  @if (workflows().length === 0) {
+    <p class="text-body-secondary">{{ 'projectConfig.noWorkflows' | translate }}</p>
+  } @else {
+    <section class="card border-0 shadow-sm mb-4" aria-labelledby="workflow-list-title">
+      <div class="card-body">
+        <h2 id="workflow-list-title" class="h5">{{ 'projectConfig.workflows' | translate }}</h2>
+        <div class="d-flex flex-wrap gap-2">
+          @for (workflow of workflows(); track workflow.id) {
+            <button
+              class="btn btn-sm"
+              type="button"
+              [class.btn-primary]="selectedWorkflowId() === workflow.id"
+              [class.btn-outline-secondary]="selectedWorkflowId() !== workflow.id"
+              [attr.aria-pressed]="selectedWorkflowId() === workflow.id"
+              (click)="selectWorkflow(workflow.id)"
+            >
+              {{ workflow.name }}
+              @if (workflow.draft_version) {
+                <span class="badge text-bg-warning ms-1">
+                  {{ 'projectConfig.hasDraft' | translate }}
+                </span>
+              }
+            </button>
+          }
+        </div>
+      </div>
+    </section>
+  }
+
+  <section class="card border-0 shadow-sm mb-4" aria-labelledby="issue-types-title">
+    <div class="card-body">
+      <div class="d-flex flex-wrap justify-content-between align-items-start gap-2">
+        <h2 id="issue-types-title" class="h5">{{ 'projectConfig.issueTypes' | translate }}</h2>
+        <button
+          class="btn btn-sm btn-outline-primary"
+          type="button"
+          [disabled]="assignableWorkflows().length === 0"
+          (click)="beginCreateIssueType()"
+        >
+          {{ 'projectConfig.addIssueType' | translate }}
+        </button>
+      </div>
+      <p class="small text-body-secondary">{{ 'projectConfig.issueTypesNotice' | translate }}</p>
+
+      @if (issueTypeError(); as message) {
+        <div class="alert alert-danger" role="alert">{{ message | translate }}</div>
+      }
+      @if (issueTypeSuccess()) {
+        <div class="alert alert-success" role="status">
+          {{ 'projectConfig.issueTypeSaved' | translate }}
+        </div>
+      }
+
+      @if (config.issue_types.length === 0) {
+        <p class="text-body-secondary">{{ 'projectConfig.noIssueTypes' | translate }}</p>
+      } @else {
+        <div class="table-responsive">
+          <table class="table align-middle">
+            <caption class="visually-hidden">
+              {{
+                'projectConfig.issueTypesCaption' | translate
+              }}
+            </caption>
+            <thead>
+              <tr>
+                <th scope="col">{{ 'projectConfig.position' | translate }}</th>
+                <th scope="col">{{ 'projectConfig.icon' | translate }}</th>
+                <th scope="col">{{ 'projectConfig.code' | translate }}</th>
+                <th scope="col">{{ 'projectConfig.name' | translate }}</th>
+                <th scope="col">{{ 'projectConfig.hierarchy' | translate }}</th>
+                <th scope="col">{{ 'projectConfig.state' | translate }}</th>
+                <th scope="col">{{ 'projectConfig.workflow' | translate }}</th>
+                <th scope="col">{{ 'projectConfig.actions' | translate }}</th>
+              </tr>
+            </thead>
+            <tbody>
+              @for (type of config.issue_types; track type.id) {
+                <tr>
+                  <td>{{ type.position }}</td>
+                  <td>
+                    <span class="badge text-bg-light border">
+                      {{ type.icon || '—' }}
+                    </span>
+                  </td>
+                  <th scope="row" class="fw-normal">{{ type.code }}</th>
+                  <td>{{ type.name }}</td>
+                  <td>{{ hierarchyKey(type.hierarchy_level) | translate }}</td>
+                  <td>
+                    @if (type.status === 'ACTIVE') {
+                      {{ 'common.active' | translate }}
+                    } @else {
+                      {{ 'common.archived' | translate }}
+                    }
+                  </td>
+                  <td>{{ workflowName(type.workflow_id) }}</td>
+                  <td>
+                    @if (type.status === 'ACTIVE') {
+                      <div class="d-flex flex-wrap gap-2">
+                        <button
+                          class="btn btn-sm btn-outline-secondary"
+                          type="button"
+                          (click)="beginEditIssueType(type)"
+                        >
+                          {{ 'projectConfig.editIssueType' | translate }}
+                        </button>
+                        <button
+                          class="btn btn-sm btn-outline-danger"
+                          type="button"
+                          (click)="requestArchiveIssueType(type)"
+                        >
+                          {{ 'projectConfig.archiveIssueType' | translate }}
+                        </button>
+                      </div>
+                    }
+                  </td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        </div>
+      }
+
+      @if (archiveCandidate(); as type) {
+        <div class="alert alert-warning" role="alert">
+          <h3 class="h6">{{ 'projectConfig.archiveIssueTypeTitle' | translate }}</h3>
+          <p>
+            {{ 'projectConfig.archiveIssueTypeNotice' | translate: { code: type.code } }}
+          </p>
+          <div class="d-flex flex-wrap gap-2">
+            <button
+              class="btn btn-sm btn-danger"
+              type="button"
+              [disabled]="issueTypeSaving()"
+              (click)="archiveIssueType()"
+            >
+              {{ 'projectConfig.confirmArchiveIssueType' | translate }}
+            </button>
+            <button
+              class="btn btn-sm btn-outline-secondary"
+              type="button"
+              [disabled]="issueTypeSaving()"
+              (click)="cancelArchiveIssueType()"
+            >
+              {{ 'common.cancel' | translate }}
+            </button>
+          </div>
+        </div>
+      }
+
+      @if (issueTypeEditorOpen()) {
+        <form class="border rounded p-3" [formGroup]="issueTypeForm" (ngSubmit)="saveIssueType()">
+          <h3 class="h6">
+            @if (editingIssueTypeId() === null) {
+              {{ 'projectConfig.createIssueType' | translate }}
+            } @else {
+              {{ 'projectConfig.editIssueType' | translate }}
+            }
+          </h3>
+
+          @if (issueTypeForm.invalid && issueTypeForm.touched) {
+            <div class="alert alert-danger" role="alert">
+              {{ 'projectConfig.issueTypeFormInvalid' | translate }}
+            </div>
+          }
+
+          <div class="row g-3">
+            <div class="col-12 col-md-4">
+              <label class="form-label" for="issue-type-code">
+                {{ 'projectConfig.code' | translate }}
+              </label>
+              <input
+                id="issue-type-code"
+                class="form-control"
+                type="text"
+                appAriaRequired
+                formControlName="code"
+                [readOnly]="editingIssueTypeId() !== null"
+              />
+              <div class="form-text">{{ 'projectConfig.codeHint' | translate }}</div>
+            </div>
+
+            <div class="col-12 col-md-8">
+              <label class="form-label" for="issue-type-name">
+                {{ 'projectConfig.name' | translate }}
+              </label>
+              <input
+                id="issue-type-name"
+                class="form-control"
+                type="text"
+                appAriaRequired
+                formControlName="name"
+              />
+            </div>
+
+            <div class="col-12">
+              <label class="form-label" for="issue-type-description">
+                {{ 'projectConfig.description' | translate }}
+              </label>
+              <textarea
+                id="issue-type-description"
+                class="form-control"
+                rows="2"
+                formControlName="description"
+              ></textarea>
+            </div>
+
+            <div class="col-12 col-md-4">
+              <label class="form-label" for="issue-type-hierarchy">
+                {{ 'projectConfig.hierarchy' | translate }}
+              </label>
+              <select
+                id="issue-type-hierarchy"
+                class="form-select"
+                appAriaRequired
+                formControlName="hierarchy_level"
+              >
+                @for (level of hierarchyLevels; track level) {
+                  <option [ngValue]="level">{{ hierarchyKey(level) | translate }}</option>
+                }
+              </select>
+            </div>
+
+            <div class="col-12 col-md-4">
+              <label class="form-label" for="issue-type-workflow">
+                {{ 'projectConfig.workflow' | translate }}
+              </label>
+              <select
+                id="issue-type-workflow"
+                class="form-select"
+                appAriaRequired
+                formControlName="workflow_id"
+              >
+                <option value="">{{ 'projectConfig.choose' | translate }}</option>
+                @for (workflow of assignableWorkflows(); track workflow.id) {
+                  <option [value]="workflow.id">{{ workflow.name }}</option>
+                }
+              </select>
+            </div>
+
+            <div class="col-12 col-md-4">
+              <label class="form-label" for="issue-type-position">
+                {{ 'projectConfig.position' | translate }}
+              </label>
+              <input
+                id="issue-type-position"
+                class="form-control"
+                type="number"
+                min="0"
+                max="10000"
+                appAriaRequired
+                formControlName="position"
+              />
+            </div>
+
+            <div class="col-12 col-md-6">
+              <label class="form-label" for="issue-type-icon">
+                {{ 'projectConfig.icon' | translate }}
+              </label>
+              <input id="issue-type-icon" class="form-control" type="text" formControlName="icon" />
+            </div>
+
+            <div class="col-12 col-md-6">
+              <label class="form-label" for="issue-type-color">
+                {{ 'projectConfig.colorToken' | translate }}
+              </label>
+              <input
+                id="issue-type-color"
+                class="form-control"
+                type="text"
+                formControlName="color_token"
+              />
+              <div class="form-text">{{ 'projectConfig.tokenHint' | translate }}</div>
+            </div>
+          </div>
+
+          <div class="d-flex flex-wrap gap-2 mt-3">
+            <button class="btn btn-primary" type="submit" [disabled]="issueTypeSaving()">
+              @if (issueTypeSaving()) {
+                {{ 'projectConfig.saving' | translate }}
+              } @else {
+                {{ 'projectConfig.saveIssueType' | translate }}
+              }
+            </button>
+            <button
+              class="btn btn-outline-secondary"
+              type="button"
+              [disabled]="issueTypeSaving()"
+              (click)="cancelIssueTypeEdit()"
+            >
+              {{ 'common.cancel' | translate }}
+            </button>
+          </div>
+        </form>
+      }
+    </div>
+  </section>
+
+  @if (selectedWorkflow(); as workflow) {
+    <section class="card border-0 shadow-sm mb-4" aria-labelledby="published-title">
+      <div class="card-body">
+        <h2 id="published-title" class="h5">{{ 'projectConfig.published' | translate }}</h2>
+
+        @if (issueTypesUsingWorkflow().length > 0) {
+          <p class="small text-body-secondary">
+            {{ 'projectConfig.usedByTypes' | translate }}:
+            @for (type of issueTypesUsingWorkflow(); track type.id) {
+              <span class="badge text-bg-secondary ms-1">{{ type.code }}</span>
+            }
+          </p>
+        }
+
+        @if (workflow.published_version; as version) {
+          <p class="mb-2">
+            {{ 'projectConfig.versionNumber' | translate: { number: version.version_number } }}
+          </p>
+          <ul class="list-unstyled mb-3">
+            @for (status of version.statuses; track status.status_id) {
+              <li>
+                <strong>{{ status.code }}</strong> — {{ status.name }}
+                <span class="text-body-secondary">
+                  ({{ categoryKey(status.category) | translate }})
+                </span>
+                @if (version.initial_status_id === status.status_id) {
+                  <span class="badge text-bg-info ms-1">
+                    {{ 'projectConfig.initial' | translate }}
+                  </span>
+                }
+              </li>
+            }
+          </ul>
+          <ul class="list-unstyled mb-0">
+            @for (transition of version.transitions; track transition.id) {
+              <li class="small">
+                {{ transition.name }}:
+                {{ publishedStatusName(version, transition.from_status_id) }} →
+                {{ publishedStatusName(version, transition.to_status_id) }}
+                @if (transition.is_primary) {
+                  <span class="badge text-bg-secondary ms-1">
+                    {{ 'projectConfig.primary' | translate }}
+                  </span>
+                }
+              </li>
+            }
+          </ul>
+        } @else {
+          <p class="text-body-secondary mb-0">{{ 'projectConfig.notPublished' | translate }}</p>
+        }
+      </div>
+    </section>
+
+    @if (draftError(); as message) {
+      <div class="alert alert-danger" role="alert">
+        {{ message | translate }}
+        @if (draftConflict()) {
+          <!--
+            The offer, not the act: taking the stored draft throws away what is
+            on screen, and only the person who typed it can weigh that.
+          -->
+          <button class="btn btn-sm btn-outline-dark ms-2" type="button" (click)="reloadDraft()">
+            {{ 'projectConfig.loadStoredDraft' | translate }}
+          </button>
+        }
+      </div>
+    }
+
+    @if (draftVersion(); as draft) {
+      <section class="card border-0 shadow-sm mb-4" aria-labelledby="draft-title">
+        <div class="card-body">
+          <div class="d-flex flex-wrap justify-content-between align-items-start gap-2">
+            <h2 id="draft-title" class="h5 mb-0">{{ 'projectConfig.draft' | translate }}</h2>
+            <span class="small text-body-secondary">
+              {{ 'projectConfig.draftVersion' | translate: { version: draft.version } }}
+            </span>
+          </div>
+
+          @if (dirty()) {
+            <p class="alert alert-warning mt-3 mb-3" role="status">
+              {{ 'projectConfig.unsaved' | translate }}
+            </p>
+          }
+
+          <h3 class="h6 mt-3">{{ 'projectConfig.statuses' | translate }}</h3>
+          @if (statuses().length === 0) {
+            <p class="text-body-secondary">{{ 'projectConfig.noStatuses' | translate }}</p>
+          } @else {
+            <div class="table-responsive">
+              <table class="table align-middle">
+                <caption class="visually-hidden">
+                  {{
+                    'projectConfig.statusesCaption' | translate
+                  }}
+                </caption>
+                <thead>
+                  <tr>
+                    <th scope="col">{{ 'projectConfig.code' | translate }}</th>
+                    <th scope="col">{{ 'projectConfig.name' | translate }}</th>
+                    <th scope="col">{{ 'projectConfig.category' | translate }}</th>
+                    <th scope="col">{{ 'projectConfig.initial' | translate }}</th>
+                    <th scope="col">{{ 'projectConfig.actions' | translate }}</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  @for (status of statuses(); track status.code) {
+                    <tr>
+                      <th scope="row" class="fw-normal">{{ status.code }}</th>
+                      <td>{{ status.name }}</td>
+                      <td>{{ categoryKey(status.category) | translate }}</td>
+                      <td>
+                        <div class="form-check mb-0">
+                          <input
+                            class="form-check-input"
+                            type="radio"
+                            name="initial-status"
+                            [id]="'initial-' + status.code"
+                            [checked]="initialStatusCode() === status.code"
+                            (change)="setInitialStatus(status.code)"
+                          />
+                          <label class="form-check-label" [attr.for]="'initial-' + status.code">
+                            {{ 'projectConfig.initial' | translate }}
+                          </label>
+                        </div>
+                      </td>
+                      <td>
+                        <button
+                          class="btn btn-sm btn-outline-danger"
+                          type="button"
+                          (click)="removeStatus(status.code)"
+                        >
+                          {{ 'projectConfig.remove' | translate }}
+                        </button>
+                      </td>
+                    </tr>
+                  }
+                </tbody>
+              </table>
+            </div>
+          }
+
+          <div class="row g-3 mb-4">
+            <div class="col-12 col-lg-6">
+              <form [formGroup]="addStatusForm" (ngSubmit)="addExistingStatus()">
+                <label class="form-label" for="add-status">
+                  {{ 'projectConfig.addExistingStatus' | translate }}
+                </label>
+                <div class="input-group">
+                  <select id="add-status" class="form-select" formControlName="status_id">
+                    <option value="">{{ 'projectConfig.choose' | translate }}</option>
+                    @for (status of availableStatuses(); track status.id) {
+                      <option [value]="status.id">{{ status.code }} — {{ status.name }}</option>
+                    }
+                  </select>
+                  <button class="btn btn-outline-primary" type="submit">
+                    {{ 'projectConfig.add' | translate }}
+                  </button>
+                </div>
+              </form>
+            </div>
+
+            <div class="col-12 col-lg-6">
+              <form class="row g-2" [formGroup]="newStatusForm" (ngSubmit)="addNewStatus()">
+                <div class="col-12">
+                  <span class="form-label d-block">
+                    {{ 'projectConfig.addNewStatus' | translate }}
+                  </span>
+                </div>
+                <div class="col-4">
+                  <label class="form-label visually-hidden" for="new-status-code">
+                    {{ 'projectConfig.code' | translate }}
+                  </label>
+                  <input
+                    id="new-status-code"
+                    class="form-control"
+                    type="text"
+                    appAriaRequired
+                    formControlName="code"
+                    [attr.placeholder]="'projectConfig.code' | translate"
+                  />
+                </div>
+                <div class="col-4">
+                  <label class="form-label visually-hidden" for="new-status-name">
+                    {{ 'projectConfig.name' | translate }}
+                  </label>
+                  <input
+                    id="new-status-name"
+                    class="form-control"
+                    type="text"
+                    appAriaRequired
+                    formControlName="name"
+                    [attr.placeholder]="'projectConfig.name' | translate"
+                  />
+                </div>
+                <div class="col-4">
+                  <label class="form-label visually-hidden" for="new-status-category">
+                    {{ 'projectConfig.category' | translate }}
+                  </label>
+                  <select
+                    id="new-status-category"
+                    class="form-select"
+                    appAriaRequired
+                    formControlName="category"
+                  >
+                    @for (category of categories; track category) {
+                      <option [value]="category">{{ categoryKey(category) | translate }}</option>
+                    }
+                  </select>
+                </div>
+                <div class="col-12">
+                  <button class="btn btn-outline-primary btn-sm" type="submit">
+                    {{ 'projectConfig.add' | translate }}
+                  </button>
+                  <span class="small text-body-secondary ms-2">
+                    {{ 'projectConfig.codeHint' | translate }}
+                  </span>
+                </div>
+              </form>
+            </div>
+          </div>
+
+          <h3 class="h6">{{ 'projectConfig.transitions' | translate }}</h3>
+          @if (transitions().length === 0) {
+            <p class="text-body-secondary">{{ 'projectConfig.noTransitions' | translate }}</p>
+          } @else {
+            <div class="table-responsive">
+              <table class="table align-middle">
+                <caption class="visually-hidden">
+                  {{
+                    'projectConfig.transitionsCaption' | translate
+                  }}
+                </caption>
+                <thead>
+                  <tr>
+                    <th scope="col">{{ 'projectConfig.code' | translate }}</th>
+                    <th scope="col">{{ 'projectConfig.name' | translate }}</th>
+                    <th scope="col">{{ 'projectConfig.from' | translate }}</th>
+                    <th scope="col">{{ 'projectConfig.to' | translate }}</th>
+                    <th scope="col">{{ 'projectConfig.primary' | translate }}</th>
+                    <th scope="col">{{ 'projectConfig.actions' | translate }}</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  @for (transition of transitions(); track transition.code) {
+                    <tr>
+                      <th scope="row" class="fw-normal">{{ transition.code }}</th>
+                      <td>{{ transition.name }}</td>
+                      <td>{{ statusName(transition.from) }}</td>
+                      <td>{{ statusName(transition.to) }}</td>
+                      <td>
+                        <div class="form-check mb-0">
+                          <input
+                            class="form-check-input"
+                            type="checkbox"
+                            [id]="'primary-' + transition.code"
+                            [checked]="transition.isPrimary"
+                            (change)="togglePrimary(transition.code)"
+                          />
+                          <label class="form-check-label" [attr.for]="'primary-' + transition.code">
+                            {{ 'projectConfig.primary' | translate }}
+                          </label>
+                        </div>
+                      </td>
+                      <td>
+                        <button
+                          class="btn btn-sm btn-outline-danger"
+                          type="button"
+                          (click)="removeTransition(transition.code)"
+                        >
+                          {{ 'projectConfig.remove' | translate }}
+                        </button>
+                      </td>
+                    </tr>
+                  }
+                </tbody>
+              </table>
+            </div>
+          }
+
+          <form class="row g-2 mb-3" [formGroup]="transitionForm" (ngSubmit)="addTransition()">
+            <div class="col-12">
+              <span class="form-label d-block">{{
+                'projectConfig.addTransition' | translate
+              }}</span>
+            </div>
+            <div class="col-6 col-lg-2">
+              <label class="form-label visually-hidden" for="transition-code">
+                {{ 'projectConfig.code' | translate }}
+              </label>
+              <input
+                id="transition-code"
+                class="form-control"
+                type="text"
+                appAriaRequired
+                formControlName="code"
+                [attr.placeholder]="'projectConfig.code' | translate"
+              />
+            </div>
+            <div class="col-6 col-lg-3">
+              <label class="form-label visually-hidden" for="transition-name">
+                {{ 'projectConfig.name' | translate }}
+              </label>
+              <input
+                id="transition-name"
+                class="form-control"
+                type="text"
+                appAriaRequired
+                formControlName="name"
+                [attr.placeholder]="'projectConfig.name' | translate"
+              />
+            </div>
+            <div class="col-6 col-lg-3">
+              <label class="form-label visually-hidden" for="transition-from">
+                {{ 'projectConfig.from' | translate }}
+              </label>
+              <select
+                id="transition-from"
+                class="form-select"
+                appAriaRequired
+                formControlName="from"
+              >
+                <option value="">{{ 'projectConfig.from' | translate }}</option>
+                @for (status of statuses(); track status.code) {
+                  <option [value]="status.code">{{ status.name }}</option>
+                }
+              </select>
+            </div>
+            <div class="col-6 col-lg-3">
+              <label class="form-label visually-hidden" for="transition-to">
+                {{ 'projectConfig.to' | translate }}
+              </label>
+              <select id="transition-to" class="form-select" appAriaRequired formControlName="to">
+                <option value="">{{ 'projectConfig.to' | translate }}</option>
+                @for (status of statuses(); track status.code) {
+                  <option [value]="status.code">{{ status.name }}</option>
+                }
+              </select>
+            </div>
+            <div class="col-12 col-lg-1 d-flex align-items-end">
+              <button class="btn btn-outline-primary btn-sm w-100" type="submit">
+                {{ 'projectConfig.add' | translate }}
+              </button>
+            </div>
+          </form>
+
+          <div class="d-flex flex-wrap gap-2">
+            <button
+              class="btn btn-primary"
+              type="button"
+              [disabled]="savingDraft()"
+              (click)="saveDraft()"
+            >
+              @if (savingDraft()) {
+                {{ 'projectConfig.saving' | translate }}
+              } @else {
+                {{ 'projectConfig.saveDraft' | translate }}
+              }
+            </button>
+            <button
+              class="btn btn-outline-secondary"
+              type="button"
+              [disabled]="validating()"
+              (click)="validateDraft()"
+            >
+              {{ 'projectConfig.validate' | translate }}
+            </button>
+            <button
+              class="btn btn-outline-secondary"
+              type="button"
+              [disabled]="loadingImpact()"
+              (click)="loadImpact()"
+            >
+              {{ 'projectConfig.showImpact' | translate }}
+            </button>
+          </div>
+        </div>
+      </section>
+    } @else {
+      <section class="card border-0 shadow-sm mb-4" aria-labelledby="no-draft-title">
+        <div class="card-body">
+          <h2 id="no-draft-title" class="h5">{{ 'projectConfig.draft' | translate }}</h2>
+          <p class="text-body-secondary">{{ 'projectConfig.noDraft' | translate }}</p>
+          <button
+            class="btn btn-primary"
+            type="button"
+            [disabled]="creatingDraft()"
+            (click)="createDraft()"
+          >
+            @if (creatingDraft()) {
+              {{ 'projectConfig.creatingDraft' | translate }}
+            } @else {
+              {{ 'projectConfig.createDraft' | translate }}
+            }
+          </button>
+        </div>
+      </section>
+    }
+
+    @if (reportError()) {
+      <div class="alert alert-danger" role="alert">
+        {{ 'projectConfig.reportError' | translate }}
+      </div>
+    }
+
+    @if (validation(); as errors) {
+      <section class="card border-0 shadow-sm mb-4" aria-labelledby="validation-title">
+        <div class="card-body">
+          <h2 id="validation-title" class="h5">{{ 'projectConfig.validation' | translate }}</h2>
+          @if (validationClean()) {
+            <p class="text-success mb-0">{{ 'projectConfig.validationClean' | translate }}</p>
+          } @else {
+            <ul class="mb-0">
+              @for (error of errors; track error.code + error.detail) {
+                <li>
+                  <code>{{ error.code }}</code> — {{ error.detail }}
+                </li>
+              }
+            </ul>
+          }
+        </div>
+      </section>
+    }
+
+    @if (impact(); as report) {
+      <section class="card border-0 shadow-sm mb-4" aria-labelledby="impact-title">
+        <div class="card-body">
+          <h2 id="impact-title" class="h5">{{ 'projectConfig.impact' | translate }}</h2>
+
+          <dl class="row mb-3">
+            <dt class="col-sm-4">{{ 'projectConfig.addedStatuses' | translate }}</dt>
+            <dd class="col-sm-8">{{ report.added_status_codes.join(', ') || '—' }}</dd>
+            <dt class="col-sm-4">{{ 'projectConfig.removedStatuses' | translate }}</dt>
+            <dd class="col-sm-8">{{ report.removed_status_codes.join(', ') || '—' }}</dd>
+            <dt class="col-sm-4">{{ 'projectConfig.addedTransitions' | translate }}</dt>
+            <dd class="col-sm-8">{{ report.added_transition_codes.join(', ') || '—' }}</dd>
+            <dt class="col-sm-4">{{ 'projectConfig.removedTransitions' | translate }}</dt>
+            <dd class="col-sm-8">{{ report.removed_transition_codes.join(', ') || '—' }}</dd>
+          </dl>
+
+          @if (report.affected_issue_counts.length > 0) {
+            <h3 class="h6">{{ 'projectConfig.affectedIssues' | translate }}</h3>
+            <ul>
+              @for (count of report.affected_issue_counts; track count.status_id) {
+                <li>{{ count.status_name }} ({{ count.status_code }}): {{ count.count }}</li>
+              }
+            </ul>
+          }
+
+          @if (report.required_status_mapping_codes.length > 0) {
+            <h3 class="h6">{{ 'projectConfig.migrationTargets' | translate }}</h3>
+            <p class="small text-body-secondary">
+              {{ 'projectConfig.migrationNotice' | translate }}
+            </p>
+            @for (code of report.required_status_mapping_codes; track code) {
+              <div class="mb-2">
+                <label class="form-label" [attr.for]="'mapping-' + code">{{ code }}</label>
+                <select
+                  class="form-select"
+                  [id]="'mapping-' + code"
+                  [value]="mappingTarget(code)"
+                  (change)="setMappingTarget(code, $any($event.target).value)"
+                >
+                  <option value="">{{ 'projectConfig.choose' | translate }}</option>
+                  @for (status of statuses(); track status.code) {
+                    <option [value]="status.code">{{ status.code }} — {{ status.name }}</option>
+                  }
+                </select>
+              </div>
+            }
+          }
+        </div>
+      </section>
+    }
+
+    @if (draftVersion()) {
+      <section class="card border-0 shadow-sm mb-4" aria-labelledby="publish-title">
+        <div class="card-body">
+          <h2 id="publish-title" class="h5">{{ 'projectConfig.publish' | translate }}</h2>
+
+          @if (publishError(); as message) {
+            <div class="alert alert-danger" role="alert">{{ message | translate }}</div>
+          }
+          @if (published()) {
+            <div class="alert alert-success" role="status">
+              {{ 'projectConfig.publishSuccess' | translate }}
+            </div>
+          }
+
+          <!--
+            Publishing acts on the stored draft. Saying so is the difference
+            between a surprise and a decision.
+          -->
+          <p class="small text-body-secondary">{{ 'projectConfig.publishNotice' | translate }}</p>
+
+          <button
+            class="btn btn-primary"
+            type="button"
+            [disabled]="publishing() || dirty()"
+            (click)="publish()"
+          >
+            @if (publishing()) {
+              {{ 'projectConfig.publishing' | translate }}
+            } @else {
+              {{ 'projectConfig.publish' | translate }}
+            }
+          </button>
+          @if (dirty()) {
+            <span class="small text-body-secondary ms-2">
+              {{ 'projectConfig.saveBeforePublish' | translate }}
+            </span>
+          }
+        </div>
+      </section>
+    }
+  }
+
+  @if (history().length > 0) {
+    <section class="card border-0 shadow-sm" aria-labelledby="history-title">
+      <div class="card-body">
+        <h2 id="history-title" class="h5">{{ 'projectConfig.history' | translate }}</h2>
+        <div class="table-responsive">
+          <table class="table align-middle">
+            <caption class="visually-hidden">
+              {{
+                'projectConfig.historyCaption' | translate
+              }}
+            </caption>
+            <thead>
+              <tr>
+                <th scope="col">{{ 'projectConfig.revision' | translate }}</th>
+                <th scope="col">{{ 'projectConfig.event' | translate }}</th>
+                <th scope="col">{{ 'projectConfig.when' | translate }}</th>
+              </tr>
+            </thead>
+            <tbody>
+              @for (entry of history(); track entry.id) {
+                <tr>
+                  <th scope="row" class="fw-normal">{{ entry.revision }}</th>
+                  <td>{{ entry.event_type }}</td>
+                  <td>{{ entry.created_at }}</td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+  }
+}

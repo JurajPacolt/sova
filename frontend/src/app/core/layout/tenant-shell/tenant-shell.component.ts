@@ -19,6 +19,9 @@ import { finalize } from 'rxjs/operators';
 import { AuthSessionService } from '../../auth/auth-session.service';
 import { AuthSessionStore } from '../../auth/auth-session.store';
 import { ImpersonationSessionService } from '../../auth/impersonation-session.service';
+import { SkipLinkDirective } from '../../a11y/skip-link.directive';
+import { ConnectivityService } from '../../errors/connectivity.service';
+import { NotificationCentreService } from '../../notifications/notification-centre.service';
 import { LanguageSwitcherComponent } from '../../../shared/components/language-switcher/language-switcher.component';
 import { ThemeSwitcherComponent } from '../../../shared/components/theme-switcher/theme-switcher.component';
 import { TranslatePipe } from '../../i18n/translate.pipe';
@@ -37,6 +40,7 @@ interface NavigationItem {
   selector: 'app-tenant-shell',
   standalone: true,
   imports: [
+    SkipLinkDirective,
     LanguageSwitcherComponent,
     RouterLink,
     RouterLinkActive,
@@ -57,6 +61,9 @@ export class TenantShellComponent {
   private readonly impersonationSession = inject(ImpersonationSessionService);
 
   protected readonly session = inject(AuthSessionStore);
+  protected readonly online = inject(ConnectivityService).online;
+  /** The badge only reads the count; the centre owns the polling. */
+  protected readonly unreadNotifications = inject(NotificationCentreService).unreadCount;
   protected readonly sidebarOpen = signal(false);
   protected readonly loggingOut = signal(false);
   protected readonly logoutError = signal(false);
@@ -64,6 +71,7 @@ export class TenantShellComponent {
   protected readonly impersonationEndError = signal(false);
   private readonly allNavigation = signal<readonly NavigationItem[]>([
     { labelKey: 'nav.dashboard', path: 'dashboards' },
+    { labelKey: 'nav.issues', path: 'issues' },
     { labelKey: 'nav.projects', path: 'projects' },
     {
       labelKey: 'nav.administration',

@@ -33,6 +33,14 @@ final readonly class SearchResultItem
         public ?string $assigneeWorkgroupId,
         public ?string $assigneeWorkgroupName,
         public ?string $parentIssueKey,
+        /**
+         * Whether an issue the caller may also see blocks this one and is not
+         * done yet. Computed in the same statement as the row, so a board can
+         * mark its cards without a request per card — and scoped exactly like
+         * the link list, so the board never claims a blocker the detail screen
+         * would then refuse to show.
+         */
+        public bool $blocked,
         public ?string $resolution,
         public ?DateTimeImmutable $resolvedAt,
         public DateTimeImmutable $createdAt,

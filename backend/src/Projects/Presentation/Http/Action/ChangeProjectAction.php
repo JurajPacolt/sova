@@ -17,6 +17,7 @@ use Sova\Identity\Application\Authentication\SessionContext;
 use Sova\Identity\Infrastructure\Http\Middleware\SessionAuthenticationMiddleware;
 use Sova\Projects\Application\ProjectAdministrationService;
 use Sova\Projects\Domain\ProjectStatus;
+use Sova\Projects\Domain\ProjectVisibility;
 use Sova\Projects\Presentation\Http\ProjectSerializer;
 use Sova\Shared\Domain\Error\DomainProblemException;
 use Sova\Shared\Domain\Error\ProblemType;
@@ -26,7 +27,7 @@ use Sova\Shared\Presentation\Http\JsonResponse;
 use Sova\Tenancy\Application\Access\AccessibleTenant;
 use Sova\Tenancy\Infrastructure\Http\Middleware\TenantContextMiddleware;
 
-final readonly class ChangeProjectStatusAction
+final readonly class ChangeProjectAction
 {
     public function __construct(
         private ProjectAdministrationService $administration,
@@ -54,14 +55,35 @@ final readonly class ChangeProjectStatusAction
         $this->requireProjectManage($subject, $tenant->id, $projectId);
         $body = $request->getParsedBody();
         $payload = is_array($body) ? $body : [];
-        $project = $this->administration->changeStatus(
-            $tenant->id,
-            $projectId,
-            $this->status($payload['status'] ?? null),
-            $session->actorUserId,
-            $this->requestId($request),
-            $this->ipAddress($request),
-        );
+        $hasStatus = array_key_exists('status', $payload);
+        $hasVisibility = array_key_exists('visibility', $payload);
+
+        if ($hasStatus === $hasVisibility || count($payload) !== 1) {
+            throw new DomainProblemException(
+                ProblemType::ValidationFailed,
+                'PROJECT_CHANGE_INVALID',
+                'Change exactly one of: status, visibility.',
+                ['body' => ['Change exactly one of: status, visibility.']],
+            );
+        }
+
+        $project = $hasStatus
+            ? $this->administration->changeStatus(
+                $tenant->id,
+                $projectId,
+                $this->status($payload['status'] ?? null),
+                $session->actorUserId,
+                $this->requestId($request),
+                $this->ipAddress($request),
+            )
+            : $this->administration->changeVisibility(
+                $tenant->id,
+                $projectId,
+                $this->visibility($payload['visibility'] ?? null),
+                $session->actorUserId,
+                $this->requestId($request),
+                $this->ipAddress($request),
+            );
 
         return JsonResponse::write(
             $response,
@@ -103,6 +125,24 @@ final readonly class ChangeProjectStatusAction
         }
 
         return $status;
+    }
+
+    private function visibility(mixed $value): ProjectVisibility
+    {
+        $visibility = is_string($value)
+            ? ProjectVisibility::tryFrom($value)
+            : null;
+
+        if ($visibility === null) {
+            throw new DomainProblemException(
+                ProblemType::ValidationFailed,
+                'PROJECT_VISIBILITY_INVALID',
+                'Use one of: TENANT, PRIVATE.',
+                ['visibility' => ['Use one of: TENANT, PRIVATE.']],
+            );
+        }
+
+        return $visibility;
     }
 
     /**

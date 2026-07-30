@@ -8,6 +8,12 @@
   <div class="alert alert-warning" role="alert">{{ message | translate }}</div>
 }
 
+<!--
+  Always present, so a screen reader has a region to announce into rather than
+  one appearing at the moment there is something to say (§13.2).
+-->
+<p class="visually-hidden" role="status" aria-live="polite">{{ moveAnnouncement() }}</p>
+
 @if (loading()) {
   <p class="text-body-secondary" role="status">{{ 'common.loading' | translate }}</p>
 } @else if (loadError(); as message) {
@@ -15,7 +21,18 @@
 } @else {
   <div class="board-columns">
     @for (column of columns(); track column.status.id) {
-      <section class="board-column" [attr.aria-label]="column.status.name">
+      <!--
+        A drop zone on top of the buttons, never instead of them: the keyboard
+        path stays exactly as it was (webflow §9.1, §13.2).
+      -->
+      <section
+        class="board-column"
+        [class.board-column--drop-target]="dropTargetCode() === column.status.code"
+        [attr.aria-label]="column.status.name"
+        (dragover)="allowDrop(column, $event)"
+        (dragleave)="dropTargetCode.set(null)"
+        (drop)="drop(column, $event)"
+      >
         <header class="board-column-header">
           <span class="fw-semibold">{{ column.status.name }}</span>
           <span class="badge text-bg-secondary">{{ column.issues.length }}</span>
@@ -26,10 +43,24 @@
         } @else {
           <ul class="list-unstyled mb-0">
             @for (issue of column.issues; track issue.id) {
-              <li class="board-card">
+              <li
+                class="board-card"
+                draggable="true"
+                [class.board-card--dragging]="draggedIssueId() === issue.id"
+                (dragstart)="startDrag(issue, $event)"
+                (dragend)="endDrag()"
+              >
                 <a class="fw-semibold d-block" [routerLink]="['../..', issue.key]">
                   {{ issue.key }}
                 </a>
+                @if (issue.blocked) {
+                  <!--
+                    A word, not a colour: the flag rides along with the row from
+                    the search projection, so marking a board of forty cards
+                    costs no extra request.
+                  -->
+                  <span class="badge text-bg-danger">{{ 'issue.board.blocked' | translate }}</span>
+                }
                 <span class="d-block">{{ issue.title }}</span>
                 <span class="d-block text-body-secondary small">
                   {{ issue.issue_type.name }} · {{ issue.priority }} ·

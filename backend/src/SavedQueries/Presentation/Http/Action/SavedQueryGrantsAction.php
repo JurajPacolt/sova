@@ -56,6 +56,8 @@ final readonly class SavedQueryGrantsAction
                 $membershipId,
                 $this->grants($payload['grants'] ?? null),
                 $session->actorUserId,
+                $this->context->requestId($request),
+                $this->context->ipAddress($request),
             );
         }
 

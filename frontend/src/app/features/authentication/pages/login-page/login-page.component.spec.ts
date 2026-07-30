@@ -1,6 +1,7 @@
 import { TestBed } from '@angular/core/testing';
 import { ActivatedRoute, convertToParamMap, Router } from '@angular/router';
-import { of } from 'rxjs';
+import { HttpErrorResponse } from '@angular/common/http';
+import { of, throwError } from 'rxjs';
 import { AccessibleTenant, LoginResponse } from '../../../../core/api/api.models';
 import { AuthSessionService } from '../../../../core/auth/auth-session.service';
 import { LoginPageComponent } from './login-page.component';
@@ -27,6 +28,12 @@ const LOGIN: LoginResponse = {
   session: {
     id: '019f9f00-0000-7000-8000-000000000004',
     expires_at: '2026-07-27T00:00:00+00:00',
+  },
+  mfa: {
+    enabled: false,
+    verified: false,
+    enrollment_required: false,
+    recovery_codes_remaining: 0,
   },
 };
 
@@ -91,5 +98,54 @@ describe('LoginPageComponent', () => {
       password: 'correct horse battery staple',
     });
     expect(router.navigateByUrl).toHaveBeenCalledWith('/t/acme/projects');
+  });
+
+  it('requests and resubmits the second factor after an MFA challenge', () => {
+    auth.login
+      .mockReturnValueOnce(
+        throwError(
+          () =>
+            new HttpErrorResponse({
+              status: 401,
+              error: {
+                type: 'urn:sova:problem:authentication-required',
+                title: 'Authentication required',
+                status: 401,
+                detail: 'A multi-factor authentication code is required.',
+                instance: '/api/v1/auth/login',
+                request_id: 'request-id',
+                code: 'MFA_CODE_REQUIRED',
+              },
+            }),
+        ),
+      )
+      .mockReturnValueOnce(
+        of({ login: { ...LOGIN, mfa: { ...LOGIN.mfa, enabled: true } }, tenants: [TENANT] }),
+      );
+    const fixture = TestBed.createComponent(LoginPageComponent);
+    fixture.detectChanges();
+    const root = fixture.nativeElement as HTMLElement;
+    const email = root.querySelector<HTMLInputElement>('#email')!;
+    const password = root.querySelector<HTMLInputElement>('#password')!;
+    const form = root.querySelector<HTMLFormElement>('form')!;
+
+    email.value = 'member@example.test';
+    email.dispatchEvent(new Event('input'));
+    password.value = 'correct horse battery staple';
+    password.dispatchEvent(new Event('input'));
+    form.dispatchEvent(new Event('submit'));
+    fixture.detectChanges();
+
+    const code = root.querySelector<HTMLInputElement>('#mfa-code');
+    expect(code).not.toBeNull();
+    code!.value = '123456';
+    code!.dispatchEvent(new Event('input'));
+    form.dispatchEvent(new Event('submit'));
+
+    expect(auth.login).toHaveBeenLastCalledWith({
+      email: 'member@example.test',
+      password: 'correct horse battery staple',
+      mfa_code: '123456',
+    });
   });
 });

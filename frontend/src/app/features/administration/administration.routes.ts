@@ -12,6 +12,14 @@ export const ADMINISTRATION_ROUTES = [
       ),
   },
   {
+    path: 'settings',
+    canActivate: [permissionGuard('tenant.settings.manage')],
+    loadComponent: () =>
+      import('./pages/tenant-settings-page/tenant-settings-page.component').then(
+        (componentModule) => componentModule.TenantSettingsPageComponent,
+      ),
+  },
+  {
     path: 'members',
     canActivate: [permissionGuard('tenant.members.view', 'tenant.members.manage')],
     loadComponent: () =>

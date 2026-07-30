@@ -12,6 +12,7 @@ use Sova\Issues\Application\Search\IssueSearchService;
 use Sova\SavedQueries\Domain\SavedQueryAccess;
 use Sova\SavedQueries\Domain\SavedQueryName;
 use Sova\SavedQueries\Domain\SavedQueryVisibility;
+use Sova\Shared\Application\Audit\SecurityAuditRecorder;
 use Sova\Shared\Domain\Error\DomainProblemException;
 use Sova\Shared\Domain\Error\ProblemType;
 use Sova\Shared\Domain\ValueObject\UuidV7;
@@ -45,6 +46,7 @@ final readonly class SavedQueryService
         private IssueSearchService $search,
         private AuthorizationService $authorization,
         private SavedQueryUsageProbe $usage,
+        private SecurityAuditRecorder $audit,
     ) {}
 
     /**
@@ -231,6 +233,9 @@ final readonly class SavedQueryService
         string $savedQueryId,
         string $membershipId,
         int $expectedVersion,
+        string $actorUserId,
+        string $requestId,
+        ?string $ipAddress = null,
     ): void {
         $query = $this->get($subject, $tenantId, $savedQueryId, $membershipId);
 
@@ -266,6 +271,20 @@ final readonly class SavedQueryService
         if ($this->queries->archive($tenantId, $savedQueryId, $expectedVersion) === null) {
             throw $this->versionConflict();
         }
+
+        $this->recordAudit(
+            'SAVED_QUERY_ARCHIVED',
+            'SAVED_QUERY_ARCHIVED',
+            $tenantId,
+            $savedQueryId,
+            $actorUserId,
+            $requestId,
+            $ipAddress,
+            [
+                'visibility' => $query->visibility->value,
+                'owned_by_actor' => $query->viewerIsOwner,
+            ],
+        );
     }
 
     /**
@@ -278,6 +297,8 @@ final readonly class SavedQueryService
         string $membershipId,
         array $grants,
         string $actorUserId,
+        string $requestId,
+        ?string $ipAddress = null,
     ): void {
         $query = $this->get($subject, $tenantId, $savedQueryId, $membershipId);
         $administrator = $this->canAdminister($subject, $tenantId);
@@ -294,11 +315,36 @@ final readonly class SavedQueryService
             );
         }
 
-        $this->queries->replaceGrants(
+        $validated = $this->validatedGrants($tenantId, $grants);
+        $this->queries->replaceGrants($tenantId, $savedQueryId, $validated, $actorUserId);
+
+        $members = 0;
+        $workgroups = 0;
+
+        foreach ($validated as $grant) {
+            if ($grant['membership_id'] !== null) {
+                ++$members;
+
+                continue;
+            }
+
+            ++$workgroups;
+        }
+
+        $this->recordAudit(
+            'SAVED_QUERY_SHARED',
+            $validated === [] ? 'SAVED_QUERY_UNSHARED' : 'SAVED_QUERY_SHARED',
             $tenantId,
             $savedQueryId,
-            $this->validatedGrants($tenantId, $grants),
             $actorUserId,
+            $requestId,
+            $ipAddress,
+            [
+                'grant_count' => count($validated),
+                'member_grant_count' => $members,
+                'workgroup_grant_count' => $workgroups,
+                'owned_by_actor' => $query->viewerIsOwner,
+            ],
         );
     }
 
@@ -313,6 +359,40 @@ final readonly class SavedQueryService
         // is a personal bookmark, not a change to the query itself.
         $this->get($subject, $tenantId, $savedQueryId, $membershipId);
         $this->queries->setFavourite($tenantId, $savedQueryId, $membershipId, $favourite);
+    }
+
+    /**
+     * Sharing and retiring are decisions somebody may have to answer for later,
+     * so both land in the tenant's security log.
+     *
+     * The metadata deliberately carries **no name and no query text**. The log
+     * is read with `tenant.audit.view`, which is not the same right as seeing a
+     * private query — recording what somebody called their filter would hand
+     * that content to every administrator through the back door. Identifiers
+     * and counts say what happened without saying what it was about.
+     *
+     * @param array<string, bool|int|string|null> $metadata
+     */
+    private function recordAudit(
+        string $eventType,
+        string $reasonCode,
+        string $tenantId,
+        string $savedQueryId,
+        string $actorUserId,
+        string $requestId,
+        ?string $ipAddress,
+        array $metadata,
+    ): void {
+        $this->audit->record(
+            eventType: $eventType,
+            outcome: 'SUCCESS',
+            reasonCode: $reasonCode,
+            requestId: $requestId,
+            actorUserId: $actorUserId,
+            tenantId: $tenantId,
+            ipAddress: $ipAddress,
+            metadata: ['saved_query_id' => $savedQueryId] + $metadata,
+        );
     }
 
     /**

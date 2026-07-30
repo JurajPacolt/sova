@@ -1,7 +1,8 @@
 import { Location } from '@angular/common';
+import { HttpErrorResponse } from '@angular/common/http';
 import { TestBed } from '@angular/core/testing';
 import { ActivatedRoute, convertToParamMap, provideRouter } from '@angular/router';
-import { of } from 'rxjs';
+import { of, throwError } from 'rxjs';
 import { SovaApiClient } from '../../../../core/api/sova-api-client.service';
 import { AuthSessionService } from '../../../../core/auth/auth-session.service';
 import { AcceptInvitationPageComponent } from './accept-invitation-page.component';
@@ -100,5 +101,23 @@ describe('AcceptInvitationPageComponent', () => {
       password: passphrase,
       password_confirmation: passphrase,
     });
+  });
+  /**
+   * The invitation is the point of the screen; whether the visitor happens to be
+   * signed in only decides which form to offer. A session probe that fails for
+   * its own reasons — a dropped connection, a fault on that endpoint — must not
+   * take the invitation down with it, and "not signed in" is the safe answer.
+   */
+  it('still shows the invitation when the session probe fails', () => {
+    auth.ensureAuthenticated.mockReturnValue(
+      throwError(() => new HttpErrorResponse({ status: 0, statusText: 'Unknown Error' })),
+    );
+
+    const fixture = TestBed.createComponent(AcceptInvitationPageComponent);
+    fixture.detectChanges();
+
+    const root = fixture.nativeElement as HTMLElement;
+    expect(root.textContent).toContain('Acme');
+    expect(root.querySelector('#invitation-display-name')).not.toBeNull();
   });
 });

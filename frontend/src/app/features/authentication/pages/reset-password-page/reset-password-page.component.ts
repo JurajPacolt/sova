@@ -10,11 +10,18 @@ import { SovaApiClient } from '../../../../core/api/sova-api-client.service';
 import { TranslatePipe } from '../../../../core/i18n/translate.pipe';
 import { TranslationKey } from '../../../../core/i18n/translations';
 import { PublicAuthLayoutComponent } from '../../components/public-auth-layout/public-auth-layout.component';
+import { AriaRequiredDirective } from '../../../../core/a11y/aria-required.directive';
 
 @Component({
   selector: 'app-reset-password-page',
   standalone: true,
-  imports: [PublicAuthLayoutComponent, ReactiveFormsModule, RouterLink, TranslatePipe],
+  imports: [
+    AriaRequiredDirective,
+    PublicAuthLayoutComponent,
+    ReactiveFormsModule,
+    RouterLink,
+    TranslatePipe,
+  ],
   templateUrl: './reset-password-page.component.html',
   changeDetection: ChangeDetectionStrategy.OnPush,
 })

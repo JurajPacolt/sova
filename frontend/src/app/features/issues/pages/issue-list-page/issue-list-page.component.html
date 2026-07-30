@@ -18,7 +18,9 @@
       <h2 class="h6 mb-3" id="issue-create-title">{{ 'issue.create.title' | translate }}</h2>
 
       @if (createError(); as message) {
-        <div class="alert alert-warning" role="alert">{{ message | translate }}</div>
+        <div class="alert alert-warning" role="alert" appFocusSummary>
+          {{ message | translate }}
+        </div>
       }
 
       @if (availableProjects().length === 0) {
@@ -124,14 +126,14 @@
   </div>
 </section>
 
-@if (error(); as message) {
-  <div class="alert alert-warning" role="alert">{{ message | translate }}</div>
+@if (failure(); as searchFailure) {
+  <app-error-state [error]="searchFailure" [messageKey]="failureKey()" (retry)="submit()" />
 }
 
 @if (loading() && count() === 0) {
   <p class="text-body-secondary" role="status">{{ 'common.loading' | translate }}</p>
 } @else if (count() === 0) {
-  @if (searched() && !error()) {
+  @if (searched() && failure() === null) {
     <p class="text-body-secondary" role="status">{{ 'issue.list.empty' | translate }}</p>
   }
 } @else {
@@ -159,7 +161,14 @@
             <td>
               <a class="issue-key" [routerLink]="['..', 'issues', issue.key]">{{ issue.key }}</a>
             </td>
-            <td>{{ issue.title }}</td>
+            <td>
+              {{ issue.title }}
+              @if (issue.blocked) {
+                <span class="badge text-bg-danger ms-1">
+                  {{ 'issue.board.blocked' | translate }}
+                </span>
+              }
+            </td>
             <td>{{ issue.project.code }}</td>
             <td>{{ issue.issue_type.name }}</td>
             <td>

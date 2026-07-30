@@ -101,6 +101,17 @@
               </span>
             }
 
+            @if (canRename(query)) {
+              <button
+                class="btn btn-sm btn-outline-secondary"
+                type="button"
+                [attr.aria-expanded]="renamingId() === query.id"
+                (click)="startRename(query)"
+              >
+                {{ 'savedQuery.rename' | translate }}
+              </button>
+            }
+
             @if (canManageGrants(query)) {
               <button
                 class="btn btn-sm btn-outline-secondary"
@@ -122,6 +133,59 @@
               </button>
             }
           </div>
+
+          @if (renamingId() === query.id) {
+            <!--
+              Its own form, not a field bolted onto "Overwrite": renaming leaves
+              the query text alone and collides against the owner's names.
+            -->
+            <form class="row g-2 align-items-end mt-1" (ngSubmit)="confirmRename(query)">
+              <div class="col-12 col-md-8">
+                <label class="form-label" [attr.for]="'rename-' + query.id">
+                  {{ 'savedQuery.renameTitle' | translate }}
+                </label>
+                <input
+                  class="form-control form-control-sm"
+                  type="text"
+                  maxlength="160"
+                  [id]="'rename-' + query.id"
+                  [ngModel]="renameName()"
+                  (ngModelChange)="renameName.set($event)"
+                  [name]="'renameSavedQuery-' + query.id"
+                />
+                @if (!query.viewer_is_owner) {
+                  <p class="form-text mb-0">{{ 'savedQuery.renameForeign' | translate }}</p>
+                }
+              </div>
+              <div class="col-12 col-md-4 d-flex gap-2">
+                <button
+                  class="btn btn-sm btn-primary flex-grow-1"
+                  type="submit"
+                  [disabled]="renaming() || renameName().trim() === ''"
+                >
+                  @if (renaming()) {
+                    {{ 'savedQuery.renaming' | translate }}
+                  } @else {
+                    {{ 'savedQuery.renameSubmit' | translate }}
+                  }
+                </button>
+                <button
+                  class="btn btn-sm btn-outline-secondary"
+                  type="button"
+                  (click)="cancelRename()"
+                >
+                  {{ 'common.cancel' | translate }}
+                </button>
+              </div>
+              @if (renameError(); as message) {
+                <div class="col-12">
+                  <div class="alert alert-warning py-2 mb-0" role="alert">
+                    {{ message | translate }}
+                  </div>
+                </div>
+              }
+            </form>
+          }
 
           <p class="text-body-secondary small mb-0 saved-query-text">{{ query.canonical_query }}</p>
 

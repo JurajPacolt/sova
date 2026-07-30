@@ -13,8 +13,9 @@ import { FormsModule } from '@angular/forms';
 import { finalize } from 'rxjs';
 import { DashboardWidget, SavedQuery, WidgetTypeDefinition } from '../../../../core/api/api.models';
 import { TranslatePipe } from '../../../../core/i18n/translate.pipe';
-import { TRANSLATIONS, TranslationKey } from '../../../../core/i18n/translations';
+import { TranslationKey } from '../../../../core/i18n/translations';
 import { DashboardWorkspaceService } from '../../dashboard-workspace.service';
+import { widgetDimensionLabelKey, widgetTypeLabelKey } from '../../widget-labels';
 
 /**
  * Adds a widget to the open dashboard.
@@ -123,9 +124,12 @@ export class WidgetEditorComponent {
    * render as itself, and a type this build does not know should say so.
    */
   protected labelKeyOf(type: WidgetTypeDefinition): TranslationKey {
-    return type.label_key in TRANSLATIONS.en
-      ? (type.label_key as TranslationKey)
-      : 'dashboard.widget.unknownType';
+    return widgetTypeLabelKey(type.label_key);
+  }
+
+  /** The same for a grouping field: `statusCategory` is a key, not wording. */
+  protected dimensionLabelKey(dimension: string): TranslationKey {
+    return widgetDimensionLabelKey(dimension);
   }
 
   protected cancel(): void {

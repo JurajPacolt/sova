@@ -1,5 +1,6 @@
 import { Routes } from '@angular/router';
 import { anonymousGuard } from '../../core/auth/auth.guards';
+import { authGuard } from '../../core/auth/auth.guards';
 
 export const AUTHENTICATION_ROUTES = [
   {
@@ -8,6 +9,14 @@ export const AUTHENTICATION_ROUTES = [
     loadComponent: () =>
       import('./pages/login-page/login-page.component').then(
         (componentModule) => componentModule.LoginPageComponent,
+      ),
+  },
+  {
+    path: 'mfa/setup',
+    canActivate: [authGuard],
+    loadComponent: () =>
+      import('./pages/mfa-setup-page/mfa-setup-page.component').then(
+        (componentModule) => componentModule.MfaSetupPageComponent,
       ),
   },
   {

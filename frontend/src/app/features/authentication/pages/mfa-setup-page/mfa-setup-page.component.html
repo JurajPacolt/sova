@@ -1,0 +1,150 @@
+<app-public-auth-layout title="mfa.title" subtitle="mfa.subtitle" [wide]="true">
+  @if (error(); as errorMessage) {
+    <div class="alert alert-danger" role="alert" aria-live="polite">
+      {{ errorMessage | translate }}
+    </div>
+  }
+
+  @if (loading()) {
+    <p class="mb-0" aria-live="polite">{{ 'common.loading' | translate }}</p>
+  } @else if (recoveryCodes().length > 0) {
+    <div class="alert alert-warning" role="alert">
+      <strong>{{ 'mfa.recoveryTitle' | translate }}</strong>
+      <p class="mb-0 mt-1">{{ 'mfa.recoveryNotice' | translate }}</p>
+    </div>
+    <ul class="mfa-codes list-unstyled" aria-label="Recovery codes">
+      @for (code of recoveryCodes(); track code) {
+        <li>
+          <code>{{ code }}</code>
+        </li>
+      }
+    </ul>
+    <button class="btn btn-primary" type="button" (click)="continue()">
+      {{ 'mfa.continue' | translate }}
+    </button>
+  } @else if (enrollment(); as setup) {
+    <h2 class="h5">{{ 'mfa.addAuthenticator' | translate }}</h2>
+    <p>{{ 'mfa.secretInstruction' | translate }}</p>
+    <div class="mfa-secret rounded border p-3 mb-3">
+      <span class="visually-hidden">{{ 'mfa.secret' | translate }}:</span>
+      <code>{{ setup.secret }}</code>
+    </div>
+    <details class="mb-4">
+      <summary>{{ 'mfa.advancedSetup' | translate }}</summary>
+      <code class="mfa-uri d-block mt-2">{{ setup.otpauth_uri }}</code>
+    </details>
+
+    <form [formGroup]="confirmationForm" (ngSubmit)="confirmEnrollment()">
+      <div class="mb-3">
+        <label class="form-label" for="confirmation-code">
+          {{ 'mfa.code' | translate }}
+        </label>
+        <input
+          id="confirmation-code"
+          class="form-control"
+          type="text"
+          inputmode="numeric"
+          autocomplete="one-time-code"
+          formControlName="code"
+          [class.is-invalid]="
+            confirmationForm.controls.code.touched && confirmationForm.controls.code.invalid
+          "
+        />
+        @if (confirmationForm.controls.code.touched && confirmationForm.controls.code.invalid) {
+          <div class="invalid-feedback">{{ 'mfa.codeRequired' | translate }}</div>
+        }
+      </div>
+      <button class="btn btn-primary" type="submit" [disabled]="submitting()">
+        {{ 'mfa.confirm' | translate }}
+      </button>
+    </form>
+  } @else if (mfa()?.enabled) {
+    <div class="alert alert-success" role="status">
+      {{ 'mfa.enabled' | translate }}
+    </div>
+    <p>
+      {{ 'mfa.remainingCodes' | translate }}:
+      <strong>{{ mfa()?.recovery_codes_remaining }}</strong>
+    </p>
+    <h2 class="h5 mt-4">{{ 'mfa.regenerateTitle' | translate }}</h2>
+    <p>{{ 'mfa.regenerateNotice' | translate }}</p>
+    <form [formGroup]="recoveryForm" (ngSubmit)="regenerateRecoveryCodes()">
+      <div class="mb-3">
+        <label class="form-label" for="recovery-password">
+          {{ 'mfa.currentPassword' | translate }}
+        </label>
+        <input
+          id="recovery-password"
+          class="form-control"
+          type="password"
+          autocomplete="current-password"
+          formControlName="current_password"
+        />
+      </div>
+      <div class="mb-3">
+        <label class="form-label" for="recovery-code">
+          {{ 'mfa.code' | translate }}
+        </label>
+        <input
+          id="recovery-code"
+          class="form-control"
+          type="text"
+          autocomplete="one-time-code"
+          formControlName="code"
+        />
+      </div>
+      <div class="d-flex flex-wrap gap-2">
+        <button class="btn btn-outline-primary" type="submit" [disabled]="submitting()">
+          {{ 'mfa.regenerate' | translate }}
+        </button>
+        <button class="btn btn-primary" type="button" (click)="continue()">
+          {{ 'mfa.continue' | translate }}
+        </button>
+      </div>
+    </form>
+  } @else {
+    @if (mfa()?.enrollment_required) {
+      <div class="alert alert-warning" role="alert">
+        {{ 'mfa.requiredNotice' | translate }}
+      </div>
+    }
+    <p>{{ 'mfa.beginNotice' | translate }}</p>
+    <form [formGroup]="passwordForm" (ngSubmit)="beginEnrollment()">
+      <div class="mb-3">
+        <label class="form-label" for="enrollment-password">
+          {{ 'mfa.currentPassword' | translate }}
+        </label>
+        <input
+          id="enrollment-password"
+          class="form-control"
+          type="password"
+          autocomplete="current-password"
+          formControlName="current_password"
+          [class.is-invalid]="
+            passwordForm.controls.current_password.touched &&
+            passwordForm.controls.current_password.invalid
+          "
+        />
+        @if (
+          passwordForm.controls.current_password.touched &&
+          passwordForm.controls.current_password.invalid
+        ) {
+          <div class="invalid-feedback">{{ 'mfa.passwordRequired' | translate }}</div>
+        }
+      </div>
+      <div class="d-flex flex-wrap gap-2">
+        <button class="btn btn-primary" type="submit" [disabled]="submitting()">
+          {{ 'mfa.begin' | translate }}
+        </button>
+        <button
+          class="btn btn-outline-secondary"
+          type="button"
+          [disabled]="submitting()"
+          (click)="logout()"
+        >
+          {{ 'auth.logout' | translate }}
+        </button>
+      </div>
+    </form>
+  }
+</app-public-auth-layout>

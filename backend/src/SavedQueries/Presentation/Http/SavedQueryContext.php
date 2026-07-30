@@ -11,6 +11,7 @@ use Sova\Identity\Application\Authentication\SessionContext;
 use Sova\Identity\Infrastructure\Http\Middleware\SessionAuthenticationMiddleware;
 use Sova\Shared\Domain\Error\DomainProblemException;
 use Sova\Shared\Domain\Error\ProblemType;
+use Sova\Shared\Infrastructure\Http\Middleware\RequestIdMiddleware;
 use Sova\Tenancy\Application\Access\AccessibleTenant;
 use Sova\Tenancy\Infrastructure\Http\Middleware\TenantContextMiddleware;
 
@@ -53,5 +54,21 @@ final readonly class SavedQueryContext
             ),
             $tenant->membershipId,
         ];
+    }
+
+    public function requestId(ServerRequestInterface $request): string
+    {
+        $value = $request->getAttribute(RequestIdMiddleware::ATTRIBUTE);
+
+        return is_string($value) ? $value : '';
+    }
+
+    public function ipAddress(ServerRequestInterface $request): ?string
+    {
+        $value = $request->getServerParams()['REMOTE_ADDR'] ?? null;
+
+        return is_string($value) && filter_var($value, FILTER_VALIDATE_IP) !== false
+            ? $value
+            : null;
     }
 }

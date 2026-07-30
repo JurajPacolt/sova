@@ -11,7 +11,7 @@ import {
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { FormControl, FormGroup, ReactiveFormsModule, Validators } from '@angular/forms';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
-import { finalize, forkJoin } from 'rxjs';
+import { catchError, finalize, forkJoin, of } from 'rxjs';
 import { InvitationPreview, isProblemDetails, LocaleCode } from '../../../../core/api/api.models';
 import { SovaApiClient } from '../../../../core/api/sova-api-client.service';
 import { AuthSessionService } from '../../../../core/auth/auth-session.service';
@@ -20,11 +20,18 @@ import { LANGUAGE_OPTIONS } from '../../../../core/i18n/language';
 import { TranslatePipe } from '../../../../core/i18n/translate.pipe';
 import { TranslationKey } from '../../../../core/i18n/translations';
 import { PublicAuthLayoutComponent } from '../../components/public-auth-layout/public-auth-layout.component';
+import { AriaRequiredDirective } from '../../../../core/a11y/aria-required.directive';
 
 @Component({
   selector: 'app-accept-invitation-page',
   standalone: true,
-  imports: [PublicAuthLayoutComponent, ReactiveFormsModule, RouterLink, TranslatePipe],
+  imports: [
+    AriaRequiredDirective,
+    PublicAuthLayoutComponent,
+    ReactiveFormsModule,
+    RouterLink,
+    TranslatePipe,
+  ],
   templateUrl: './accept-invitation-page.component.html',
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
@@ -79,7 +86,12 @@ export class AcceptInvitationPageComponent implements OnInit {
     this.loading.set(true);
     forkJoin({
       invitation: this.api.inspectInvitation({ token: this.token }),
-      authenticated: this.auth.ensureAuthenticated(),
+      // Whether somebody is already signed in only decides which form to
+      // offer, so a failed session probe is answered with the safe "no"
+      // rather than taken as an answer about the invitation. Losing the
+      // invitation over an unrelated request would be the wrong screen for
+      // the right reason.
+      authenticated: this.auth.ensureAuthenticated().pipe(catchError(() => of(false))),
     })
       .pipe(
         takeUntilDestroyed(this.destroyRef),

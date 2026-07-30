@@ -11,13 +11,22 @@ use Sova\Identity\Application\Authentication\SessionContext;
 use Sova\Identity\Application\Authentication\SessionSummary;
 use Sova\Identity\Application\Authentication\UserSessionRepository;
 use Sova\Identity\Application\Impersonation\ImpersonationRepository;
+use Sova\Shared\Infrastructure\Configuration\Settings;
 
 final readonly class DoctrineUserSessionRepository implements UserSessionRepository
 {
+    private bool $superadminMfaRequired;
+
     public function __construct(
         private Connection $connection,
         private ImpersonationRepository $impersonations,
-    ) {}
+        Settings $settings,
+    ) {
+        $this->superadminMfaRequired = $settings->string(
+            'app.environment',
+            'production',
+        ) === 'production';
+    }
 
     public function create(
         string $sessionId,
@@ -27,6 +36,7 @@ final readonly class DoctrineUserSessionRepository implements UserSessionReposit
         DateTimeImmutable $expiresAt,
         ?string $ipAddress,
         ?string $userAgent,
+        ?DateTimeImmutable $mfaVerifiedAt,
     ): void {
         $this->connection->insert('user_sessions', [
             'id' => $sessionId,
@@ -36,6 +46,7 @@ final readonly class DoctrineUserSessionRepository implements UserSessionReposit
             'ip_address' => $ipAddress,
             'user_agent' => $userAgent,
             'expires_at' => $expiresAt->format('Y-m-d H:i:s.uP'),
+            'mfa_verified_at' => $mfaVerifiedAt?->format('Y-m-d H:i:s.uP'),
         ]);
     }
 
@@ -50,6 +61,10 @@ final readonly class DoctrineUserSessionRepository implements UserSessionReposit
                     users.email,
                     users.display_name,
                     users.preferred_locale,
+                    sessions.mfa_verified_at,
+                    mfa.enabled_at AS mfa_enabled_at,
+                    COALESCE(jsonb_array_length(mfa.recovery_code_hashes), 0)
+                        AS mfa_recovery_codes_remaining,
                     CASE WHEN EXISTS (
                         SELECT 1
                         FROM user_system_roles system_role
@@ -58,6 +73,7 @@ final readonly class DoctrineUserSessionRepository implements UserSessionReposit
                     ) THEN 1 ELSE 0 END AS is_superadmin
                 FROM user_sessions sessions
                 INNER JOIN users ON users.id = sessions.user_id
+                LEFT JOIN user_mfa_credentials mfa ON mfa.user_id = users.id
                 WHERE sessions.token_hash = :token_hash
                     AND sessions.revoked_at IS NULL
                     AND sessions.expires_at > CURRENT_TIMESTAMP
@@ -78,7 +94,23 @@ final readonly class DoctrineUserSessionRepository implements UserSessionReposit
             $row,
             'preferred_locale',
         );
-        $actorIsSuperadmin = $this->boolValue($row, 'is_superadmin');
+        $actorHasSuperadminRole = $this->boolValue($row, 'is_superadmin');
+        $mfaEnabled = $this->nullableStringValue(
+            $row,
+            'mfa_enabled_at',
+        ) !== null;
+        $mfaVerified = $mfaEnabled && $this->nullableStringValue(
+            $row,
+            'mfa_verified_at',
+        ) !== null;
+        $actorIsSuperadmin = $actorHasSuperadminRole && (
+            $mfaEnabled
+                ? $mfaVerified
+                : !$this->superadminMfaRequired
+        );
+        $mfaEnrollmentRequired = $actorHasSuperadminRole
+            && $this->superadminMfaRequired
+            && !$mfaEnabled;
         $impersonation = $this->impersonations->findOpenForSession($sessionId);
         $effectiveUserId = $actorUserId;
         $effectiveEmail = $actorEmail;
@@ -99,12 +131,20 @@ final readonly class DoctrineUserSessionRepository implements UserSessionReposit
             actorEmail: $actorEmail,
             actorDisplayName: $actorDisplayName,
             actorIsSuperadmin: $actorIsSuperadmin,
+            actorHasSuperadminRole: $actorHasSuperadminRole,
             userId: $effectiveUserId,
             email: $effectiveEmail,
             displayName: $effectiveDisplayName,
             preferredLocale: $effectivePreferredLocale,
             csrfTokenHash: $this->stringValue($row, 'csrf_token_hash'),
             isSuperadmin: $impersonation === null && $actorIsSuperadmin,
+            mfaEnabled: $mfaEnabled,
+            mfaVerified: $mfaVerified,
+            mfaEnrollmentRequired: $mfaEnrollmentRequired,
+            mfaRecoveryCodesRemaining: $this->intValue(
+                $row,
+                'mfa_recovery_codes_remaining',
+            ),
             impersonation: $impersonation,
         );
     }
@@ -204,6 +244,65 @@ final readonly class DoctrineUserSessionRepository implements UserSessionReposit
         );
     }
 
+    public function markMfaVerified(
+        string $sessionId,
+        string $userId,
+        DateTimeImmutable $verifiedAt,
+    ): bool {
+        return $this->connection->executeStatement(
+            <<<'SQL'
+                UPDATE user_sessions
+                SET mfa_verified_at = :verified_at
+                WHERE id = :session_id
+                    AND user_id = :user_id
+                    AND revoked_at IS NULL
+                    AND expires_at > :verified_at
+                SQL,
+            [
+                'session_id' => $sessionId,
+                'user_id' => $userId,
+                'verified_at' => $verifiedAt->format('Y-m-d H:i:s.uP'),
+            ],
+        ) === 1;
+    }
+
+    public function clearMfaVerificationForUser(string $userId): void
+    {
+        $this->connection->executeStatement(
+            <<<'SQL'
+                UPDATE user_sessions
+                SET mfa_verified_at = NULL
+                WHERE user_id = :user_id
+                    AND mfa_verified_at IS NOT NULL
+                SQL,
+            ['user_id' => $userId],
+        );
+    }
+
+    public function revokeOtherForUser(
+        string $userId,
+        string $currentSessionId,
+        string $reason,
+    ): int {
+        $affectedRows = $this->connection->executeStatement(
+            <<<'SQL'
+                UPDATE user_sessions
+                SET revoked_at = CURRENT_TIMESTAMP,
+                    revocation_reason = :reason
+                WHERE user_id = :user_id
+                    AND id <> :current_session_id
+                    AND revoked_at IS NULL
+                SQL,
+            [
+                'user_id' => $userId,
+                'current_session_id' => $currentSessionId,
+                'reason' => $reason,
+            ],
+        );
+
+        return $this->affectedRows($affectedRows);
+    }
+
     /**
      * @param array<string, mixed> $row
      */
@@ -261,5 +360,41 @@ final readonly class DoctrineUserSessionRepository implements UserSessionReposit
             'Expected database column "%s" to contain a boolean.',
             $key,
         ));
+    }
+
+    /**
+     * @param array<string, mixed> $row
+     */
+    private function intValue(array $row, string $key): int
+    {
+        $value = $row[$key] ?? null;
+
+        if (is_int($value)) {
+            return $value;
+        }
+
+        if (is_string($value) && ctype_digit($value)) {
+            return intval($value);
+        }
+
+        throw new RuntimeException(sprintf(
+            'Expected database column "%s" to contain an integer.',
+            $key,
+        ));
+    }
+
+    private function affectedRows(int|string $affectedRows): int
+    {
+        if (is_int($affectedRows)) {
+            return $affectedRows;
+        }
+
+        if (ctype_digit($affectedRows)) {
+            return intval($affectedRows);
+        }
+
+        throw new RuntimeException(
+            'The database returned an invalid affected-row count.',
+        );
     }
 }

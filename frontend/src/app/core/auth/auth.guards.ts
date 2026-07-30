@@ -8,15 +8,20 @@ import { AuthSessionStore } from './auth-session.store';
 export const authGuard: CanActivateFn = (_route, state) => {
   const auth = inject(AuthSessionService);
   const router = inject(Router);
+  const session = inject(AuthSessionStore);
 
   return auth.ensureAuthenticated().pipe(
-    map((authenticated) =>
-      authenticated
-        ? true
-        : router.createUrlTree(['/login'], {
-            queryParams: { returnUrl: state.url },
-          }),
-    ),
+    map((authenticated) => {
+      if (!authenticated) {
+        return router.createUrlTree(['/login'], {
+          queryParams: { returnUrl: state.url },
+        });
+      }
+
+      return session.mfaEnrollmentRequired() && state.url !== '/mfa/setup'
+        ? router.createUrlTree(['/mfa/setup'])
+        : true;
+    }),
     catchError(() =>
       of(
         router.createUrlTree(['/login'], {
@@ -44,6 +49,10 @@ export const anonymousGuard: CanActivateFn = () => {
         return true;
       }
 
+      if (session.mfaEnrollmentRequired()) {
+        return router.createUrlTree(['/mfa/setup']);
+      }
+
       if (session.isSuperadmin()) {
         return router.createUrlTree(['/system/tenants']);
       }
@@ -69,6 +78,10 @@ export const superadminGuard: CanActivateFn = (_route, state) => {
         return router.createUrlTree(['/login'], {
           queryParams: { returnUrl: state.url },
         });
+      }
+
+      if (session.mfaEnrollmentRequired()) {
+        return router.createUrlTree(['/mfa/setup']);
       }
 
       return session.isSuperadmin() ? true : router.createUrlTree(['/select-tenant']);

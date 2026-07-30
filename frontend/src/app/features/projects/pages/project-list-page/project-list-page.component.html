@@ -18,7 +18,9 @@
       <h2 id="create-project-title" class="h5">{{ 'projects.new' | translate }}</h2>
 
       @if (createError(); as errorKey) {
-        <div class="alert alert-danger" role="alert">{{ errorKey | translate }}</div>
+        <div class="alert alert-danger" role="alert" appFocusSummary>
+          {{ errorKey | translate }}
+        </div>
       }
 
       <form class="row g-3" [formGroup]="createForm" (ngSubmit)="createProject()">
@@ -77,13 +79,8 @@
   </section>
 }
 
-@if (loadError()) {
-  <div class="alert alert-danger d-flex align-items-center justify-content-between gap-3">
-    <span>{{ 'projects.loadError' | translate }}</span>
-    <button class="btn btn-sm btn-outline-danger" type="button" (click)="refresh()">
-      {{ 'common.retry' | translate }}
-    </button>
-  </div>
+@if (loadFailure(); as failure) {
+  <app-error-state [error]="failure" (retry)="refresh()" />
 }
 
 <section class="row g-2 align-items-end mb-3" aria-label="{{ 'projects.filters' | translate }}">
@@ -184,7 +181,7 @@
       </article>
     </div>
   } @empty {
-    @if (!loading() && !loadError()) {
+    @if (!loading() && loadFailure() === null) {
       <div class="col-12">
         <p class="text-body-secondary py-4 mb-0">{{ 'projects.noProjects' | translate }}</p>
       </div>

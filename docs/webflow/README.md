@@ -1,7 +1,8 @@
 # SOVA – webflow dokumentácia
 
 Táto časť dokumentácie opisuje informačnú architektúru, navigáciu, obrazovky a
-používateľské toky webovej aplikácie SOVA.
+používateľské toky webovej aplikácie SOVA. Praktický návod viazaný na aktuálne
+implementované MVP je v [používateľskej príručke](../USER_GUIDE.md).
 
 Pojem **webflow** v týchto dokumentoch znamená tok používateľa cez webovú aplikáciu,
 nie službu Webflow.com.

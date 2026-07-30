@@ -47,6 +47,8 @@ pnpm-debug.log*
 # Local Docker overrides
 docker-compose.override.yml
 compose.override.yml
+deploy/staging/.last-successful-release
+deploy/staging/.previous-release
 
 # IDEs and editors
 .idea/

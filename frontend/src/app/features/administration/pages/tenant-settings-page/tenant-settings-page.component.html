@@ -1,0 +1,136 @@
+<app-page-header
+  [eyebrow]="'admin.eyebrow' | translate"
+  [title]="'tenantSettings.title' | translate"
+  [subtitle]="'tenantSettings.subtitle' | translate"
+/>
+
+@if (loadFailure(); as failure) {
+  <app-error-state [error]="failure" (retry)="load()" />
+}
+
+@if (loading() && settings() === null) {
+  <div class="d-flex align-items-center gap-2 text-body-secondary" role="status">
+    <span class="spinner-border spinner-border-sm" aria-hidden="true"></span>
+    <span>{{ 'common.loading' | translate }}</span>
+  </div>
+} @else if (settings(); as current) {
+  <p class="small text-body-secondary">
+    {{ 'tenantSettings.revision' | translate: { revision: current.revision } }}
+  </p>
+
+  <div class="row g-4">
+    <div class="col-12 col-xl-6">
+      <section class="card border-0 shadow-sm h-100" aria-labelledby="general-settings-title">
+        <div class="card-body">
+          <h2 id="general-settings-title" class="h5">
+            {{ 'tenantSettings.generalTitle' | translate }}
+          </h2>
+          <p class="small text-body-secondary">
+            {{ 'tenantSettings.generalDescription' | translate }}
+          </p>
+
+          @if (generalError(); as message) {
+            <div class="alert alert-danger" role="alert" appFocusSummary>
+              {{ message | translate }}
+            </div>
+          }
+          @if (generalSaved()) {
+            <div class="alert alert-success" role="status">
+              {{ 'tenantSettings.generalSaved' | translate }}
+            </div>
+          }
+
+          <form [formGroup]="generalForm" (ngSubmit)="saveGeneral()">
+            <div class="mb-3">
+              <label class="form-label" for="tenant-settings-name">
+                {{ 'tenantSettings.name' | translate }}
+              </label>
+              <input
+                id="tenant-settings-name"
+                class="form-control"
+                type="text"
+                appAriaRequired
+                formControlName="name"
+              />
+            </div>
+            <div class="mb-3">
+              <span class="form-label d-block">{{ 'tenantSettings.slug' | translate }}</span>
+              <code>{{ current.slug }}</code>
+              <div class="form-text">{{ 'tenantSettings.slugImmutable' | translate }}</div>
+            </div>
+            <button class="btn btn-primary" type="submit" [disabled]="savingGeneral()">
+              @if (savingGeneral()) {
+                {{ 'tenantSettings.saving' | translate }}
+              } @else {
+                {{ 'tenantSettings.saveGeneral' | translate }}
+              }
+            </button>
+          </form>
+        </div>
+      </section>
+    </div>
+
+    <div class="col-12 col-xl-6">
+      <section class="card border-0 shadow-sm h-100" aria-labelledby="localization-settings-title">
+        <div class="card-body">
+          <h2 id="localization-settings-title" class="h5">
+            {{ 'tenantSettings.localizationTitle' | translate }}
+          </h2>
+          <p class="small text-body-secondary">
+            {{ 'tenantSettings.localizationDescription' | translate }}
+          </p>
+
+          @if (localizationError(); as message) {
+            <div class="alert alert-danger" role="alert" appFocusSummary>
+              {{ message | translate }}
+            </div>
+          }
+          @if (localizationSaved()) {
+            <div class="alert alert-success" role="status">
+              {{ 'tenantSettings.localizationSaved' | translate }}
+            </div>
+          }
+
+          <form [formGroup]="localizationForm" (ngSubmit)="saveLocalization()">
+            <div class="mb-3">
+              <label class="form-label" for="tenant-settings-locale">
+                {{ 'tenantSettings.defaultLocale' | translate }}
+              </label>
+              <select
+                id="tenant-settings-locale"
+                class="form-select"
+                appAriaRequired
+                formControlName="default_locale"
+              >
+                @for (language of languageOptions; track language.code) {
+                  <option [value]="language.code">{{ language.nativeName }}</option>
+                }
+              </select>
+            </div>
+            <div class="mb-3">
+              <label class="form-label" for="tenant-settings-timezone">
+                {{ 'tenantSettings.timezone' | translate }}
+              </label>
+              <input
+                id="tenant-settings-timezone"
+                class="form-control"
+                type="text"
+                appAriaRequired
+                formControlName="timezone"
+                placeholder="Europe/Bratislava"
+              />
+              <div class="form-text">{{ 'tenantSettings.timezoneHint' | translate }}</div>
+            </div>
+            <button class="btn btn-primary" type="submit" [disabled]="savingLocalization()">
+              @if (savingLocalization()) {
+                {{ 'tenantSettings.saving' | translate }}
+              } @else {
+                {{ 'tenantSettings.saveLocalization' | translate }}
+              }
+            </button>
+          </form>
+        </div>
+      </section>
+    </div>
+  </div>
+}

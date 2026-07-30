@@ -9,6 +9,7 @@ use DateTimeZone;
 use Doctrine\DBAL\Connection;
 use InvalidArgumentException;
 use SensitiveParameter;
+use Sova\Identity\Application\Mfa\MfaService;
 use Sova\Identity\Application\Security\PasswordHasher;
 use Sova\Identity\Application\Security\SessionTokenGenerator;
 use Sova\Identity\Domain\User\UserStatus;
@@ -32,6 +33,7 @@ final readonly class LoginService
         private AuthenticationEventRecorder $events,
         private PasswordHasher $passwordHasher,
         private SessionTokenGenerator $tokenGenerator,
+        private MfaService $mfa,
         Settings $settings,
     ) {
         $this->sessionTtlSeconds = $settings->int(
@@ -53,6 +55,8 @@ final readonly class LoginService
         string $ipAddress,
         ?string $userAgent,
         string $requestId,
+        #[SensitiveParameter]
+        ?string $mfaCode = null,
     ): LoginResult {
         if ($this->rateLimiter->isLimited($normalizedEmail, $ipAddress)) {
             $this->events->record(
@@ -106,6 +110,25 @@ final readonly class LoginService
             );
         }
 
+        try {
+            $mfaVerification = $this->mfa->verifyLogin(
+                userId: $user->id,
+                code: $mfaCode,
+                requestId: $requestId,
+                ipAddress: $this->nullableIpAddress($ipAddress),
+            );
+        } catch (DomainProblemException $exception) {
+            $this->recordMfaFailure(
+                $exception,
+                $normalizedEmail,
+                $ipAddress,
+                $requestId,
+                $user->id,
+            );
+
+            throw $exception;
+        }
+
         $sessionId = (string) UuidV7::generate();
         $sessionToken = $this->tokenGenerator->generate();
         $csrfToken = $this->tokenGenerator->generate();
@@ -124,6 +147,7 @@ final readonly class LoginService
             $userAgent,
             $normalizedEmail,
             $requestId,
+            $mfaVerification,
         ): void {
             if ($this->passwordHasher->needsRehash($passwordHash)) {
                 $this->users->updatePasswordHash(
@@ -142,6 +166,7 @@ final readonly class LoginService
                 userAgent: $userAgent === null
                     ? null
                     : mb_strcut($userAgent, 0, 512, 'UTF-8'),
+                mfaVerifiedAt: $mfaVerification->verifiedAt,
             );
             $this->rateLimiter->resetAccount($normalizedEmail);
             $this->events->record(
@@ -161,7 +186,53 @@ final readonly class LoginService
             expiresAt: $expiresAt,
             sessionToken: $sessionToken,
             csrfToken: $csrfToken,
+            isSuperadmin: $this->mfa->canUseSuperadmin(
+                $user->isSuperadmin,
+                $mfaVerification,
+            ),
+            mfa: $this->mfa->sessionStatus(
+                $user->isSuperadmin,
+                $mfaVerification,
+            ),
         );
+    }
+
+    private function recordMfaFailure(
+        DomainProblemException $exception,
+        string $normalizedEmail,
+        string $ipAddress,
+        string $requestId,
+        string $userId,
+    ): void {
+        if ($exception->problemCode() === 'MFA_CODE_REQUIRED') {
+            $this->events->record(
+                eventType: 'LOGIN',
+                outcome: 'FAILURE',
+                reasonCode: 'MFA_CODE_REQUIRED',
+                requestId: $requestId,
+                ipAddress: $this->nullableIpAddress($ipAddress),
+                userId: $userId,
+            );
+
+            return;
+        }
+
+        $this->connection->transactional(function () use (
+            $normalizedEmail,
+            $ipAddress,
+            $requestId,
+            $userId,
+        ): void {
+            $this->rateLimiter->recordFailure($normalizedEmail, $ipAddress);
+            $this->events->record(
+                eventType: 'LOGIN',
+                outcome: 'FAILURE',
+                reasonCode: 'MFA_CODE_INVALID',
+                requestId: $requestId,
+                ipAddress: $this->nullableIpAddress($ipAddress),
+                userId: $userId,
+            );
+        });
     }
 
     private function nullableIpAddress(string $ipAddress): ?string

@@ -16,6 +16,15 @@ export const DASHBOARD_ROUTES = [
       ),
   },
   {
+    // Declared before `:dashboardId`, which would otherwise swallow the literal
+    // segment and answer "no such dashboard".
+    path: 'manage',
+    loadComponent: () =>
+      import('./pages/dashboard-manage/dashboard-manage.component').then(
+        (componentModule) => componentModule.DashboardManageComponent,
+      ),
+  },
+  {
     path: ':dashboardId',
     loadComponent: () =>
       import('./pages/dashboard-page/dashboard-page.component').then(

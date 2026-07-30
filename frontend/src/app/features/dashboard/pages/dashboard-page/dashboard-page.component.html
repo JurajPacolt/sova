@@ -48,11 +48,15 @@
         </button>
       }
     }
+
+    <a class="btn btn-sm btn-outline-secondary" [routerLink]="['..', 'manage']">
+      {{ 'dashboard.manage.link' | translate }}
+    </a>
   </div>
 </app-page-header>
 
-@if (loadError(); as error) {
-  <div class="alert alert-warning" role="alert">{{ error | translate }}</div>
+@if (loadFailure(); as failure) {
+  <app-error-state [error]="failure" [messageKey]="loadErrorKey()" (retry)="reload()" />
 }
 
 @if (editing()) {
@@ -80,7 +84,17 @@
     <div class="alert alert-danger" role="alert">{{ error | translate }}</div>
   }
 
-  @if (adding()) {
+  @if (configuring(); as target) {
+    <app-widget-settings
+      [tenantId]="tenantId() ?? ''"
+      [dashboardId]="dashboardId()"
+      [widget]="target"
+      [types]="types()"
+      [queries]="queries()"
+      (saved)="onWidgetSaved($event)"
+      (cancelled)="configuring.set(null)"
+    />
+  } @else if (adding()) {
     <app-widget-editor
       [tenantId]="tenantId() ?? ''"
       [dashboardId]="dashboardId()"
@@ -101,7 +115,7 @@
 @if (widgetsLoading()) {
   <p class="text-body-secondary" role="status">{{ 'common.loading' | translate }}</p>
 } @else if (cells().length === 0) {
-  @if (loadError() === null) {
+  @if (loadFailure() === null) {
     <div class="card border-0 shadow-sm">
       <div class="card-body">
         <p class="mb-0">{{ 'dashboard.empty' | translate }}</p>
@@ -109,14 +123,23 @@
     </div>
   }
 } @else {
-  <div class="dashboard__grid" [class.dashboard__grid--editing]="editing()">
+  <div
+    class="dashboard__grid"
+    [class.dashboard__grid--editing]="editing()"
+    (dragover)="allowWidgetDrop($event)"
+    (drop)="dropWidget($event)"
+  >
     @for (cell of cells(); track cell.widget.id) {
       <div
         class="dashboard__cell"
+        [class.dashboard__cell--dragging]="draggedWidgetId() === cell.widget.id"
+        [attr.draggable]="editing() ? 'true' : null"
         [style.--widget-column]="cell.placement.x + 1"
         [style.--widget-span]="cell.placement.width"
         [style.--widget-row]="cell.placement.y + 1"
         [style.--widget-rows]="cell.placement.height"
+        (dragstart)="startWidgetDrag(cell, $event)"
+        (dragend)="endWidgetDrag()"
       >
         @if (editing()) {
           <!--
@@ -197,6 +220,15 @@
                 +↕
               </button>
             </div>
+
+            <button
+              type="button"
+              class="btn btn-sm btn-outline-secondary"
+              [attr.aria-label]="'dashboard.configure.open' | translate"
+              (click)="configure(cell)"
+            >
+              {{ 'dashboard.configure.open' | translate }}
+            </button>
 
             <button
               type="button"

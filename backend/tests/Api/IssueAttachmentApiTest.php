@@ -15,9 +15,12 @@ use Slim\Psr7\UploadedFile;
 use Sova\Authorization\Application\TenantRoleProvisioner;
 use Sova\Authorization\Domain\DefaultRole;
 use Sova\Identity\Infrastructure\Security\Argon2idPasswordHasher;
+use Sova\Issues\Application\Attachment\AttachmentScanner;
 use Sova\Issues\Domain\Attachment\AttachmentPolicy;
+use Sova\Issues\Domain\Attachment\ScanStatus;
 use Sova\Shared\Domain\ValueObject\UuidV7;
 use Sova\Shared\Infrastructure\Bootstrap\ApplicationFactory;
+use ZipArchive;
 
 /**
  * End-to-end cover for private attachments.
@@ -118,8 +121,12 @@ final class IssueAttachmentApiTest extends TestCase
             }
         }
 
-        // The database rolls back, but bytes on disk do not.
-        $this->removeDirectory($this->storagePath);
+        // The database rolls back, but bytes on disk do not. A skipped run never
+        // reached the point of naming the directory, and tearing down what was
+        // never set up turned a skip into ten errors.
+        if (isset($this->storagePath)) {
+            $this->removeDirectory($this->storagePath);
+        }
     }
 
     public function testUploadStoresTheFileAndListsIt(): void
@@ -234,6 +241,29 @@ final class IssueAttachmentApiTest extends TestCase
         self::assertSame([], $this->storedFiles());
     }
 
+    public function testArbitraryZipRenamedAsAnOfficeDocumentIsRejected(): void
+    {
+        $login = $this->login('attach-owner');
+        $issueId = $this->createIssueId($login, 'BUG', 'Disguised archive');
+        $path = $this->temporaryFile('');
+        $archive = new ZipArchive();
+        self::assertTrue($archive->open($path, ZipArchive::OVERWRITE));
+        self::assertTrue($archive->addFromString('payload.txt', 'not OOXML'));
+        self::assertTrue($archive->close());
+
+        $response = $this->uploadFile(
+            $login,
+            $issueId,
+            'disguised.docx',
+            $path,
+        );
+
+        self::assertSame(422, $response->getStatusCode());
+        self::assertSame('ATTACHMENT_TYPE_NOT_ALLOWED', $this->problemCode($response));
+        self::assertSame([], $this->attachments($login, $issueId));
+        self::assertSame([], $this->storedFiles());
+    }
+
     public function testFileOverTheSizeLimitIsRejected(): void
     {
         $login = $this->login('attach-owner');
@@ -244,6 +274,83 @@ final class IssueAttachmentApiTest extends TestCase
 
         self::assertSame(422, $response->getStatusCode());
         self::assertSame('ATTACHMENT_TOO_LARGE', $this->problemCode($response));
+        self::assertSame([], $this->storedFiles());
+    }
+
+    public function testInfectedUploadIsScannedWhileQuarantinedAndNeverStored(): void
+    {
+        $login = $this->login('attach-owner');
+        $issueId = $this->createIssueId($login, 'BUG', 'Infected attachment');
+        $scanner = new class implements AttachmentScanner {
+            public bool $sawReadableQuarantineFile = false;
+
+            public function scan(
+                string $storageKey,
+                string $temporaryPath,
+            ): ScanStatus {
+                unset($storageKey);
+                $this->sawReadableQuarantineFile = is_file($temporaryPath)
+                    && is_readable($temporaryPath);
+
+                return ScanStatus::Infected;
+            }
+        };
+        $this->app->getContainer()->set(AttachmentScanner::class, $scanner);
+
+        $response = $this->upload(
+            $login,
+            $issueId,
+            'infected.png',
+            $this->png(),
+        );
+
+        self::assertSame(422, $response->getStatusCode());
+        self::assertSame('ATTACHMENT_INFECTED', $this->problemCode($response));
+        self::assertTrue($scanner->sawReadableQuarantineFile);
+        self::assertSame([], $this->storedFiles());
+        self::assertSame(
+            'INFECTED',
+            $this->connection->fetchOne(
+                <<<'SQL'
+                    SELECT scan_status
+                    FROM issue_attachments
+                    WHERE tenant_id = :tenant_id
+                        AND issue_id = :issue_id
+                    SQL,
+                [
+                    'tenant_id' => $this->tenantId,
+                    'issue_id' => $issueId,
+                ],
+            ),
+        );
+    }
+
+    public function testUnavailableScannerRejectsUploadWithoutStrandingPendingData(): void
+    {
+        $login = $this->login('attach-owner');
+        $issueId = $this->createIssueId($login, 'BUG', 'Unavailable scanner');
+        $scanner = new class implements AttachmentScanner {
+            public function scan(
+                string $storageKey,
+                string $temporaryPath,
+            ): ScanStatus {
+                unset($storageKey, $temporaryPath);
+
+                return ScanStatus::Pending;
+            }
+        };
+        $this->app->getContainer()->set(AttachmentScanner::class, $scanner);
+
+        $response = $this->upload(
+            $login,
+            $issueId,
+            'pending.png',
+            $this->png(),
+        );
+
+        self::assertSame(503, $response->getStatusCode());
+        self::assertSame('ATTACHMENT_SCAN_UNAVAILABLE', $this->problemCode($response));
+        self::assertSame([], $this->attachments($login, $issueId));
         self::assertSame([], $this->storedFiles());
     }
 

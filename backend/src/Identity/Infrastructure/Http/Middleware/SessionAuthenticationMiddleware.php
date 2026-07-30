@@ -48,9 +48,36 @@ final readonly class SessionAuthenticationMiddleware implements MiddlewareInterf
             );
         }
 
+        if (
+            $session->mfaEnrollmentRequired
+            && !$this->allowsMfaEnrollment($request)
+        ) {
+            throw new DomainProblemException(
+                ProblemType::PermissionDenied,
+                'MFA_ENROLLMENT_REQUIRED',
+                'Multi-factor authentication enrollment is required before this session can access SOVA.',
+            );
+        }
+
         return $handler->handle(
             $request->withAttribute(self::ATTRIBUTE, $session),
         );
+    }
+
+    private function allowsMfaEnrollment(
+        ServerRequestInterface $request,
+    ): bool {
+        $method = $request->getMethod();
+        $path = $request->getUri()->getPath();
+
+        return ($method === 'GET' && (
+            $path === '/api/v1/auth/session'
+            || $path === '/api/v1/auth/mfa'
+        )) || ($method === 'POST' && (
+            $path === '/api/v1/auth/logout'
+            || $path === '/api/v1/auth/mfa/enrollment'
+            || $path === '/api/v1/auth/mfa/enrollment/confirm'
+        ));
     }
 
     private function allowsUnusableImpersonation(

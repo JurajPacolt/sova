@@ -8,10 +8,13 @@
       <a class="btn btn-outline-primary" [routerLink]="['../..', 'issues', 'board', projectId()]">
         {{ 'issue.board.title' | translate }}
       </a>
+      <a class="btn btn-outline-primary" [routerLink]="['configuration']">
+        {{ 'projectConfig.title' | translate }}
+      </a>
       <button
         class="btn btn-outline-primary"
         type="button"
-        [disabled]="statusChanging()"
+        [disabled]="statusChanging() || visibilityChanging()"
         (click)="toggleStatus()"
       >
         @if (current.status === 'ACTIVE') {
@@ -19,6 +22,17 @@
         } @else {
           {{ 'projects.reactivate' | translate }}
         }
+      </button>
+      <button
+        class="btn btn-outline-primary"
+        type="button"
+        [disabled]="statusChanging() || visibilityChanging()"
+        (click)="requestVisibilityChange()"
+      >
+        {{
+          (current.visibility === 'PRIVATE' ? 'projects.makeTenantVisible' : 'projects.makePrivate')
+            | translate
+        }}
       </button>
     </div>
   </app-page-header>
@@ -48,18 +62,53 @@
   @if (statusError()) {
     <div class="alert alert-danger" role="alert">{{ 'projects.statusError' | translate }}</div>
   }
+  @if (visibilityConfirmationOpen()) {
+    <section
+      class="alert alert-warning"
+      role="alert"
+      aria-labelledby="project-visibility-confirmation-title"
+    >
+      <h2 id="project-visibility-confirmation-title" class="h6">
+        {{ 'projects.visibilityConfirmationTitle' | translate }}
+      </h2>
+      <p>{{ 'projects.visibilityPrivateImpact' | translate }}</p>
+      <div class="d-flex flex-wrap gap-2">
+        <button
+          class="btn btn-warning"
+          type="button"
+          [disabled]="visibilityChanging()"
+          (click)="confirmPrivateVisibility()"
+        >
+          {{ 'projects.confirmPrivate' | translate }}
+        </button>
+        <button
+          class="btn btn-outline-secondary"
+          type="button"
+          [disabled]="visibilityChanging()"
+          (click)="cancelPrivateVisibility()"
+        >
+          {{ 'common.cancel' | translate }}
+        </button>
+      </div>
+    </section>
+  }
+  @if (visibilityError(); as failure) {
+    <div class="alert alert-danger" role="alert">
+      {{
+        (failure === 'MANAGER_REQUIRED'
+          ? 'projects.visibilityManagerRequired'
+          : 'projects.visibilityError'
+        ) | translate
+      }}
+    </div>
+  }
   @if (detailsForbidden()) {
     <div class="alert alert-warning" role="alert">
       {{ 'projects.detailsForbidden' | translate }}
     </div>
   }
-  @if (detailsError()) {
-    <div class="alert alert-danger d-flex align-items-center justify-content-between gap-3">
-      <span>{{ 'projects.detailsError' | translate }}</span>
-      <button class="btn btn-sm btn-outline-danger" type="button" (click)="reload()">
-        {{ 'common.retry' | translate }}
-      </button>
-    </div>
+  @if (detailsFailure(); as failure) {
+    <app-error-state [error]="failure" (retry)="reload()" />
   }
 
   @if (!detailsForbidden()) {
@@ -249,11 +298,6 @@
       {{ 'projects.backToList' | translate }}
     </a>
   </div>
-} @else if (projectError()) {
-  <div class="alert alert-danger d-flex align-items-center justify-content-between gap-3">
-    <span>{{ 'projects.loadError' | translate }}</span>
-    <button class="btn btn-sm btn-outline-danger" type="button" (click)="reload()">
-      {{ 'common.retry' | translate }}
-    </button>
-  </div>
+} @else if (projectFailure(); as failure) {
+  <app-error-state [error]="failure" (retry)="reload()" />
 }

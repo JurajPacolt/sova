@@ -236,7 +236,23 @@ final readonly class DoctrineIssueSearchRepository implements IssueSearchReposit
                 assignee_user.display_name AS assignee_display_name,
                 issue.assignee_workgroup_id,
                 assignee_workgroup.name AS assignee_workgroup_name,
-                parent.issue_key AS parent_issue_key{$projections}
+                parent.issue_key AS parent_issue_key,
+                EXISTS (
+                    SELECT 1
+                    FROM issue_links link
+                    INNER JOIN issues blocker
+                        ON blocker.tenant_id = link.tenant_id
+                        AND blocker.id = link.source_issue_id
+                    INNER JOIN project_statuses blocker_status
+                        ON blocker_status.tenant_id = blocker.tenant_id
+                        AND blocker_status.project_id = blocker.project_id
+                        AND blocker_status.id = blocker.status_id
+                    WHERE link.tenant_id = issue.tenant_id
+                        AND link.target_issue_id = issue.id
+                        AND link.link_type = 'BLOCKS'
+                        AND blocker_status.category <> 'DONE'
+                        AND blocker.project_id IN (:scope_projects)
+                ) AS blocked{$projections}
             FROM issues issue
             INNER JOIN projects project
                 ON project.tenant_id = issue.tenant_id
@@ -320,6 +336,7 @@ final readonly class DoctrineIssueSearchRepository implements IssueSearchReposit
                 $this->nullableString($row, 'assignee_workgroup_id'),
                 $this->nullableString($row, 'assignee_workgroup_name'),
                 $this->nullableString($row, 'parent_issue_key'),
+                $this->flag($row, 'blocked'),
                 $this->nullableString($row, 'resolution'),
                 $this->moment($this->nullableString($row, 'resolved_at')),
                 $this->moment($this->string($row, 'created_at')) ?? new DateTimeImmutable(),
@@ -337,6 +354,18 @@ final readonly class DoctrineIssueSearchRepository implements IssueSearchReposit
         $value = $row[$column] ?? null;
 
         return is_string($value) ? $value : (is_scalar($value) ? (string) $value : '');
+    }
+
+    /**
+     * @param array<string, mixed> $row
+     */
+    private function flag(array $row, string $column): bool
+    {
+        $value = $row[$column] ?? null;
+
+        // PDO hands booleans back as `true`, `'t'` or `'1'` depending on the
+        // driver's emulation, so all three are read as the same yes.
+        return $value === true || $value === 't' || $value === '1' || $value === 1;
     }
 
     /**

@@ -97,6 +97,12 @@ describe('ImpersonationSessionService', () => {
         is_superadmin: true,
       },
       impersonation: null,
+      mfa: {
+        enabled: true,
+        verified: true,
+        enrollment_required: false,
+        recovery_codes_remaining: 10,
+      },
     };
     store.setAuthenticated(STARTED.user, STARTED.impersonation);
     api.endCurrentImpersonation.mockReturnValue(of(undefined));

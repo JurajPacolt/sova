@@ -52,6 +52,57 @@ final class OpenApiContractTest extends TestCase
         self::assertSame($registeredOperations, $documentedOperations);
     }
 
+    public function testCookieAuthenticatedMutationsDeclareCsrfProtection(): void
+    {
+        $document = $this->decodeDocument();
+        $paths = $document['paths'] ?? null;
+
+        if (!is_array($paths)) {
+            self::fail('The OpenAPI document must define a paths object.');
+        }
+
+        foreach ($paths as $path => $pathItem) {
+            if (!is_string($path) || !is_array($pathItem)) {
+                self::fail('Every OpenAPI path item must be an object with a string key.');
+            }
+
+            foreach (['post', 'put', 'patch', 'delete'] as $method) {
+                $operation = $pathItem[$method] ?? null;
+
+                if ($operation === null) {
+                    continue;
+                }
+
+                if (!is_array($operation)) {
+                    self::fail(sprintf('%s %s must be an operation object.', $method, $path));
+                }
+
+                $security = $operation['security'] ?? [];
+
+                if (!is_array($security)) {
+                    self::fail(sprintf('%s %s has invalid security requirements.', $method, $path));
+                }
+
+                foreach ($security as $requirement) {
+                    if (
+                        is_array($requirement)
+                        && array_key_exists('sessionCookie', $requirement)
+                    ) {
+                        self::assertArrayHasKey(
+                            'csrfHeader',
+                            $requirement,
+                            sprintf(
+                                '%s %s uses a session cookie but does not declare CSRF protection.',
+                                strtoupper($method),
+                                $path,
+                            ),
+                        );
+                    }
+                }
+            }
+        }
+    }
+
     /**
      * @return array<string, mixed>
      */

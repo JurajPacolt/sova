@@ -7,11 +7,15 @@ namespace Sova\Tenancy\Infrastructure\Persistence;
 use DateTimeImmutable;
 use Doctrine\DBAL\Connection;
 use RuntimeException;
+use Sova\Tenancy\Application\Invitation\InvitationAdministrationRepository;
 use Sova\Tenancy\Application\Invitation\InvitationRepository;
+use Sova\Tenancy\Application\Invitation\ManagedTenantInvitation;
 use Sova\Tenancy\Application\Invitation\TenantInvitation;
 use Sova\Tenancy\Domain\Membership\MembershipStatus;
 
-final readonly class DoctrineInvitationRepository implements InvitationRepository
+final readonly class DoctrineInvitationRepository implements
+    InvitationRepository,
+    InvitationAdministrationRepository
 {
     public function __construct(private Connection $connection) {}
 
@@ -94,6 +98,237 @@ final readonly class DoctrineInvitationRepository implements InvitationRepositor
                 'normalized_email' => $normalizedEmail,
             ],
         ) === true;
+    }
+
+    public function listForTenant(string $tenantId): array
+    {
+        $rows = $this->connection->fetchAllAssociative(
+            <<<'SQL'
+                SELECT
+                    invitation.id,
+                    invitation.tenant_id,
+                    invitation.email,
+                    CASE
+                        WHEN invitation.status = 'PENDING'
+                            AND invitation.expires_at <= CURRENT_TIMESTAMP
+                        THEN 'EXPIRED'
+                        ELSE invitation.status
+                    END AS effective_status,
+                    inviter.display_name AS invited_by_display_name,
+                    invitation.initial_role_code,
+                    invitation.expires_at,
+                    invitation.created_at,
+                    invitation.updated_at,
+                    invitation.accepted_at,
+                    invitation.revoked_at
+                FROM tenant_invitations invitation
+                INNER JOIN users inviter
+                    ON inviter.id = invitation.invited_by_user_id
+                WHERE invitation.tenant_id = :tenant_id
+                ORDER BY invitation.created_at DESC, invitation.id DESC
+                LIMIT 200
+                SQL,
+            ['tenant_id' => $tenantId],
+        );
+
+        return array_map($this->managedInvitation(...), $rows);
+    }
+
+    public function findForTenant(
+        string $tenantId,
+        string $invitationId,
+        bool $forUpdate = false,
+    ): ?ManagedTenantInvitation {
+        $lockingClause = $forUpdate ? 'FOR UPDATE OF invitation' : '';
+        $row = $this->connection->fetchAssociative(
+            sprintf(
+                <<<'SQL'
+                    SELECT
+                        invitation.id,
+                        invitation.tenant_id,
+                        invitation.email,
+                        CASE
+                            WHEN invitation.status = 'PENDING'
+                                AND invitation.expires_at <= CURRENT_TIMESTAMP
+                            THEN 'EXPIRED'
+                            ELSE invitation.status
+                        END AS effective_status,
+                        inviter.display_name AS invited_by_display_name,
+                        invitation.initial_role_code,
+                        invitation.expires_at,
+                        invitation.created_at,
+                        invitation.updated_at,
+                        invitation.accepted_at,
+                        invitation.revoked_at
+                    FROM tenant_invitations invitation
+                    INNER JOIN users inviter
+                        ON inviter.id = invitation.invited_by_user_id
+                    WHERE invitation.tenant_id = :tenant_id
+                        AND invitation.id = :invitation_id
+                    %s
+                    SQL,
+                $lockingClause,
+            ),
+            [
+                'tenant_id' => $tenantId,
+                'invitation_id' => $invitationId,
+            ],
+        );
+
+        return $row === false ? null : $this->managedInvitation($row);
+    }
+
+    public function resendRetryAfter(
+        string $invitationId,
+        int $cooldownSeconds,
+    ): int {
+        $value = $this->connection->fetchOne(
+            <<<'SQL'
+                SELECT GREATEST(
+                    0,
+                    CEIL(
+                        EXTRACT(
+                            EPOCH FROM (
+                                MAX(created_at)
+                                + make_interval(secs => :cooldown_seconds)
+                                - CURRENT_TIMESTAMP
+                            )
+                        )
+                    )
+                )::INTEGER
+                FROM outbox_events
+                WHERE aggregate_type = 'TENANT_INVITATION'
+                    AND aggregate_id = :invitation_id
+                    AND event_name = 'TENANT_INVITATION_DELIVERY_REQUESTED'
+                SQL,
+            [
+                'invitation_id' => $invitationId,
+                'cooldown_seconds' => $cooldownSeconds,
+            ],
+        );
+
+        if (is_int($value)) {
+            return $value;
+        }
+
+        if (is_string($value) && ctype_digit($value)) {
+            return (int) $value;
+        }
+
+        throw new RuntimeException(
+            'The invitation resend cooldown could not be determined.',
+        );
+    }
+
+    public function replacePendingToken(
+        string $tenantId,
+        string $invitationId,
+        string $tokenHash,
+    ): bool {
+        return $this->connection->executeStatement(
+            <<<'SQL'
+                UPDATE tenant_invitations
+                SET token_hash = :token_hash,
+                    updated_at = CURRENT_TIMESTAMP
+                WHERE tenant_id = :tenant_id
+                    AND id = :invitation_id
+                    AND status = 'PENDING'
+                    AND expires_at > CURRENT_TIMESTAMP
+                SQL,
+            [
+                'tenant_id' => $tenantId,
+                'invitation_id' => $invitationId,
+                'token_hash' => $tokenHash,
+            ],
+        ) === 1;
+    }
+
+    public function changePendingExpiry(
+        string $tenantId,
+        string $invitationId,
+        DateTimeImmutable $expiresAt,
+    ): bool {
+        return $this->connection->executeStatement(
+            <<<'SQL'
+                UPDATE tenant_invitations
+                SET expires_at = :expires_at,
+                    updated_at = CURRENT_TIMESTAMP
+                WHERE tenant_id = :tenant_id
+                    AND id = :invitation_id
+                    AND status = 'PENDING'
+                    AND expires_at > CURRENT_TIMESTAMP
+                SQL,
+            [
+                'tenant_id' => $tenantId,
+                'invitation_id' => $invitationId,
+                'expires_at' => $expiresAt->format('Y-m-d H:i:s.uP'),
+            ],
+        ) === 1;
+    }
+
+    public function revokePending(
+        string $tenantId,
+        string $invitationId,
+    ): bool {
+        return $this->connection->executeStatement(
+            <<<'SQL'
+                UPDATE tenant_invitations
+                SET status = 'REVOKED',
+                    revoked_at = CURRENT_TIMESTAMP,
+                    updated_at = CURRENT_TIMESTAMP
+                WHERE tenant_id = :tenant_id
+                    AND id = :invitation_id
+                    AND status = 'PENDING'
+                    AND expires_at > CURRENT_TIMESTAMP
+                SQL,
+            [
+                'tenant_id' => $tenantId,
+                'invitation_id' => $invitationId,
+            ],
+        ) === 1;
+    }
+
+    public function cancelPendingDeliveries(string $invitationId): void
+    {
+        $eventIds = $this->connection->fetchFirstColumn(
+            <<<'SQL'
+                SELECT id
+                FROM outbox_events
+                WHERE aggregate_type = 'TENANT_INVITATION'
+                    AND aggregate_id = :invitation_id
+                    AND event_name = 'TENANT_INVITATION_DELIVERY_REQUESTED'
+                    AND processed_at IS NULL
+                    AND failed_at IS NULL
+                FOR UPDATE
+                SQL,
+            ['invitation_id' => $invitationId],
+        );
+
+        if ($eventIds === []) {
+            return;
+        }
+
+        $this->connection->executeStatement(
+            <<<'SQL'
+                UPDATE outbox_events
+                SET failed_at = CURRENT_TIMESTAMP,
+                    last_error = 'INVITATION_DELIVERY_SUPERSEDED'
+                WHERE aggregate_type = 'TENANT_INVITATION'
+                    AND aggregate_id = :invitation_id
+                    AND event_name = 'TENANT_INVITATION_DELIVERY_REQUESTED'
+                    AND processed_at IS NULL
+                    AND failed_at IS NULL
+                SQL,
+            ['invitation_id' => $invitationId],
+        );
+        $this->connection->executeStatement(
+            <<<'SQL'
+                DELETE FROM outbox_sensitive_payloads
+                WHERE event_id IN (:event_ids)
+                SQL,
+            ['event_ids' => $eventIds],
+            ['event_ids' => \Doctrine\DBAL\ArrayParameterType::STRING],
+        );
     }
 
     public function create(
@@ -402,5 +637,60 @@ final readonly class DoctrineInvitationRepository implements InvitationRepositor
         }
 
         return $value;
+    }
+
+    /**
+     * @param array<string, mixed> $row
+     */
+    private function managedInvitation(array $row): ManagedTenantInvitation
+    {
+        return new ManagedTenantInvitation(
+            id: $this->stringValue($row, 'id'),
+            tenantId: $this->stringValue($row, 'tenant_id'),
+            email: $this->stringValue($row, 'email'),
+            status: $this->stringValue($row, 'effective_status'),
+            invitedByDisplayName: $this->stringValue(
+                $row,
+                'invited_by_display_name',
+            ),
+            initialRoleCode: $this->nullableStringValue(
+                $row,
+                'initial_role_code',
+            ),
+            expiresAt: new DateTimeImmutable(
+                $this->stringValue($row, 'expires_at'),
+            ),
+            createdAt: new DateTimeImmutable(
+                $this->stringValue($row, 'created_at'),
+            ),
+            updatedAt: new DateTimeImmutable(
+                $this->stringValue($row, 'updated_at'),
+            ),
+            acceptedAt: $this->nullableDateTime($row, 'accepted_at'),
+            revokedAt: $this->nullableDateTime($row, 'revoked_at'),
+        );
+    }
+
+    /**
+     * @param array<string, mixed> $row
+     */
+    private function nullableDateTime(
+        array $row,
+        string $key,
+    ): ?DateTimeImmutable {
+        $value = $row[$key] ?? null;
+
+        if ($value === null) {
+            return null;
+        }
+
+        if (!is_string($value)) {
+            throw new RuntimeException(sprintf(
+                'Expected database column "%s" to contain a nullable date string.',
+                $key,
+            ));
+        }
+
+        return new DateTimeImmutable($value);
     }
 }

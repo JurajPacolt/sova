@@ -9,18 +9,29 @@ use DI\Container;
 use Doctrine\DBAL\Connection;
 use PHPUnit\Framework\TestCase;
 use Psr\Http\Message\ResponseInterface;
+use Psr\Http\Message\ServerRequestInterface;
+use Psr\Http\Server\RequestHandlerInterface;
 use Slim\App;
 use Slim\Psr7\Factory\ServerRequestFactory;
+use Slim\Psr7\Response;
+use Sova\Identity\Application\Authentication\SessionAuthenticator;
 use Sova\Identity\Application\Authentication\UserCredentials;
 use Sova\Identity\Application\Authentication\UserCredentialsRepository;
 use Sova\Identity\Application\EmailVerification\EmailVerificationMailer;
+use Sova\Identity\Application\Impersonation\ImpersonationRepository;
+use Sova\Identity\Application\Mfa\TotpAuthenticator;
 use Sova\Identity\Application\PasswordRecovery\PasswordResetMailer;
 use Sova\Identity\Application\Security\OneTimeTokenGenerator;
+use Sova\Identity\Application\Security\SessionTokenGenerator;
 use Sova\Identity\Application\Token\OneTimeTokenRepository;
 use Sova\Identity\Domain\Token\IssuedOneTimeToken;
 use Sova\Identity\Infrastructure\Background\IdentityEmailOutboxWorker;
+use Sova\Identity\Infrastructure\Http\AuthCookieManager;
+use Sova\Identity\Infrastructure\Http\Middleware\SessionAuthenticationMiddleware;
+use Sova\Identity\Infrastructure\Persistence\DoctrineUserSessionRepository;
 use Sova\Identity\Infrastructure\Security\Argon2idPasswordHasher;
 use Sova\Shared\Application\Security\SensitivePayloadCipher;
+use Sova\Shared\Domain\Error\DomainProblemException;
 use Sova\Shared\Domain\ValueObject\UuidV7;
 use Sova\Shared\Infrastructure\Bootstrap\ApplicationFactory;
 use Sova\Shared\Infrastructure\Configuration\Settings;
@@ -200,6 +211,267 @@ final class AuthenticationApiTest extends TestCase
         self::assertSame(200, $afterRevocation->getStatusCode());
         self::assertIsArray($userAfterRevocation);
         self::assertFalse($userAfterRevocation['is_superadmin'] ?? true);
+    }
+
+    public function testMfaEnrollmentLoginChallengeAndSingleUseCodes(): void
+    {
+        $olderLogin = $this->login(
+            'member@example.test',
+            'correct horse battery staple',
+        );
+        $login = $this->login(
+            'member@example.test',
+            'correct horse battery staple',
+        );
+        $sessionToken = $this->cookieValue($login, 'sova_session');
+        $csrfToken = $this->cookieValue($login, 'sova_csrf');
+        $cookies = ['sova_session' => $sessionToken];
+        $begin = $this->app->handle(
+            $this->request('POST', '/api/v1/auth/mfa/enrollment')
+                ->withCookieParams($cookies)
+                ->withHeader('X-CSRF-Token', $csrfToken)
+                ->withParsedBody([
+                    'current_password' => 'correct horse battery staple',
+                ]),
+        );
+        $beginPayload = $this->decode($begin);
+        $secret = $beginPayload['secret'] ?? null;
+        $otpauthUri = $beginPayload['otpauth_uri'] ?? null;
+
+        self::assertSame(200, $begin->getStatusCode());
+        self::assertSame('no-store', $begin->getHeaderLine('Cache-Control'));
+        self::assertIsString($secret);
+        self::assertMatchesRegularExpression('/^[A-Z2-7]{32}$/D', $secret);
+        self::assertIsString($otpauthUri);
+        self::assertStringStartsWith(
+            'otpauth://totp/',
+            $otpauthUri,
+        );
+
+        $ciphertext = $this->connection->fetchOne(
+            <<<'SQL'
+                SELECT encrypted_secret
+                FROM user_mfa_credentials
+                WHERE user_id = :user_id
+                SQL,
+            ['user_id' => $this->userId],
+        );
+        self::assertIsString($ciphertext);
+        self::assertStringNotContainsString($secret, $ciphertext);
+
+        $totp = new TotpAuthenticator();
+        $now = new DateTimeImmutable('now', new \DateTimeZone('UTC'));
+        $confirm = $this->app->handle(
+            $this->request(
+                'POST',
+                '/api/v1/auth/mfa/enrollment/confirm',
+            )
+                ->withCookieParams($cookies)
+                ->withHeader('X-CSRF-Token', $csrfToken)
+                ->withParsedBody([
+                    'code' => $totp->codeAt($secret, $now),
+                ]),
+        );
+        $confirmation = $this->decode($confirm);
+        $recoveryCodes = $confirmation['recovery_codes'] ?? null;
+        $confirmationMfa = $confirmation['mfa'] ?? null;
+
+        self::assertSame(200, $confirm->getStatusCode());
+        self::assertSame('no-store', $confirm->getHeaderLine('Cache-Control'));
+        self::assertIsArray($recoveryCodes);
+        self::assertCount(10, $recoveryCodes);
+        self::assertIsArray($confirmationMfa);
+        self::assertSame(
+            10,
+            $confirmationMfa['recovery_codes_remaining'] ?? null,
+        );
+        self::assertNotEmpty($this->connection->fetchOne(
+            <<<'SQL'
+                SELECT mfa_verified_at
+                FROM user_sessions
+                WHERE token_hash = :token_hash
+                SQL,
+            ['token_hash' => hash('sha256', $sessionToken)],
+        ));
+        self::assertNotEmpty($this->connection->fetchOne(
+            <<<'SQL'
+                SELECT revoked_at
+                FROM user_sessions
+                WHERE token_hash = :token_hash
+                SQL,
+            [
+                'token_hash' => hash(
+                    'sha256',
+                    $this->cookieValue($olderLogin, 'sova_session'),
+                ),
+            ],
+        ));
+
+        $withoutCode = $this->login(
+            'member@example.test',
+            'correct horse battery staple',
+        );
+        self::assertSame(401, $withoutCode->getStatusCode());
+        self::assertSame(
+            'MFA_CODE_REQUIRED',
+            $this->decode($withoutCode)['code'] ?? null,
+        );
+        self::assertSame([], $withoutCode->getHeader('Set-Cookie'));
+
+        $invalid = $this->login(
+            'member@example.test',
+            'correct horse battery staple',
+            '000000',
+        );
+        self::assertSame(401, $invalid->getStatusCode());
+        self::assertSame(
+            'MFA_CODE_INVALID',
+            $this->decode($invalid)['code'] ?? null,
+        );
+
+        $futureCode = $totp->codeAt($secret, $now->modify('+30 seconds'));
+        $verified = $this->login(
+            'member@example.test',
+            'correct horse battery staple',
+            $futureCode,
+        );
+        self::assertSame(200, $verified->getStatusCode());
+        $verifiedMfa = $this->decode($verified)['mfa'] ?? null;
+        self::assertIsArray($verifiedMfa);
+        self::assertTrue($verifiedMfa['verified'] ?? false);
+
+        $replayed = $this->login(
+            'member@example.test',
+            'correct horse battery staple',
+            $futureCode,
+        );
+        self::assertSame(401, $replayed->getStatusCode());
+        self::assertSame(
+            'MFA_CODE_INVALID',
+            $this->decode($replayed)['code'] ?? null,
+        );
+
+        $recoveryCode = $recoveryCodes[0] ?? null;
+        self::assertIsString($recoveryCode);
+        $recovered = $this->login(
+            'member@example.test',
+            'correct horse battery staple',
+            strtolower(str_replace('-', ' ', $recoveryCode)),
+        );
+        self::assertSame(200, $recovered->getStatusCode());
+        $recoveredMfa = $this->decode($recovered)['mfa'] ?? null;
+        self::assertIsArray($recoveredMfa);
+        self::assertSame(
+            9,
+            $recoveredMfa['recovery_codes_remaining'] ?? null,
+        );
+        self::assertSame(
+            401,
+            $this->login(
+                'member@example.test',
+                'correct horse battery staple',
+                $recoveryCode,
+            )->getStatusCode(),
+        );
+        self::assertSame(
+            1,
+            $this->connection->fetchOne(
+                <<<'SQL'
+                    SELECT COUNT(*)
+                    FROM security_audit_events
+                    WHERE actor_user_id = :user_id
+                        AND event_type = 'MFA_RECOVERY_CODE_USED'
+                    SQL,
+                ['user_id' => $this->userId],
+            ),
+        );
+    }
+
+    public function testProductionSessionWithholdsUnenrolledSuperadminRole(): void
+    {
+        $this->connection->insert('user_system_roles', [
+            'user_id' => $this->userId,
+            'role_code' => 'SUPERADMIN',
+        ]);
+        $login = $this->login(
+            'member@example.test',
+            'correct horse battery staple',
+        );
+        $sessionToken = $this->cookieValue($login, 'sova_session');
+        $impersonations = $this->app
+            ->getContainer()
+            ->get(ImpersonationRepository::class);
+
+        if (!$impersonations instanceof ImpersonationRepository) {
+            self::fail(
+                'The container must provide an impersonation repository.',
+            );
+        }
+
+        $repository = new DoctrineUserSessionRepository(
+            connection: $this->connection,
+            impersonations: $impersonations,
+            settings: new Settings([
+                'app' => ['environment' => 'production'],
+            ]),
+        );
+        $session = $repository->findActiveByTokenHash(
+            hash('sha256', $sessionToken),
+        );
+
+        self::assertNotNull($session);
+        self::assertTrue($session->actorHasSuperadminRole);
+        self::assertFalse($session->actorIsSuperadmin);
+        self::assertFalse($session->isSuperadmin);
+        self::assertTrue($session->mfaEnrollmentRequired);
+
+        $cookieSettings = new Settings([
+            'auth' => [
+                'session_cookie_name' => 'sova_session',
+                'csrf_cookie_name' => 'sova_csrf',
+                'cookie_secure' => false,
+                'cookie_same_site' => 'Lax',
+            ],
+        ]);
+        $middleware = new SessionAuthenticationMiddleware(
+            authenticator: new SessionAuthenticator(
+                $repository,
+                new SessionTokenGenerator(),
+            ),
+            cookies: new AuthCookieManager($cookieSettings),
+        );
+        $handler = new class implements RequestHandlerInterface {
+            public function handle(
+                ServerRequestInterface $request,
+            ): ResponseInterface {
+                return new Response(204);
+            }
+        };
+
+        try {
+            $middleware->process(
+                $this->request('GET', '/api/v1/tenants')
+                    ->withCookieParams(['sova_session' => $sessionToken]),
+                $handler,
+            );
+            self::fail(
+                'A production MFA enrollment session must not access tenants.',
+            );
+        } catch (DomainProblemException $exception) {
+            self::assertSame(
+                'MFA_ENROLLMENT_REQUIRED',
+                $exception->problemCode(),
+            );
+        }
+
+        self::assertSame(
+            204,
+            $middleware->process(
+                $this->request('GET', '/api/v1/auth/mfa')
+                    ->withCookieParams(['sova_session' => $sessionToken]),
+                $handler,
+            )->getStatusCode(),
+        );
     }
 
     public function testLogoutRequiresCsrfAndRevokesTheSession(): void
@@ -494,14 +766,23 @@ final class AuthenticationApiTest extends TestCase
         );
     }
 
-    private function login(string $email, string $password): ResponseInterface
-    {
+    private function login(
+        string $email,
+        string $password,
+        ?string $mfaCode = null,
+    ): ResponseInterface {
+        $payload = [
+            'email' => $email,
+            'password' => $password,
+        ];
+
+        if ($mfaCode !== null) {
+            $payload['mfa_code'] = $mfaCode;
+        }
+
         return $this->app->handle(
             $this->request('POST', '/api/v1/auth/login')
-                ->withParsedBody([
-                    'email' => $email,
-                    'password' => $password,
-                ]),
+                ->withParsedBody($payload),
         );
     }
 
@@ -583,7 +864,7 @@ final class AuthenticationApiTest extends TestCase
         );
     }
 
-    private function request(string $method, string $uri): \Psr\Http\Message\ServerRequestInterface
+    private function request(string $method, string $uri): ServerRequestInterface
     {
         return (new ServerRequestFactory())->createServerRequest(
             $method,

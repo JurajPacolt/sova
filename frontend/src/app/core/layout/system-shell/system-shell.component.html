@@ -1,4 +1,4 @@
-<a class="visually-hidden-focusable skip-link" href="#system-main-content">
+<a class="visually-hidden-focusable skip-link" href="#system-main-content" appSkipLink>
   {{ 'nav.skipToContent' | translate }}
 </a>
 
@@ -9,6 +9,9 @@
     <div class="d-flex align-items-center gap-3 text-white">
       <app-language-switcher />
       <app-theme-switcher />
+      <a class="btn btn-sm btn-outline-light" routerLink="/mfa/setup">
+        {{ 'mfa.title' | translate }}
+      </a>
       <span class="d-none d-md-inline">{{ session.user()?.display_name }}</span>
       <button
         class="btn btn-sm btn-outline-light"
@@ -49,6 +52,10 @@
     </aside>
 
     <main id="system-main-content" class="system-content" tabindex="-1">
+      @if (!online()) {
+        <div class="alert alert-warning" role="status">{{ 'error.offlineBanner' | translate }}</div>
+      }
+
       <div class="alert alert-warning d-flex gap-2" role="status">
         <strong>{{ 'system.warningTitle' | translate }}</strong>
         <span>{{ 'system.warningText' | translate }}</span>

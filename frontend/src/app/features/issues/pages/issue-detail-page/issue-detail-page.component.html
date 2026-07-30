@@ -1,7 +1,11 @@
 @if (loading()) {
   <p class="text-body-secondary" role="status">{{ 'common.loading' | translate }}</p>
-} @else if (loadError(); as message) {
-  <div class="alert alert-warning" role="alert">{{ message | translate }}</div>
+} @else if (missing()) {
+  <!-- Nothing failed: the key resolved to nothing, which is also the answer for
+       an issue in a project this reader cannot see. -->
+  <div class="alert alert-warning" role="alert">{{ 'issue.detail.notFound' | translate }}</div>
+} @else if (loadFailure(); as failure) {
+  <app-error-state [error]="failure" [messageKey]="loadErrorKey()" (retry)="reload()" />
 } @else if (issue(); as detail) {
   <app-page-header
     [eyebrow]="'issue.eyebrow' | translate"

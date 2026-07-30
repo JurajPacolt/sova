@@ -38,6 +38,14 @@ export class TenantStore {
     this.activePermissions.set(new Set(permissions));
   }
 
+  updateActiveTenantName(name: string): void {
+    const tenant = this.selectedTenant();
+
+    if (tenant !== null) {
+      this.selectedTenant.set({ ...tenant, name });
+    }
+  }
+
   /**
    * Whether the caller holds the tenant-scoped permission. Drives affordances
    * only — the backend authorizes every operation again.

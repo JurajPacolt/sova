@@ -19,6 +19,8 @@ import { TranslatePipe } from '../../../../core/i18n/translate.pipe';
 import { TenantStore } from '../../../../core/tenancy/tenant.store';
 import { PageHeaderComponent } from '../../../../shared/components/page-header/page-header.component';
 import { TenantRoleAdministrationService } from '../../tenant-role-administration.service';
+import { ErrorStateComponent } from '../../../../shared/components/error-state/error-state.component';
+import { AriaRequiredDirective } from '../../../../core/a11y/aria-required.directive';
 
 type FormMode = 'create' | 'edit' | null;
 
@@ -32,7 +34,13 @@ interface PermissionGroup {
 @Component({
   selector: 'app-tenant-roles-page',
   standalone: true,
-  imports: [PageHeaderComponent, ReactiveFormsModule, TranslatePipe],
+  imports: [
+    AriaRequiredDirective,
+    ErrorStateComponent,
+    PageHeaderComponent,
+    ReactiveFormsModule,
+    TranslatePipe,
+  ],
   templateUrl: './tenant-roles-page.component.html',
   styleUrl: './tenant-roles-page.component.scss',
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -48,7 +56,8 @@ export class TenantRolesPageComponent implements OnInit {
   protected readonly roles = signal<readonly TenantRole[]>([]);
   protected readonly permissions = signal<readonly TenantPermissionDefinition[]>([]);
   protected readonly loading = signal(false);
-  protected readonly loadError = signal(false);
+  /** The failed request itself; the shared error state reads the status. */
+  protected readonly loadFailure = signal<unknown>(null);
 
   protected readonly permissionGroups = computed<readonly PermissionGroup[]>(() =>
     SCOPE_ORDER.map((scope) => ({
@@ -86,7 +95,7 @@ export class TenantRolesPageComponent implements OnInit {
       return;
     }
 
-    this.loadError.set(false);
+    this.loadFailure.set(null);
     this.loading.set(true);
     this.administration
       .list(tenantId)
@@ -99,7 +108,7 @@ export class TenantRolesPageComponent implements OnInit {
           this.roles.set(roleList.roles);
           this.permissions.set(roleList.permissions);
         },
-        error: () => this.loadError.set(true),
+        error: (failure: unknown) => this.loadFailure.set(failure),
       });
   }
 

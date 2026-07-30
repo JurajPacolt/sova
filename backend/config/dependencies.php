@@ -26,17 +26,20 @@ use Sova\Identity\Application\Authentication\UserCredentialsRepository;
 use Sova\Identity\Application\Authentication\UserSessionRepository;
 use Sova\Identity\Application\EmailVerification\EmailVerificationMailer;
 use Sova\Identity\Application\Impersonation\ImpersonationRepository;
+use Sova\Identity\Application\Mfa\MfaCredentialRepository;
 use Sova\Identity\Application\PasswordRecovery\PasswordResetMailer;
 use Sova\Identity\Application\Security\PasswordHasher;
 use Sova\Identity\Application\Security\PublicEmailRateLimiter;
 use Sova\Identity\Application\System\SystemUserRepository;
 use Sova\Identity\Application\Token\OneTimeTokenRepository;
 use Sova\Identity\Application\Token\UserActionRequestPublisher;
+use Sova\Identity\Infrastructure\Bootstrap\InitialSuperadminBootstrapper;
 use Sova\Identity\Infrastructure\Mail\SymfonyEmailVerificationMailer;
 use Sova\Identity\Infrastructure\Mail\SymfonyPasswordResetMailer;
 use Sova\Identity\Infrastructure\Persistence\DoctrineAuthenticationEventRecorder;
 use Sova\Identity\Infrastructure\Persistence\DoctrineImpersonationRepository;
 use Sova\Identity\Infrastructure\Persistence\DoctrineLoginRateLimiter;
+use Sova\Identity\Infrastructure\Persistence\DoctrineMfaCredentialRepository;
 use Sova\Identity\Infrastructure\Persistence\DoctrineOneTimeTokenRepository;
 use Sova\Identity\Infrastructure\Persistence\DoctrinePublicEmailRateLimiter;
 use Sova\Identity\Infrastructure\Persistence\DoctrineSystemUserRepository;
@@ -47,6 +50,7 @@ use Sova\Identity\Infrastructure\Security\Argon2idPasswordHasher;
 use Sova\Issues\Application\Attachment\AttachmentRepository;
 use Sova\Issues\Application\Attachment\AttachmentScanner;
 use Sova\Issues\Application\Attachment\AttachmentStorage;
+use Sova\Issues\Application\Attachment\OfficeDocumentInspector;
 use Sova\Issues\Application\Comment\CommentEventPublisher;
 use Sova\Issues\Application\Comment\CommentRepository;
 use Sova\Issues\Application\History\HistoryRepository;
@@ -76,8 +80,11 @@ use Sova\Issues\Infrastructure\Persistence\DoctrineReferenceResolver;
 use Sova\Issues\Infrastructure\Persistence\DoctrineSearchScopeProvider;
 use Sova\Issues\Infrastructure\Persistence\DoctrineWatcherRepository;
 use Sova\Issues\Infrastructure\Persistence\IssueQueryCompiler;
+use Sova\Issues\Infrastructure\Storage\ClamAvAttachmentScanner;
+use Sova\Issues\Infrastructure\Storage\ClamAvSocketClient;
 use Sova\Issues\Infrastructure\Storage\FilesystemAttachmentStorage;
 use Sova\Issues\Infrastructure\Storage\UnavailableAttachmentScanner;
+use Sova\Issues\Infrastructure\Storage\ZipOfficeDocumentInspector;
 use Sova\Notifications\Application\IssueEventNotifier;
 use Sova\Notifications\Application\MemberDirectory;
 use Sova\Notifications\Application\NotificationEmailHandler;
@@ -90,6 +97,7 @@ use Sova\Notifications\Infrastructure\Persistence\DoctrineNotificationRepository
 use Sova\Notifications\Infrastructure\Persistence\DoctrinePreferenceRepository;
 use Sova\ProjectConfiguration\Application\ConfigurationEventPublisher;
 use Sova\ProjectConfiguration\Application\IssueMigrator;
+use Sova\ProjectConfiguration\Application\IssueTypeAdministrationRepository;
 use Sova\ProjectConfiguration\Application\ProjectConfigurationProvisioner;
 use Sova\ProjectConfiguration\Application\ProjectConfigurationRepository;
 use Sova\ProjectConfiguration\Application\WorkflowConfigurationRepository;
@@ -117,10 +125,12 @@ use Sova\Shared\Infrastructure\Persistence\DoctrineSecurityAuditReader;
 use Sova\Shared\Infrastructure\Persistence\DoctrineSecurityAuditRecorder;
 use Sova\Shared\Infrastructure\Security\SodiumSensitivePayloadCipher;
 use Sova\Tenancy\Application\Access\TenantAccessRepository;
+use Sova\Tenancy\Application\Invitation\InvitationAdministrationRepository;
 use Sova\Tenancy\Application\Invitation\InvitationMailer;
 use Sova\Tenancy\Application\Invitation\InvitationPublisher;
 use Sova\Tenancy\Application\Invitation\InvitationRepository;
 use Sova\Tenancy\Application\Membership\TenantMembershipRepository;
+use Sova\Tenancy\Application\Settings\TenantSettingsRepository;
 use Sova\Tenancy\Application\System\SystemTenantRepository;
 use Sova\Tenancy\Infrastructure\Mail\SymfonyInvitationMailer;
 use Sova\Tenancy\Infrastructure\Persistence\DoctrineInvitationPublisher;
@@ -128,6 +138,7 @@ use Sova\Tenancy\Infrastructure\Persistence\DoctrineInvitationRepository;
 use Sova\Tenancy\Infrastructure\Persistence\DoctrineSystemTenantRepository;
 use Sova\Tenancy\Infrastructure\Persistence\DoctrineTenantAccessRepository;
 use Sova\Tenancy\Infrastructure\Persistence\DoctrineTenantMembershipRepository;
+use Sova\Tenancy\Infrastructure\Persistence\DoctrineTenantSettingsRepository;
 use Sova\Workgroups\Application\WorkgroupRepository;
 use Sova\Workgroups\Infrastructure\Persistence\DoctrineWorkgroupRepository;
 use Symfony\Component\Mailer\Mailer;
@@ -166,6 +177,10 @@ return [
     ImpersonationRepository::class => autowire(
         DoctrineImpersonationRepository::class,
     ),
+    MfaCredentialRepository::class => autowire(
+        DoctrineMfaCredentialRepository::class,
+    ),
+    InitialSuperadminBootstrapper::class => autowire(),
     SystemUserRepository::class => autowire(
         DoctrineSystemUserRepository::class,
     ),
@@ -190,6 +205,9 @@ return [
     TenantAccessRepository::class => autowire(
         DoctrineTenantAccessRepository::class,
     ),
+    TenantSettingsRepository::class => autowire(
+        DoctrineTenantSettingsRepository::class,
+    ),
     TenantMembershipRepository::class => autowire(
         DoctrineTenantMembershipRepository::class,
     ),
@@ -212,6 +230,9 @@ return [
         DoctrineProjectConfigurationProvisioner::class,
     ),
     ProjectConfigurationRepository::class => autowire(
+        DoctrineProjectConfigurationRepository::class,
+    ),
+    IssueTypeAdministrationRepository::class => autowire(
         DoctrineProjectConfigurationRepository::class,
     ),
     WorkflowConfigurationRepository::class => autowire(
@@ -283,23 +304,50 @@ return [
     AttachmentStorage::class => autowire(
         FilesystemAttachmentStorage::class,
     ),
+    OfficeDocumentInspector::class => autowire(
+        ZipOfficeDocumentInspector::class,
+    ),
     AttachmentScanner::class => factory(
         static function (
             Settings $settings,
             LoggerInterface $logger,
         ): AttachmentScanner {
-            $scanner = $settings->string('attachments.scanner', 'none');
+            $scanner = strtolower($settings->string('attachments.scanner', 'none'));
             $environment = $settings->string('app.environment', 'production');
 
             // The same guard the mailer uses for a null transport: a missing
             // scanner is a development convenience, never a production state.
-            if ($environment === 'production' && $scanner === 'none') {
-                throw new RuntimeException(
-                    'ATTACHMENT_SCANNER must configure a real scanner in production.',
+            if ($scanner === 'none') {
+                if ($environment === 'production') {
+                    throw new RuntimeException(
+                        'ATTACHMENT_SCANNER must configure a real scanner in production.',
+                    );
+                }
+
+                return new UnavailableAttachmentScanner($logger);
+            }
+
+            if ($scanner === 'clamav') {
+                return new ClamAvAttachmentScanner(
+                    new ClamAvSocketClient(
+                        $settings->string('attachments.scanner_host', '127.0.0.1'),
+                        $settings->int('attachments.scanner_port', 3310),
+                        max(
+                            1,
+                            $settings->int('attachments.scanner_connect_timeout_ms', 1000),
+                        ) / 1000,
+                        max(
+                            1,
+                            $settings->int('attachments.scanner_read_timeout_seconds', 30),
+                        ),
+                    ),
+                    $logger,
                 );
             }
 
-            return new UnavailableAttachmentScanner($logger);
+            throw new RuntimeException(
+                'ATTACHMENT_SCANNER must be one of: none, clamav.',
+            );
         },
     ),
     WatcherRepository::class => autowire(
@@ -339,6 +387,9 @@ return [
         DoctrineQueryRateLimiter::class,
     ),
     InvitationRepository::class => autowire(
+        DoctrineInvitationRepository::class,
+    ),
+    InvitationAdministrationRepository::class => autowire(
         DoctrineInvitationRepository::class,
     ),
     InvitationPublisher::class => autowire(

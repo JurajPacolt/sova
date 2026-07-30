@@ -17,6 +17,8 @@ final readonly class IssueTypeDetails
         public string $description,
         public HierarchyLevel $hierarchyLevel,
         public int $position,
+        public string $icon,
+        public string $colorToken,
         public ConfigurationStatus $status,
         public int $version,
         public ?string $workflowId,

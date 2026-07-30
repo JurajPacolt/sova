@@ -10,6 +10,7 @@ use RuntimeException;
 use Sova\Authorization\Domain\DefaultRole;
 use Sova\ProjectConfiguration\Application\ProjectConfigurationProvisioner;
 use Sova\Projects\Domain\ProjectStatus;
+use Sova\Projects\Domain\ProjectVisibility;
 use Sova\Shared\Application\Audit\SecurityAuditRecorder;
 use Sova\Shared\Domain\Error\DomainProblemException;
 use Sova\Shared\Domain\Error\ProblemType;
@@ -204,6 +205,77 @@ final readonly class ProjectAdministrationService
                     tenantId: $tenantId,
                     ipAddress: $ipAddress,
                     metadata: ['project_id' => $projectId],
+                );
+
+                return $this->reload($tenantId, $projectId);
+            },
+        );
+    }
+
+    public function changeVisibility(
+        string $tenantId,
+        string $projectId,
+        ProjectVisibility $targetVisibility,
+        string $actorUserId,
+        string $requestId,
+        ?string $ipAddress,
+    ): ProjectDetails {
+        return $this->connection->transactional(
+            function () use (
+                $tenantId,
+                $projectId,
+                $targetVisibility,
+                $actorUserId,
+                $requestId,
+                $ipAddress,
+            ): ProjectDetails {
+                $project = $this->projects->findForTenant(
+                    $tenantId,
+                    $projectId,
+                    true,
+                );
+
+                if ($project === null) {
+                    throw $this->projectNotFound();
+                }
+
+                if ($project->visibility === $targetVisibility) {
+                    return $project;
+                }
+
+                if (
+                    $targetVisibility === ProjectVisibility::Private
+                    && !$this->projects->hasActiveManager(
+                        $tenantId,
+                        $projectId,
+                    )
+                ) {
+                    throw new DomainProblemException(
+                        ProblemType::Conflict,
+                        'PROJECT_PRIVATE_MANAGER_REQUIRED',
+                        'A private project must have at least one active member with project settings permission.',
+                    );
+                }
+
+                $previousVisibility = $project->visibility;
+                $this->projects->changeVisibility(
+                    $tenantId,
+                    $projectId,
+                    $targetVisibility,
+                );
+                $this->audit->record(
+                    eventType: 'PROJECT_VISIBILITY_CHANGED',
+                    outcome: 'SUCCESS',
+                    reasonCode: 'PROJECT_VISIBILITY_CHANGED',
+                    requestId: $requestId,
+                    actorUserId: $actorUserId,
+                    tenantId: $tenantId,
+                    ipAddress: $ipAddress,
+                    metadata: [
+                        'project_id' => $projectId,
+                        'previous_visibility' => $previousVisibility->value,
+                        'visibility' => $targetVisibility->value,
+                    ],
                 );
 
                 return $this->reload($tenantId, $projectId);

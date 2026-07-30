@@ -68,6 +68,44 @@ describe('authentication and tenant guards', () => {
     expect(resolved.toString()).toBe('/login?returnUrl=%2Ft%2Facme%2Fdashboard');
   });
 
+  it('limits an MFA-enrollment session to the setup route', async () => {
+    auth.ensureAuthenticated.mockReturnValue(of(true));
+    TestBed.inject(AuthSessionStore).setAuthenticated(
+      {
+        id: '019f9f00-0000-7000-8000-000000000003',
+        email: 'admin@example.test',
+        display_name: 'Administrator',
+        preferred_locale: 'sk',
+        is_superadmin: false,
+      },
+      null,
+      {
+        enabled: false,
+        verified: false,
+        enrollment_required: true,
+        recovery_codes_remaining: 0,
+      },
+    );
+
+    const blocked = TestBed.runInInjectionContext(() =>
+      authGuard({} as ActivatedRouteSnapshot, { url: '/select-tenant' } as RouterStateSnapshot),
+    );
+    const blockedResult = await firstValueFrom(
+      blocked as Observable<ReturnType<Router['createUrlTree']>>,
+    );
+    const allowed = TestBed.runInInjectionContext(() =>
+      authGuard(
+        {} as ActivatedRouteSnapshot,
+        {
+          url: '/mfa/setup',
+        } as RouterStateSnapshot,
+      ),
+    );
+
+    expect(blockedResult.toString()).toBe('/mfa/setup');
+    await expect(firstValueFrom(allowed as Observable<boolean>)).resolves.toBe(true);
+  });
+
   it('establishes the backend-confirmed tenant context', async () => {
     tenantAccess.activateBySlug.mockReturnValue(of(TENANT));
     const route = {

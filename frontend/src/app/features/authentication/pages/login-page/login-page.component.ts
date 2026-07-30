@@ -11,11 +11,13 @@ import { TranslationKey } from '../../../../core/i18n/translations';
 import { destinationAfterLogin, sanitizeReturnUrl } from '../../../../core/navigation/return-url';
 import { LanguageSwitcherComponent } from '../../../../shared/components/language-switcher/language-switcher.component';
 import { ThemeSwitcherComponent } from '../../../../shared/components/theme-switcher/theme-switcher.component';
+import { AriaRequiredDirective } from '../../../../core/a11y/aria-required.directive';
 
 @Component({
   selector: 'app-login-page',
   standalone: true,
   imports: [
+    AriaRequiredDirective,
     LanguageSwitcherComponent,
     ReactiveFormsModule,
     RouterLink,
@@ -36,6 +38,7 @@ export class LoginPageComponent {
   );
 
   protected readonly submitting = signal(false);
+  protected readonly mfaChallenge = signal(false);
   protected readonly formError = signal<TranslationKey | null>(
     this.route.snapshot.queryParamMap.get('serviceUnavailable') === '1'
       ? 'auth.serviceUnavailable'
@@ -51,6 +54,9 @@ export class LoginPageComponent {
       nonNullable: true,
       validators: [Validators.required, Validators.minLength(8)],
     }),
+    mfa_code: new FormControl('', {
+      nonNullable: true,
+    }),
   });
 
   protected submit(): void {
@@ -62,14 +68,26 @@ export class LoginPageComponent {
     }
 
     this.submitting.set(true);
+    const value = this.form.getRawValue();
+    const request = this.mfaChallenge()
+      ? value
+      : {
+          email: value.email,
+          password: value.password,
+        };
     this.auth
-      .login(this.form.getRawValue())
+      .login(request)
       .pipe(
         takeUntilDestroyed(this.destroyRef),
         finalize(() => this.submitting.set(false)),
       )
       .subscribe({
         next: ({ login, tenants }) => {
+          if (login.mfa.enrollment_required) {
+            void this.router.navigateByUrl('/mfa/setup');
+            return;
+          }
+
           const destination = destinationAfterLogin(
             this.returnUrl,
             tenants,
@@ -93,6 +111,16 @@ export class LoginPageComponent {
         if (error.error.code === 'LOGIN_RATE_LIMITED') {
           return 'auth.rateLimited';
         }
+
+        if (error.error.code === 'MFA_CODE_REQUIRED') {
+          this.enableMfaChallenge();
+          return 'auth.mfaRequired';
+        }
+
+        if (error.error.code === 'MFA_CODE_INVALID') {
+          this.enableMfaChallenge();
+          return 'auth.mfaInvalid';
+        }
       }
 
       if (error.status === 0 || error.status >= 500) {
@@ -101,5 +129,11 @@ export class LoginPageComponent {
     }
 
     return 'auth.unexpectedError';
+  }
+
+  private enableMfaChallenge(): void {
+    this.mfaChallenge.set(true);
+    this.form.controls.mfa_code.setValidators([Validators.required, Validators.maxLength(64)]);
+    this.form.controls.mfa_code.updateValueAndValidity();
   }
 }

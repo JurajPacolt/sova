@@ -3,7 +3,7 @@
 declare(strict_types=1);
 
 $envString = static function (string $name, string $default = ''): string {
-    $value = $_ENV[$name] ?? $_SERVER[$name] ?? $default;
+    $value = $_ENV[$name] ?? $_SERVER[$name] ?? getenv($name);
 
     return is_string($value) ? $value : $default;
 };
@@ -94,6 +94,10 @@ return [
             'AUTH_INVITATION_TTL_SECONDS',
             604_800,
         ),
+        'invitation_resend_cooldown_seconds' => $envInt(
+            'AUTH_INVITATION_RESEND_COOLDOWN_SECONDS',
+            60,
+        ),
         'recovery_request_ttl_seconds' => $envInt(
             'AUTH_RECOVERY_REQUEST_TTL_SECONDS',
             900,
@@ -129,6 +133,16 @@ return [
             20 * 1024 * 1024 * 1024,
         ),
         'scanner' => $envString('ATTACHMENT_SCANNER', 'none'),
+        'scanner_host' => $envString('ATTACHMENT_SCANNER_HOST', '127.0.0.1'),
+        'scanner_port' => $envInt('ATTACHMENT_SCANNER_PORT', 3310),
+        'scanner_connect_timeout_ms' => $envInt(
+            'ATTACHMENT_SCANNER_CONNECT_TIMEOUT_MS',
+            1000,
+        ),
+        'scanner_read_timeout_seconds' => $envInt(
+            'ATTACHMENT_SCANNER_READ_TIMEOUT_SECONDS',
+            30,
+        ),
     ],
     'comments' => [
         // Grace window in which an author may still edit their own comment.

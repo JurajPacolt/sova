@@ -43,3 +43,21 @@
   margin-bottom: 0.5rem;
   padding: 0.6rem;
 }
+
+// While a card is in flight. The outline is the same 3:1 token the dashboard's
+// edit mode uses, so "you can drop here" looks the same in both places.
+.board-column--drop-target {
+  outline: 2px dashed var(--sova-color-border-strong);
+  outline-offset: 2px;
+}
+
+.board-card--dragging {
+  opacity: 0.6;
+}
+
+// The card lifts on pointer drag; a reader who asked for less motion gets none.
+@media (prefers-reduced-motion: reduce) {
+  .board-card--dragging {
+    opacity: 1;
+  }
+}

@@ -56,6 +56,51 @@ export class DashboardWorkspaceService {
     return this.api.restoreDashboardFromTemplate(tenantId, name === undefined ? {} : { name });
   }
 
+  create(tenantId: string, name: string): Observable<Dashboard> {
+    return this.api.createDashboard(tenantId, { name }).pipe(map((response) => response.dashboard));
+  }
+
+  /**
+   * Renaming and reordering share one endpoint and one optimistic lock, so a
+   * caller has to say which version it saw either way.
+   */
+  update(
+    tenantId: string,
+    dashboardId: string,
+    expectedVersion: number,
+    name: string,
+    position?: number,
+  ): Observable<Dashboard> {
+    return this.api
+      .updateDashboard(tenantId, dashboardId, {
+        expected_version: expectedVersion,
+        name,
+        ...(position === undefined ? {} : { position }),
+      })
+      .pipe(map((response) => response.dashboard));
+  }
+
+  /**
+   * A copy carries the same widgets pointed at the **same** saved queries, and
+   * never inherits the default flag.
+   */
+  duplicate(tenantId: string, dashboardId: string, name: string): Observable<Dashboard> {
+    return this.api
+      .copyDashboard(tenantId, dashboardId, { name })
+      .pipe(map((response) => response.dashboard));
+  }
+
+  makeDefault(tenantId: string, dashboardId: string): Observable<Dashboard> {
+    return this.api
+      .makeDashboardDefault(tenantId, dashboardId)
+      .pipe(map((response) => response.dashboard));
+  }
+
+  /** The last dashboard stays: a member must always have one to land on. */
+  remove(tenantId: string, dashboardId: string): Observable<void> {
+    return this.api.deleteDashboard(tenantId, dashboardId);
+  }
+
   /** One dashboard, for the version a layout has to be written against. */
   get(tenantId: string, dashboardId: string): Observable<Dashboard> {
     return this.api.getDashboard(tenantId, dashboardId).pipe(map((response) => response.dashboard));

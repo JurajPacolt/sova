@@ -43,13 +43,18 @@ describe('permissionGuard', () => {
     expect(run('tenant.members.view', 'tenant.audit.view')).toBe(true);
   });
 
-  it('redirects a caller holding none of them to the dashboard', () => {
+  /**
+   * A refused route says so (webflow §5). Quietly delivering the dashboard
+   * instead reads as a broken link: the screen they asked for is not the screen
+   * they got, and nothing on the page explains why.
+   */
+  it('sends a caller holding none of them to the tenant 403 page', () => {
     store.setActiveTenant(TENANT, ['tenant.view']);
 
     const result = run('tenant.members.view');
 
     expect(result).not.toBe(true);
-    expect(TestBed.inject(Router).serializeUrl(result as UrlTree)).toBe('/t/acme/dashboards');
+    expect(TestBed.inject(Router).serializeUrl(result as UrlTree)).toBe('/t/acme/forbidden');
   });
 
   it('sends a caller without a tenant context to tenant selection', () => {

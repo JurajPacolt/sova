@@ -62,6 +62,51 @@ describe('DashboardWidgetComponent', () => {
     return fixture.nativeElement;
   }
 
+  /**
+   * The data follows the question, not the row. A move or a resize bumps the
+   * widget's version without changing what it asks, so a saved arrangement must
+   * not send every card back for numbers it already has — while reconfiguring
+   * one has to replace them, since the old answer under a new heading is the one
+   * wrong thing to show.
+   */
+  it('re-reads its data when the widget is reconfigured, not when it is only moved', () => {
+    const element = render(widget(), { count: 7 });
+
+    fixture.componentRef.setInput('widget', widget({ version: 2, x: 4, y: 2 }));
+    fixture.detectChanges();
+
+    http.expectNone(DATA_URL);
+    expect(element.textContent).toContain('7');
+
+    fixture.componentRef.setInput(
+      'widget',
+      widget({ version: 3, configuration: { tone: 'DANGER' } }),
+    );
+    fixture.detectChanges();
+    http.expectOne(DATA_URL).flush({ data: { count: 2 } });
+    fixture.detectChanges();
+
+    expect(element.textContent).toContain('2');
+  });
+
+  /**
+   * A refresh that fails makes the answer old, not wrong (webflow §2, §10).
+   * Blanking the card would throw away the last thing known to be true, and a
+   * number with a date beats no number at all.
+   */
+  it('keeps the last numbers and marks them out of date when a refresh fails', () => {
+    const element = render(widget(), { count: 7 });
+
+    const refresh = element.querySelector<HTMLButtonElement>('[aria-label="Refresh this widget"]');
+    refresh?.click();
+    fixture.detectChanges();
+    http.expectOne(DATA_URL).flush('nope', { status: 500, statusText: 'Server Error' });
+    fixture.detectChanges();
+
+    expect(element.textContent).toContain('7');
+    expect(element.textContent).toContain('could not be refreshed');
+  });
+
   it('shows a count with a labelled tone rather than colour alone', () => {
     const element = render(widget(), { count: 7 });
 
@@ -84,6 +129,50 @@ describe('DashboardWidgetComponent', () => {
     expect(fills[0].style.width).toBe('100%');
     // Half of the largest bar, which is what a reader compares it against.
     expect(fills[1].style.width).toBe('50%');
+  });
+
+  it('draws a ring whose slices add up to the whole', () => {
+    const element = render(
+      widget({ type_key: 'issue_breakdown', configuration: { visualization: 'DONUT' } }),
+      {
+        buckets: [
+          { key: 'OPEN', label: 'Open', count: 3 },
+          { key: 'DONE', label: 'Done', count: 1 },
+        ],
+      },
+    );
+
+    const slices = element.querySelectorAll('.widget__donut-slice');
+    expect(slices.length).toBe(2);
+    // 75% and 25%, each shortened by the gap that keeps neighbours apart.
+    expect(slices[0].getAttribute('stroke-dasharray')).toBe('74.20 25.80');
+    expect(slices[1].getAttribute('stroke-dashoffset')).toBe('-75');
+
+    // Colour is never the only carrier: the legend names each slice and counts
+    // it, and the ring itself is hidden from assistive technology.
+    expect(element.querySelector('.widget__donut')?.getAttribute('aria-hidden')).toBe('true');
+    expect(element.textContent).toContain('Open');
+    expect(element.textContent).toContain('75%');
+  });
+
+  it('folds everything past the sixth bucket into one named remainder', () => {
+    const element = render(
+      widget({ type_key: 'issue_breakdown', configuration: { visualization: 'DONUT' } }),
+      {
+        buckets: Array.from({ length: 8 }, (_, index) => ({
+          key: `K${index}`,
+          label: `Bucket ${index}`,
+          count: 10,
+        })),
+      },
+    );
+
+    // Six hues plus the remainder; the palette defines six, and a seventh would
+    // be invented rather than chosen.
+    expect(element.querySelectorAll('.widget__donut-slice').length).toBe(7);
+    expect(element.textContent).toContain('Other');
+    // The table still lists every bucket, so folding changed the picture only.
+    expect(element.querySelectorAll('.visually-hidden tbody tr').length).toBe(8);
   });
 
   it('always writes the number in a matrix cell, never only its shading', () => {

@@ -15,6 +15,7 @@ import { TranslatePipe } from '../../../../core/i18n/translate.pipe';
 import { TranslationKey } from '../../../../core/i18n/translations';
 import { PageHeaderComponent } from '../../../../shared/components/page-header/page-header.component';
 import { SystemUserAdministrationService } from '../../system-user-administration.service';
+import { ErrorStateComponent } from '../../../../shared/components/error-state/error-state.component';
 
 type AdminTarget = Extract<UserAccountStatus, 'ACTIVE' | 'DISABLED'>;
 
@@ -44,7 +45,7 @@ interface LifecycleSelection {
 @Component({
   selector: 'app-system-user-list-page',
   standalone: true,
-  imports: [PageHeaderComponent, TranslatePipe],
+  imports: [ErrorStateComponent, PageHeaderComponent, TranslatePipe],
   templateUrl: './system-user-list-page.component.html',
   styleUrl: './system-user-list-page.component.scss',
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -56,7 +57,8 @@ export class SystemUserListPageComponent implements OnInit {
 
   protected readonly users = signal<readonly SystemUser[]>([]);
   protected readonly loading = signal(false);
-  protected readonly loadError = signal(false);
+  /** The failed request itself; the shared error state reads the status. */
+  protected readonly loadFailure = signal<unknown>(null);
   protected readonly activeCount = computed(
     () => this.users().filter((user) => user.status === 'ACTIVE').length,
   );
@@ -73,7 +75,7 @@ export class SystemUserListPageComponent implements OnInit {
   }
 
   protected refresh(): void {
-    this.loadError.set(false);
+    this.loadFailure.set(null);
     this.loading.set(true);
     this.administration
       .list()
@@ -83,7 +85,7 @@ export class SystemUserListPageComponent implements OnInit {
       )
       .subscribe({
         next: (users) => this.users.set(users),
-        error: () => this.loadError.set(true),
+        error: (failure: unknown) => this.loadFailure.set(failure),
       });
   }
 

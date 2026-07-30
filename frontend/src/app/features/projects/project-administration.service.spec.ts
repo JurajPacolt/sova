@@ -48,6 +48,15 @@ describe('ProjectAdministrationService', () => {
     request.flush(null);
   });
 
+  it('changes project visibility through the project mutation route', () => {
+    service.changeVisibility(TENANT_ID, PROJECT_ID, 'PRIVATE').subscribe();
+
+    const request = http.expectOne(`/api/v1/tenants/${TENANT_ID}/projects/${PROJECT_ID}`);
+    expect(request.request.method).toBe('PATCH');
+    expect(request.request.body).toEqual({ visibility: 'PRIVATE' });
+    request.flush({ project: { id: PROJECT_ID, visibility: 'PRIVATE' } });
+  });
+
   it('unassigns a project role through the nested route', () => {
     service.unassignRole(TENANT_ID, PROJECT_ID, MEMBERSHIP_ID, ROLE_ID).subscribe();
 

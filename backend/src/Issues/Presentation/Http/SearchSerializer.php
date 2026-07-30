@@ -146,6 +146,7 @@ final readonly class SearchSerializer
                 'name' => $item->assigneeWorkgroupName,
             ],
             'parent_key' => $item->parentIssueKey,
+            'blocked' => $item->blocked,
             'resolution' => $item->resolution,
             'resolved_at' => $item->resolvedAt?->format(DATE_ATOM),
             'created_at' => $item->createdAt->format(DATE_ATOM),

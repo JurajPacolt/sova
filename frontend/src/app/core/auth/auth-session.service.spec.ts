@@ -31,6 +31,12 @@ const LOGIN: LoginResponse = {
     id: '019f9f00-0000-7000-8000-000000000004',
     expires_at: '2026-07-27T00:00:00+00:00',
   },
+  mfa: {
+    enabled: false,
+    verified: false,
+    enrollment_required: false,
+    recovery_codes_remaining: 0,
+  },
 };
 
 describe('AuthSessionService', () => {
@@ -110,11 +116,36 @@ describe('AuthSessionService', () => {
   });
 
   it('restores a cookie session from the current-session endpoint', async () => {
-    api.getCurrentSession.mockReturnValue(of({ user: LOGIN.user, impersonation: null }));
+    api.getCurrentSession.mockReturnValue(
+      of({ user: LOGIN.user, impersonation: null, mfa: LOGIN.mfa }),
+    );
 
     await expect(firstValueFrom(service.ensureAuthenticated())).resolves.toBe(true);
     expect(sessionStore.status()).toBe('authenticated');
     expect(sessionStore.user()).toEqual(LOGIN.user);
+    expect(sessionStore.mfa()).toEqual(LOGIN.mfa);
+    expect(tenantAccess.refresh).not.toHaveBeenCalled();
+  });
+
+  it('does not load tenant access while mandatory MFA enrollment is pending', async () => {
+    const restricted = {
+      ...LOGIN,
+      mfa: {
+        ...LOGIN.mfa,
+        enrollment_required: true,
+      },
+    };
+    api.login.mockReturnValue(of(restricted));
+
+    const result = await firstValueFrom(
+      service.login({
+        email: 'admin@example.test',
+        password: 'password',
+      }),
+    );
+
+    expect(result.tenants).toEqual([]);
+    expect(sessionStore.mfaEnrollmentRequired()).toBe(true);
     expect(tenantAccess.refresh).not.toHaveBeenCalled();
   });
 

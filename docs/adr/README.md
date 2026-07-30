@@ -15,3 +15,4 @@ nahradí.
 | [0007](./0007-openapi-contract.md)                                  | prijaté | OpenAPI 3.1 ako API kontrakt                |
 | [0008](./0008-transactional-outbox.md)                              | prijaté | Transactional outbox                        |
 | [0009](./0009-deployment-data-retention-and-recovery.md)            | prijaté | Nasadenie, prílohy, retencia a obnova       |
+| [0010](./0010-row-level-security-scope.md)                          | prijaté | Rozsah tenantu pre Row-Level Security       |

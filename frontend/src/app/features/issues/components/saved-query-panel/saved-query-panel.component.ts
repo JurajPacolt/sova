@@ -69,6 +69,11 @@ export class SavedQueryPanelComponent implements OnInit {
   protected readonly sharingId = signal<string | null>(null);
   protected readonly archivedVisible = signal(false);
 
+  protected readonly renamingId = signal<string | null>(null);
+  protected readonly renameName = signal('');
+  protected readonly renaming = signal(false);
+  protected readonly renameError = signal<TranslationKey | null>(null);
+
   protected readonly canCreate = computed(() =>
     this.tenantStore.hasPermission('saved-query.create'),
   );
@@ -189,6 +194,62 @@ export class SavedQueryPanelComponent implements OnInit {
       });
   }
 
+  /** `EDIT` is enough to rename, the same right that lets the text be replaced. */
+  protected canRename(query: SavedQuery): boolean {
+    return query.viewer_access === 'EDIT';
+  }
+
+  protected startRename(query: SavedQuery): void {
+    this.renameError.set(null);
+    this.renamingId.set(query.id);
+    this.renameName.set(query.name);
+  }
+
+  protected cancelRename(): void {
+    this.renamingId.set(null);
+    this.renameError.set(null);
+  }
+
+  /**
+   * Its own action, not a rider on "Overwrite": renaming leaves the query text
+   * exactly as its author wrote it, and it collides against the **owner's**
+   * names rather than the editor's — so a rename can be refused for a name the
+   * person renaming has never used.
+   */
+  protected confirmRename(query: SavedQuery): void {
+    const tenantId = this.tenantId();
+    const name = this.renameName().trim();
+
+    if (tenantId === null || this.renaming() || name === '' || name === query.name) {
+      return;
+    }
+
+    this.renaming.set(true);
+    this.renameError.set(null);
+
+    this.workspace
+      .updateSavedQuery(tenantId, query.id, {
+        expected_version: query.version,
+        name,
+        description: query.description,
+        // The stored text, never the editor's: a rename that quietly rewrote
+        // the query would be the one change nobody asked for.
+        query: query.raw_query,
+      })
+      .pipe(
+        finalize(() => this.renaming.set(false)),
+        takeUntilDestroyed(this.destroyRef),
+      )
+      .subscribe({
+        next: () => {
+          this.renamingId.set(null);
+          this.reload();
+        },
+        error: (failure: unknown) =>
+          this.renameError.set(this.messageFor(failure, query.viewer_is_owner)),
+      });
+  }
+
   protected toggleFavourite(query: SavedQuery): void {
     const tenantId = this.tenantId();
 
@@ -298,7 +359,7 @@ export class SavedQueryPanelComponent implements OnInit {
     return isProblemDetails(body) ? body.code : null;
   }
 
-  private messageFor(failure: unknown): TranslationKey {
+  private messageFor(failure: unknown, ownedByCaller = true): TranslationKey {
     const body =
       typeof failure === 'object' && failure !== null && 'error' in failure
         ? (failure as { error: unknown }).error
@@ -310,7 +371,9 @@ export class SavedQueryPanelComponent implements OnInit {
 
     switch (body.code) {
       case 'SAVED_QUERY_NAME_TAKEN':
-        return 'savedQuery.nameTaken';
+        // Uniqueness is checked against the owner, so somebody editing another
+        // person's query can be refused a name they have never used themselves.
+        return ownedByCaller ? 'savedQuery.nameTaken' : 'savedQuery.nameTakenForOwner';
       case 'SAVED_QUERY_VERSION_CONFLICT':
         return 'savedQuery.conflict';
       case 'SAVED_QUERY_INVALID':

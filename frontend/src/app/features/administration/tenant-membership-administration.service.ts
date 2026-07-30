@@ -3,6 +3,7 @@ import { map, Observable } from 'rxjs';
 import {
   ChangeTenantMembershipStatusRequest,
   CreatedInvitation,
+  TenantInvitation,
   TenantMembership,
 } from '../../core/api/api.models';
 import { SovaApiClient } from '../../core/api/sova-api-client.service';
@@ -20,6 +21,34 @@ export class TenantMembershipAdministrationService {
   invite(tenantId: string, email: string): Observable<CreatedInvitation> {
     return this.api
       .createTenantInvitation(tenantId, { email })
+      .pipe(map((response) => response.invitation));
+  }
+
+  listInvitations(tenantId: string): Observable<readonly TenantInvitation[]> {
+    return this.api.listTenantInvitations(tenantId).pipe(map((response) => response.invitations));
+  }
+
+  changeInvitationExpiry(
+    tenantId: string,
+    invitationId: string,
+    expiresAt: string,
+  ): Observable<TenantInvitation> {
+    return this.api
+      .changeTenantInvitationExpiry(tenantId, invitationId, {
+        expires_at: expiresAt,
+      })
+      .pipe(map((response) => response.invitation));
+  }
+
+  resendInvitation(tenantId: string, invitationId: string): Observable<TenantInvitation> {
+    return this.api
+      .resendTenantInvitation(tenantId, invitationId)
+      .pipe(map((response) => response.invitation));
+  }
+
+  revokeInvitation(tenantId: string, invitationId: string): Observable<TenantInvitation> {
+    return this.api
+      .revokeTenantInvitation(tenantId, invitationId)
       .pipe(map((response) => response.invitation));
   }
 

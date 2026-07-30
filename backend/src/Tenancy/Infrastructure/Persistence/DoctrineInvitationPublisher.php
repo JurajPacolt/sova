@@ -30,6 +30,21 @@ final readonly class DoctrineInvitationPublisher implements InvitationPublisher
             'invitation_id' => $invitationId,
             'token' => $plainTextToken,
         ]);
+        $sequenceNumber = $this->connection->fetchOne(
+            <<<'SQL'
+                SELECT COALESCE(MAX(sequence_number), 0) + 1
+                FROM outbox_events
+                WHERE aggregate_type = 'TENANT_INVITATION'
+                    AND aggregate_id = :invitation_id
+                SQL,
+            ['invitation_id' => $invitationId],
+        );
+
+        if (!is_int($sequenceNumber) && !is_string($sequenceNumber)) {
+            throw new \RuntimeException(
+                'The next invitation delivery sequence could not be determined.',
+            );
+        }
 
         $this->connection->insert('outbox_events', [
             'id' => $eventId,
@@ -38,7 +53,7 @@ final readonly class DoctrineInvitationPublisher implements InvitationPublisher
             'aggregate_id' => $invitationId,
             'event_name' => self::EVENT_NAME,
             'event_version' => 1,
-            'sequence_number' => 1,
+            'sequence_number' => (int) $sequenceNumber,
             'payload' => '{}',
         ]);
         $this->connection->insert('outbox_sensitive_payloads', [

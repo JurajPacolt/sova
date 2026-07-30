@@ -3,6 +3,7 @@ import { ApplicationConfig, provideBrowserGlobalErrorListeners } from '@angular/
 import { provideRouter, withComponentInputBinding, withInMemoryScrolling } from '@angular/router';
 
 import { routes } from './app.routes';
+import { provideRouteFocus } from './core/a11y/route-focus';
 import { apiCredentialsInterceptor } from './core/api/api-credentials.interceptor';
 import { sessionExpiryInterceptor } from './core/auth/session-expiry.interceptor';
 
@@ -18,5 +19,8 @@ export const appConfig: ApplicationConfig = {
         scrollPositionRestoration: 'enabled',
       }),
     ),
+    // A screen change moves the eye but not the focus; this puts them back
+    // together (webflow §13.1).
+    provideRouteFocus(),
   ],
 };

@@ -88,13 +88,8 @@
   </div>
 </section>
 
-@if (loadError()) {
-  <div class="alert alert-danger d-flex align-items-center justify-content-between gap-3">
-    <span>{{ 'tenantAudit.loadError' | translate }}</span>
-    <button class="btn btn-sm btn-outline-danger" type="button" (click)="applyFilters()">
-      {{ 'common.retry' | translate }}
-    </button>
-  </div>
+@if (loadFailure(); as failure) {
+  <app-error-state [error]="failure" (retry)="applyFilters()" />
 }
 
 @if (loading() && events().length === 0) {
@@ -152,7 +147,7 @@
         </div>
       </article>
     } @empty {
-      @if (!loading() && !loadError()) {
+      @if (!loading() && loadFailure() === null) {
         <div class="list-group-item text-body-secondary py-4">
           {{ 'tenantAudit.noEvents' | translate }}
         </div>

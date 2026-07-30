@@ -19,6 +19,11 @@ nikdy neukladá do `localStorage`, databázy ani logu v čitateľnej podobe.
 | `GET`    | `/api/v1/auth/session`                     | Session cookie                  | Efektívna identita, rola a impersonácia |
 | `GET`    | `/api/v1/auth/sessions`                    | Session cookie                  | Aktívne relácie používateľa             |
 | `DELETE` | `/api/v1/auth/sessions/{sessionId}`        | Session cookie + CSRF           | Revokácia vlastnej relácie              |
+| `GET`    | `/api/v1/auth/mfa`                         | Session cookie                  | Stav MFA a počet obnovovacích kódov     |
+| `POST`   | `/api/v1/auth/mfa/enrollment`              | Session + CSRF + aktuálne heslo | Nový čakajúci TOTP secret               |
+| `POST`   | `/api/v1/auth/mfa/enrollment/confirm`      | Session + CSRF + TOTP           | Aktivácia a obnovovacie kódy            |
+| `POST`   | `/api/v1/auth/mfa/recovery-codes`          | Session + CSRF + reauth + MFA   | Nahradenie obnovovacích kódov           |
+| `DELETE` | `/api/v1/auth/mfa`                         | Session + CSRF + reauth + MFA   | Vypnutie MFA mimo produkčného admina    |
 | `POST`   | `/api/v1/tenants/{tenantId}/invitations`   | Session + CSRF + tenant context | Vytvorenie pozvánky                     |
 | `POST`   | `/api/v1/system/impersonations`            | Session + CSRF + SUPERADMIN     | Spustenie kontrolovanej impersonácie    |
 | `DELETE` | `/api/v1/system/impersonations/current`    | Session + CSRF                  | Okamžité ukončenie impersonácie         |
@@ -55,6 +60,46 @@ Argon2id a vrátia rovnakú odpoveď:
 
 Tým API neposkytuje rozdiel, podľa ktorého by sa dal enumerovať účet. Neplatný tvar
 vstupu vracia `422 LOGIN_INPUT_INVALID`.
+
+## Viacfaktorové overenie
+
+Implementácia používa TOTP podľa RFC 6238: HMAC-SHA-1, šesť číslic a 30-sekundový
+krok s toleranciou jedného kroku na obe strany. Úspešne použitý krok sa zapisuje
+do `last_used_step`; rovnaký ani starší kód preto nemožno zopakovať. TOTP secret
+má 160 bitov náhodnej entropie a v `user_mfa_credentials` sa ukladá iba
+zašifrovaný cez rovnaký libsodium `secretbox` keyring ako ostatné citlivé payloady.
+
+Aktivácia vytvorí desať 80-bitových obnovovacích kódov. API ich vráti iba raz a
+databáza uchováva len SHA-256 hashe. Spotrebovanie kódu prebieha pod
+`SELECT … FOR UPDATE` a v tej istej transakcii ho odstráni zo zoznamu; dva
+súbežné pokusy teda nemôžu použiť ten istý kód. Nahradenie sady okamžite
+zneplatní všetky staršie kódy. Odpovede obsahujúce secret alebo nové obnovovacie
+kódy majú `Cache-Control: no-store`.
+
+Pri účte so zapnutým MFA vráti správne heslo bez druhého faktora
+`401 MFA_CODE_REQUIRED`. Neplatný alebo opakovaný faktor vráti
+`401 MFA_CODE_INVALID` a započíta sa do login rate limitu. Úspešný faktor sa
+viaže na konkrétnu serverovú reláciu cez `user_sessions.mfa_verified_at`; staré
+relácie sa zapnutím MFA revokujú.
+
+Ak `APP_ENV=production`, globálna rola `SUPERADMIN` bez aktivovaného MFA
+nevytvorí privilegovanú reláciu. Login síce dovolí používateľovi dokončiť
+enrollment, ale `SessionAuthenticationMiddleware` ju obmedzí na:
+
+- čítanie aktuálnej relácie a stavu MFA,
+- začatie a potvrdenie enrollmentu,
+- odhlásenie.
+
+Každý tenantový aj systémový endpoint dovtedy vráti
+`403 MFA_ENROLLMENT_REQUIRED`; samotné `is_superadmin` je `false`. Po potvrdení
+sa aktuálna relácia označí ako MFA-overená, ostatné relácie sa revokujú a rola sa
+pri nasledujúcom načítaní relácie znovu aktivuje. Produkčný `SUPERADMIN` nemôže
+MFA vypnúť. Neprodukčný účet môže MFA používať dobrovoľne; ak ho zapne, aj jeho
+ďalšie login relácie vyžadujú druhý faktor.
+
+Enrollment, aktivácia, použitie obnovovacieho kódu, nahradenie kódov a vypnutie
+MFA sú v bezpečnostnom audite. Heslo, TOTP secret, zadaný faktor ani obnovovacie
+kódy sa do auditu a logov nezapisujú.
 
 ## Rate limiting
 
@@ -104,13 +149,19 @@ Angular klient používa iba relatívne `/api/v1` URL a pre API požiadavky nast
 pre JavaScript nedostupná. Žiadny autentifikačný token sa neukladá do web storage.
 
 `AuthGuard` obnoví neznámy stav cez `GET /api/v1/auth/session`. Odpoveď obsahuje
-aktuálnu identitu a `is_superadmin`, ktoré sa pri každom volaní znovu načíta z
-`user_system_roles`; odobratie systémovej roly sa preto prejaví bez nového loginu.
+aktuálnu identitu, stav MFA a `is_superadmin`, ktoré sa pri každom volaní znovu
+odvodia zo `user_system_roles`, MFA credentialu a assurance aktuálnej relácie;
+odobratie systémovej roly sa preto prejaví bez nového loginu.
 `AnonymousGuard` nepustí aktívnu reláciu späť na login, `SuperadminGuard` chráni
 oddelený `/system` kontext a `TenantGuard` pred
 zobrazením tenantového shellu vždy nanovo overí dostupnosť tenantového slugu aj
 konkrétneho tenant ID. Frontendová cache preto nikdy nenahrádza backendovú
 autorizáciu.
+
+Login formulár po `MFA_CODE_REQUIRED` odhalí pole pre TOTP alebo obnovovací kód.
+Relácia vyžadujúca povinný enrollment ide na `/mfa/setup`; frontendové guardy ju
+tam vracajú aj pri ručne zadanej tenantovej či systémovej URL. Je to len UX
+vrstva nad rovnakým fail-closed obmedzením na serveri.
 
 Presmerovanie po prihlásení používa allowlist interných ciest
 `/select-tenant`, `/t/:tenantSlug/...` a pre aktuálneho `SUPERADMIN` aj

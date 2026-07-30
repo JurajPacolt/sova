@@ -3,15 +3,16 @@ import {
   Component,
   computed,
   DestroyRef,
+  effect,
   inject,
   input,
-  OnInit,
   signal,
+  untracked,
 } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { DatePipe } from '@angular/common';
 import { RouterLink } from '@angular/router';
-import { finalize } from 'rxjs';
+import { finalize, Subscription } from 'rxjs';
 import {
   DashboardWidget,
   isWidgetBreakdownData,
@@ -24,6 +25,7 @@ import {
   WidgetData,
   WidgetMatrixCell,
 } from '../../../../core/api/api.models';
+import { describeApiError } from '../../../../core/errors/api-error';
 import { TranslatePipe } from '../../../../core/i18n/translate.pipe';
 import { TranslationKey } from '../../../../core/i18n/translations';
 import { DashboardWorkspaceService } from '../../dashboard-workspace.service';
@@ -35,10 +37,32 @@ interface BreakdownBar {
   readonly share: number;
 }
 
+/**
+ * One arc of the ring, expressed the way SVG wants it. The circle has a
+ * circumference of exactly 100 units, so a percentage *is* a dash length and no
+ * trigonometry is needed to place a slice.
+ */
+interface DonutSlice {
+  readonly label: string;
+  readonly count: number;
+  readonly percent: number;
+  readonly dash: string;
+  readonly offset: number;
+  readonly color: string;
+  /** The folded remainder, which the legend names in its own words. */
+  readonly rest: boolean;
+}
+
 interface MatrixRow {
   readonly label: string;
   readonly cells: readonly { readonly label: string; readonly count: number }[];
 }
+
+/** As many hues as the design system defines; the rest share the neutral. */
+const DONUT_COLOURS = 6;
+
+/** Kept between neighbouring arcs so two slices never meet as colour alone. */
+const DONUT_GAP = 0.8;
 
 interface SeriesPoint {
   readonly bucket: string;
@@ -80,7 +104,7 @@ interface Series {
   styleUrl: './dashboard-widget.component.scss',
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
-export class DashboardWidgetComponent implements OnInit {
+export class DashboardWidgetComponent {
   readonly tenantId = input.required<string>();
   readonly dashboardId = input.required<string>();
   readonly widget = input.required<DashboardWidget>();
@@ -89,8 +113,30 @@ export class DashboardWidgetComponent implements OnInit {
   private readonly destroyRef = inject(DestroyRef);
 
   protected readonly loading = signal(false);
-  protected readonly failed = signal(false);
   protected readonly data = signal<WidgetData | null>(null);
+
+  /** When the numbers on screen were last true (spec §8.1). */
+  protected readonly loadedAt = signal<Date | null>(null);
+
+  /**
+   * The last failure, kept next to the data rather than instead of it. With an
+   * answer already on screen this reads as "out of date"; without one it is the
+   * whole state of the card.
+   */
+  protected readonly failure = signal<unknown>(null);
+
+  protected readonly failureKey = computed<TranslationKey>(() => {
+    const failure = this.failure();
+
+    // A widget failing on its own is the ordinary case the server designed for,
+    // so the card keeps its own sentence — except where the status says
+    // something more useful, like a lost connection.
+    return failure === null || !describeApiError(failure).offline
+      ? 'dashboard.widget.loadError'
+      : 'error.offline';
+  });
+
+  private request: Subscription | null = null;
 
   protected readonly countValue = computed(() => {
     const payload = this.data();
@@ -123,6 +169,65 @@ export class DashboardWidgetComponent implements OnInit {
       count: bucket.count,
       share: largest === 0 ? 0 : Math.round((bucket.count / largest) * 100),
     }));
+  });
+
+  /**
+   * The ring, drawn from the same buckets the bars use.
+   *
+   * Only the first six buckets get a hue, because the palette defines six and a
+   * seventh would be invented rather than chosen — and a twenty-slice ring is
+   * unreadable whatever it is coloured with. Everything past the sixth is folded
+   * into one neutral arc that the legend names and counts, and the table below
+   * the chart still lists **every** bucket on its own line, so folding changes
+   * the picture and never the data.
+   */
+  protected readonly donutSlices = computed<readonly DonutSlice[]>(() => {
+    const buckets = this.bars().filter((bar) => bar.count > 0);
+    const total = buckets.reduce((sum, bar) => sum + bar.count, 0);
+
+    if (total === 0) {
+      return [];
+    }
+
+    const named = buckets.slice(0, DONUT_COLOURS);
+    const remainder = buckets.slice(DONUT_COLOURS);
+    const restCount = remainder.reduce((sum, bar) => sum + bar.count, 0);
+    const drawn = [
+      ...named.map((bar, index) => ({
+        label: bar.label,
+        count: bar.count,
+        color: `var(--sova-color-chart-categorical-${index + 1})`,
+        rest: false,
+      })),
+      ...(restCount > 0
+        ? [
+            {
+              label: '',
+              count: restCount,
+              color: 'var(--sova-color-chart-categorical-rest)',
+              rest: true,
+            },
+          ]
+        : []),
+    ];
+
+    let travelled = 0;
+
+    return drawn.map((slice) => {
+      const percent = (slice.count / total) * 100;
+      // The gap comes out of the arc, but never out of a sliver that would then
+      // vanish: an unreadably thin slice is still better than a missing one.
+      const length = percent > DONUT_GAP * 2 ? percent - DONUT_GAP : percent;
+      const offset = -travelled;
+      travelled += percent;
+
+      return {
+        ...slice,
+        percent: Math.round(percent),
+        dash: `${length.toFixed(2)} ${(100 - length).toFixed(2)}`,
+        offset: Number(offset.toFixed(2)),
+      };
+    });
   });
 
   protected readonly matrixColumns = computed<readonly string[]>(() => {
@@ -277,13 +382,15 @@ export class DashboardWidgetComponent implements OnInit {
     }
   });
 
-  /**
-   * `DONUT` renders as bars. A ring needs one colour per slice, and the design
-   * system ships two chart hues on purpose — ten of them would be invented, not
-   * chosen. The bar answers the same question and stays readable, and the stored
-   * configuration is left exactly as its author wrote it.
-   */
   protected readonly breakdownAsTable = computed(() => this.text('visualization') === 'TABLE');
+
+  /**
+   * `DONUT` now draws a ring, because the design system has a categorical scale
+   * to draw it with. A bar carries its label beside it; an arc does not, which
+   * is exactly why the ring waited for colours that are 3:1 against the surface
+   * and for a legend that says what each one means.
+   */
+  protected readonly breakdownAsDonut = computed(() => this.text('visualization') === 'DONUT');
 
   protected readonly seriesAsLine = computed(() => this.text('visualization') !== 'BAR');
 
@@ -295,34 +402,65 @@ export class DashboardWidgetComponent implements OnInit {
       : [];
   });
 
-  ngOnInit(): void {
-    this.load();
-  }
+  /**
+   * What this widget asks the server for: its source and its settings. A move
+   * or a resize changes the widget's version but not its question, so a saved
+   * arrangement does not send every card back for data it already has.
+   */
+  private readonly question = computed(() => {
+    const widget = this.widget();
+
+    return `${widget.saved_query_id} ${JSON.stringify(widget.configuration)}`;
+  });
+
+  /**
+   * The data follows the question. Reconfiguring a widget therefore replaces
+   * the numbers rather than leaving the previous answer under a new heading —
+   * which would be the one wrong thing to show.
+   */
+  private readonly reload = effect(() => {
+    this.question();
+    untracked(() => {
+      // A new question makes the previous answer wrong rather than merely old,
+      // so it goes before the request rather than surviving as "stale".
+      this.data.set(null);
+      this.load();
+    });
+  });
 
   protected load(): void {
     const widget = this.widget();
 
+    // A request for the previous question must not land on top of a newer one:
+    // configuring a widget twice in quick succession would otherwise settle on
+    // whichever answer happened to be slower.
+    this.request?.unsubscribe();
+
     // An unknown type has no data endpoint worth calling, and an unreachable
     // source is already known to fail: neither is worth a request.
     if (!widget.available || !widget.source_reachable) {
+      this.data.set(null);
+
       return;
     }
 
     this.loading.set(true);
-    this.failed.set(false);
+    this.failure.set(null);
 
-    this.workspace
+    this.request = this.workspace
       .widgetData(this.tenantId(), this.dashboardId(), widget.id)
       .pipe(
         finalize(() => this.loading.set(false)),
         takeUntilDestroyed(this.destroyRef),
       )
       .subscribe({
-        next: (payload) => this.data.set(payload),
-        error: () => {
-          this.data.set(null);
-          this.failed.set(true);
+        next: (payload) => {
+          this.data.set(payload);
+          this.loadedAt.set(new Date());
+          this.failure.set(null);
         },
+        // The previous answer stays: a failed refresh makes it old, not wrong.
+        error: (error: unknown) => this.failure.set(error),
       });
   }
 

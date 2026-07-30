@@ -1,0 +1,434 @@
+<form class="card border-0 shadow-sm mb-3" (ngSubmit)="submit()">
+  <div class="card-body">
+    <h2 class="h6 mb-1">{{ 'dashboard.configure.title' | translate }}</h2>
+    <!--
+      The type is stated, not offered: it is fixed for the life of the instance,
+      because changing it would reinterpret a configuration written against a
+      different schema.
+    -->
+    <p class="text-body-secondary small">
+      {{ typeLabelKey() | translate }} — {{ 'dashboard.configure.typeFixed' | translate }}
+    </p>
+
+    <div class="row g-3">
+      <div class="col-12 col-md-6">
+        <label class="form-label" for="widget-source">
+          {{ 'dashboard.edit.dataSource' | translate }}
+        </label>
+        <select
+          id="widget-source"
+          class="form-select"
+          [ngModel]="savedQueryId()"
+          name="savedQueryId"
+          (ngModelChange)="savedQueryId.set($event)"
+        >
+          @for (source of sources(); track source.id) {
+            <option [value]="source.id">
+              {{
+                source.name === '' ? ('dashboard.configure.unknownSource' | translate) : source.name
+              }}
+            </option>
+          }
+        </select>
+        @if (!widget().source_reachable) {
+          <p class="form-text mb-0">{{ 'dashboard.widget.sourceUnreachable' | translate }}</p>
+        }
+      </div>
+
+      <div class="col-12 col-md-6">
+        <label class="form-label" for="widget-name">
+          {{ 'dashboard.edit.widgetTitle' | translate }}
+        </label>
+        <input
+          id="widget-name"
+          class="form-control"
+          type="text"
+          maxlength="160"
+          [ngModel]="title()"
+          name="title"
+          (ngModelChange)="title.set($event)"
+        />
+      </div>
+
+      @if (isCount()) {
+        <div class="col-12 col-md-6">
+          <label class="form-label" for="widget-description">
+            {{ 'dashboard.configure.description' | translate }}
+          </label>
+          <input
+            id="widget-description"
+            class="form-control"
+            type="text"
+            maxlength="160"
+            [ngModel]="text('description')"
+            name="description"
+            (ngModelChange)="set('description', $event)"
+          />
+        </div>
+
+        <div class="col-12 col-md-3">
+          <label class="form-label" for="widget-tone">
+            {{ 'dashboard.configure.tone' | translate }}
+          </label>
+          <select
+            id="widget-tone"
+            class="form-select"
+            [ngModel]="text('tone')"
+            name="tone"
+            (ngModelChange)="set('tone', $event)"
+          >
+            @for (tone of tones; track tone.value) {
+              <option [value]="tone.value">{{ tone.labelKey | translate }}</option>
+            }
+          </select>
+        </div>
+
+        <div class="col-12 col-md-3 d-flex align-items-end">
+          <div class="form-check">
+            <input
+              id="widget-show-link"
+              class="form-check-input"
+              type="checkbox"
+              [ngModel]="flag('show_link', true)"
+              name="showLink"
+              (ngModelChange)="set('show_link', $event)"
+            />
+            <label class="form-check-label" for="widget-show-link">
+              {{ 'dashboard.configure.showLink' | translate }}
+            </label>
+          </div>
+        </div>
+      }
+
+      @if (isList()) {
+        <div class="col-12">
+          <fieldset>
+            <legend class="form-label">{{ 'dashboard.configure.listColumns' | translate }}</legend>
+            <div class="d-flex flex-wrap gap-3">
+              @for (column of listColumns; track column.value) {
+                <div class="form-check">
+                  <input
+                    [id]="'widget-column-' + column.value"
+                    class="form-check-input"
+                    type="checkbox"
+                    [ngModel]="showsColumn(column.value)"
+                    [name]="'column-' + column.value"
+                    (ngModelChange)="toggleColumn(column.value, $event)"
+                  />
+                  <label class="form-check-label" [for]="'widget-column-' + column.value">
+                    {{ column.labelKey | translate }}
+                  </label>
+                </div>
+              }
+            </div>
+            @if (columns().length < 3 || columns().length > 10) {
+              <p class="form-text mb-0">{{ 'dashboard.configure.columnRange' | translate }}</p>
+            }
+          </fieldset>
+        </div>
+
+        <div class="col-12 col-md-3">
+          <label class="form-label" for="widget-limit">
+            {{ 'dashboard.configure.limit' | translate }}
+          </label>
+          <input
+            id="widget-limit"
+            class="form-control"
+            type="number"
+            min="5"
+            max="50"
+            [ngModel]="number('limit')"
+            name="limit"
+            (ngModelChange)="setNumber('limit', $event)"
+          />
+          @if (!inRange('limit', 5, 50)) {
+            <p class="form-text mb-0">
+              {{ 'dashboard.configure.numberRange' | translate: { minimum: 5, maximum: 50 } }}
+            </p>
+          }
+        </div>
+
+        <div class="col-12 col-md-3">
+          <label class="form-label" for="widget-density">
+            {{ 'dashboard.configure.density' | translate }}
+          </label>
+          <select
+            id="widget-density"
+            class="form-select"
+            [ngModel]="text('density')"
+            name="density"
+            (ngModelChange)="set('density', $event)"
+          >
+            @for (density of densities; track density.value) {
+              <option [value]="density.value">{{ density.labelKey | translate }}</option>
+            }
+          </select>
+        </div>
+      }
+
+      @if (isBreakdown()) {
+        <div class="col-12 col-md-4">
+          <label class="form-label" for="widget-group-by">
+            {{ 'dashboard.edit.groupBy' | translate }}
+          </label>
+          <select
+            id="widget-group-by"
+            class="form-select"
+            [ngModel]="text('group_by')"
+            name="groupBy"
+            (ngModelChange)="set('group_by', $event)"
+          >
+            <option value="">{{ 'dashboard.edit.choose' | translate }}</option>
+            @for (dimension of dimensions(); track dimension) {
+              <option [value]="dimension">{{ dimensionLabelKey(dimension) | translate }}</option>
+            }
+          </select>
+        </div>
+
+        <div class="col-12 col-md-4">
+          <label class="form-label" for="widget-visualization">
+            {{ 'dashboard.configure.visualization' | translate }}
+          </label>
+          <select
+            id="widget-visualization"
+            class="form-select"
+            [ngModel]="text('visualization')"
+            name="visualization"
+            (ngModelChange)="set('visualization', $event)"
+          >
+            @for (form of breakdownForms; track form.value) {
+              <option [value]="form.value">{{ form.labelKey | translate }}</option>
+            }
+          </select>
+        </div>
+
+        <div class="col-12 col-md-4">
+          <label class="form-label" for="widget-top-n">
+            {{ 'dashboard.configure.topN' | translate }}
+          </label>
+          <input
+            id="widget-top-n"
+            class="form-control"
+            type="number"
+            min="3"
+            max="20"
+            [ngModel]="number('top_n')"
+            name="topN"
+            (ngModelChange)="setNumber('top_n', $event)"
+          />
+          @if (!inRange('top_n', 3, 20)) {
+            <p class="form-text mb-0">
+              {{ 'dashboard.configure.numberRange' | translate: { minimum: 3, maximum: 20 } }}
+            </p>
+          }
+        </div>
+
+        <div class="col-12 col-md-4">
+          <label class="form-label" for="widget-sort">
+            {{ 'dashboard.configure.sort' | translate }}
+          </label>
+          <select
+            id="widget-sort"
+            class="form-select"
+            [ngModel]="text('sort')"
+            name="sort"
+            (ngModelChange)="set('sort', $event)"
+          >
+            @for (sort of sorts; track sort.value) {
+              <option [value]="sort.value">{{ sort.labelKey | translate }}</option>
+            }
+          </select>
+        </div>
+
+        <div class="col-12 col-md-8 d-flex align-items-end">
+          <div class="form-check">
+            <input
+              id="widget-include-empty"
+              class="form-check-input"
+              type="checkbox"
+              [ngModel]="flag('include_empty', true)"
+              name="includeEmpty"
+              (ngModelChange)="set('include_empty', $event)"
+            />
+            <label class="form-check-label" for="widget-include-empty">
+              {{ 'dashboard.configure.includeEmpty' | translate }}
+            </label>
+          </div>
+        </div>
+      }
+
+      @if (isMatrix()) {
+        <div class="col-12 col-md-4">
+          <label class="form-label" for="widget-rows">
+            {{ 'dashboard.edit.rows' | translate }}
+          </label>
+          <select
+            id="widget-rows"
+            class="form-select"
+            [ngModel]="text('rows')"
+            name="rows"
+            (ngModelChange)="set('rows', $event)"
+          >
+            <option value="">{{ 'dashboard.edit.choose' | translate }}</option>
+            @for (dimension of dimensions(); track dimension) {
+              <option [value]="dimension">{{ dimensionLabelKey(dimension) | translate }}</option>
+            }
+          </select>
+        </div>
+
+        <div class="col-12 col-md-4">
+          <label class="form-label" for="widget-matrix-columns">
+            {{ 'dashboard.edit.columns' | translate }}
+          </label>
+          <select
+            id="widget-matrix-columns"
+            class="form-select"
+            [ngModel]="text('columns')"
+            name="matrixColumns"
+            (ngModelChange)="set('columns', $event)"
+          >
+            <option value="">{{ 'dashboard.edit.choose' | translate }}</option>
+            @for (dimension of dimensions(); track dimension) {
+              <option [value]="dimension">{{ dimensionLabelKey(dimension) | translate }}</option>
+            }
+          </select>
+          @if (axesClash()) {
+            <p class="form-text mb-0">{{ 'dashboard.edit.axesMustDiffer' | translate }}</p>
+          }
+        </div>
+
+        <div class="col-12 col-md-4 d-flex flex-column justify-content-end gap-1">
+          <div class="form-check">
+            <input
+              id="widget-show-totals"
+              class="form-check-input"
+              type="checkbox"
+              [ngModel]="flag('show_totals', true)"
+              name="showTotals"
+              (ngModelChange)="set('show_totals', $event)"
+            />
+            <label class="form-check-label" for="widget-show-totals">
+              {{ 'dashboard.configure.showTotals' | translate }}
+            </label>
+          </div>
+          <div class="form-check">
+            <input
+              id="widget-hide-empty"
+              class="form-check-input"
+              type="checkbox"
+              [ngModel]="flag('hide_empty', false)"
+              name="hideEmpty"
+              (ngModelChange)="set('hide_empty', $event)"
+            />
+            <label class="form-check-label" for="widget-hide-empty">
+              {{ 'dashboard.configure.hideEmpty' | translate }}
+            </label>
+          </div>
+        </div>
+      }
+
+      @if (isSeries()) {
+        <div class="col-12 col-md-3">
+          <label class="form-label" for="widget-event">
+            {{ 'dashboard.configure.event' | translate }}
+          </label>
+          <select
+            id="widget-event"
+            class="form-select"
+            [ngModel]="text('event')"
+            name="event"
+            (ngModelChange)="set('event', $event)"
+          >
+            @for (event of events; track event.value) {
+              <option [value]="event.value">{{ event.labelKey | translate }}</option>
+            }
+          </select>
+        </div>
+
+        <div class="col-12 col-md-3">
+          <label class="form-label" for="widget-bucket">
+            {{ 'dashboard.configure.bucket' | translate }}
+          </label>
+          <select
+            id="widget-bucket"
+            class="form-select"
+            [ngModel]="text('bucket')"
+            name="bucket"
+            (ngModelChange)="set('bucket', $event)"
+          >
+            @for (bucket of buckets; track bucket.value) {
+              <option [value]="bucket.value">{{ bucket.labelKey | translate }}</option>
+            }
+          </select>
+        </div>
+
+        <div class="col-12 col-md-3">
+          <label class="form-label" for="widget-range">
+            {{ 'dashboard.configure.range' | translate }}
+          </label>
+          <!-- A closed set, exactly as the server has it: an open window would
+               let a widget ask for an unbounded scan. -->
+          <select
+            id="widget-range"
+            class="form-select"
+            [ngModel]="number('range_days')"
+            name="rangeDays"
+            (ngModelChange)="setNumber('range_days', $event)"
+          >
+            @for (days of ranges; track days) {
+              <option [ngValue]="days">
+                {{ 'dashboard.configure.rangeDays' | translate: { days: days } }}
+              </option>
+            }
+          </select>
+        </div>
+
+        <div class="col-12 col-md-3">
+          <label class="form-label" for="widget-series-form">
+            {{ 'dashboard.configure.visualization' | translate }}
+          </label>
+          <select
+            id="widget-series-form"
+            class="form-select"
+            [ngModel]="text('visualization')"
+            name="seriesForm"
+            (ngModelChange)="set('visualization', $event)"
+          >
+            @for (form of seriesForms; track form.value) {
+              <option [value]="form.value">{{ form.labelKey | translate }}</option>
+            }
+          </select>
+        </div>
+
+        <div class="col-12">
+          <div class="form-check">
+            <input
+              id="widget-compare"
+              class="form-check-input"
+              type="checkbox"
+              [ngModel]="flag('compare_created_resolved', false)"
+              name="compare"
+              (ngModelChange)="set('compare_created_resolved', $event)"
+            />
+            <label class="form-check-label" for="widget-compare">
+              {{ 'dashboard.configure.compare' | translate }}
+            </label>
+          </div>
+        </div>
+      }
+    </div>
+
+    @if (failed(); as error) {
+      <p class="text-danger small mt-3 mb-0" role="alert">{{ error | translate }}</p>
+    }
+  </div>
+
+  <div class="card-footer bg-body d-flex gap-2">
+    <button type="submit" class="btn btn-primary btn-sm" [disabled]="!complete() || saving()">
+      {{ 'dashboard.configure.save' | translate }}
+    </button>
+    <button type="button" class="btn btn-outline-secondary btn-sm" (click)="cancel()">
+      {{ 'common.cancel' | translate }}
+    </button>
+  </div>
+</form>

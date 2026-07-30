@@ -4,13 +4,8 @@
   [subtitle]="'tenantRoles.subtitle' | translate: { count: roles().length }"
 />
 
-@if (loadError()) {
-  <div class="alert alert-danger d-flex align-items-center justify-content-between gap-3">
-    <span>{{ 'tenantRoles.loadError' | translate }}</span>
-    <button class="btn btn-sm btn-outline-danger" type="button" (click)="refresh()">
-      {{ 'common.retry' | translate }}
-    </button>
-  </div>
+@if (loadFailure(); as failure) {
+  <app-error-state [error]="failure" (retry)="refresh()" />
 }
 
 @if (loading() && roles().length === 0) {
@@ -218,7 +213,7 @@
         }
       </article>
     } @empty {
-      @if (!loading() && !loadError()) {
+      @if (!loading() && loadFailure() === null) {
         <div class="list-group-item text-body-secondary py-4">
           {{ 'tenantRoles.noRoles' | translate }}
         </div>

@@ -305,6 +305,104 @@ final class ProjectApiTest extends TestCase
         );
     }
 
+    public function testVisibilityChangeProtectsAccessAndRetainsAManager(): void
+    {
+        $ownerLogin = $this->login('project-owner');
+        $managedProject = $this->createProject(
+            $ownerLogin,
+            'VIS',
+            'Visibility',
+            'TENANT',
+            $this->ownerMembershipId,
+        );
+
+        self::assertSame(
+            ['VIS'],
+            array_keys($this->visibleProjects($this->login('project-member'))),
+        );
+
+        $makePrivate = $this->changeVisibility(
+            $ownerLogin,
+            $managedProject,
+            'PRIVATE',
+        );
+        self::assertSame(200, $makePrivate->getStatusCode());
+        $private = $this->decode($makePrivate)['project'] ?? null;
+        self::assertIsArray($private);
+        self::assertSame('PRIVATE', $private['visibility'] ?? null);
+        self::assertSame([], $this->visibleProjects($this->login('project-member')));
+
+        $repeated = $this->changeVisibility(
+            $ownerLogin,
+            $managedProject,
+            'PRIVATE',
+        );
+        self::assertSame(200, $repeated->getStatusCode());
+        $auditCount = $this->connection->fetchOne(
+            <<<'SQL'
+                SELECT COUNT(*)
+                FROM security_audit_events
+                WHERE tenant_id = :tenant_id
+                    AND event_type = 'PROJECT_VISIBILITY_CHANGED'
+                    AND metadata->>'project_id' = :project_id
+                SQL,
+            [
+                'tenant_id' => $this->tenantId,
+                'project_id' => $managedProject,
+            ],
+        );
+
+        if (!is_int($auditCount) && !is_string($auditCount)) {
+            self::fail('The audit count must be numeric.');
+        }
+
+        self::assertSame(1, (int) $auditCount);
+
+        $makeTenantVisible = $this->changeVisibility(
+            $ownerLogin,
+            $managedProject,
+            'TENANT',
+        );
+        self::assertSame(200, $makeTenantVisible->getStatusCode());
+        self::assertSame(
+            ['VIS'],
+            array_keys($this->visibleProjects($this->login('project-member'))),
+        );
+
+        $unmanagedProject = $this->createProject(
+            $ownerLogin,
+            'NOMGR',
+            'No manager',
+        );
+        $withoutManager = $this->changeVisibility(
+            $ownerLogin,
+            $unmanagedProject,
+            'PRIVATE',
+        );
+        self::assertSame(409, $withoutManager->getStatusCode());
+        self::assertSame(
+            'PROJECT_PRIVATE_MANAGER_REQUIRED',
+            $this->decode($withoutManager)['code'] ?? null,
+        );
+
+        $ambiguous = $this->app->handle(
+            $this->authenticatedRequest(
+                'PATCH',
+                sprintf(
+                    '/api/v1/tenants/%s/projects/%s',
+                    $this->tenantId,
+                    $managedProject,
+                ),
+                $ownerLogin,
+            )->withParsedBody([
+                'status' => 'ACTIVE',
+                'visibility' => 'PRIVATE',
+            ]),
+        );
+        self::assertSame(422, $ambiguous->getStatusCode());
+        self::assertSame('PROJECT_CHANGE_INVALID', $this->decode($ambiguous)['code'] ?? null);
+    }
+
     public function testPlainMemberCannotCreateAProject(): void
     {
         $response = $this->postProject($this->login('project-member'), [
@@ -581,6 +679,24 @@ final class ProjectApiTest extends TestCase
                 ),
                 $login,
             )->withParsedBody(['status' => $status]),
+        );
+    }
+
+    private function changeVisibility(
+        ResponseInterface $login,
+        string $projectId,
+        string $visibility,
+    ): ResponseInterface {
+        return $this->app->handle(
+            $this->authenticatedRequest(
+                'PATCH',
+                sprintf(
+                    '/api/v1/tenants/%s/projects/%s',
+                    $this->tenantId,
+                    $projectId,
+                ),
+                $login,
+            )->withParsedBody(['visibility' => $visibility]),
         );
     }
 

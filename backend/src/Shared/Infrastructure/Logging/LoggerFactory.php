@@ -30,6 +30,10 @@ final class LoggerFactory
 
         $logger = new Logger($service);
         $logger->pushProcessor(new ApplicationContextProcessor($service, $environment));
+        // Pushed last, so it runs first (Monolog calls processors in reverse):
+        // redaction sees the record exactly as the application produced it, and
+        // what the context processor adds afterwards is constants, not data.
+        $logger->pushProcessor(new SensitiveDataProcessor());
         $logger->pushHandler($handler);
 
         return $logger;

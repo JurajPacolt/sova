@@ -50,3 +50,13 @@
     grid-row: var(--widget-row) / span var(--widget-rows);
   }
 }
+
+.dashboard__cell--dragging {
+  opacity: 0.6;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .dashboard__cell--dragging {
+    opacity: 1;
+  }
+}

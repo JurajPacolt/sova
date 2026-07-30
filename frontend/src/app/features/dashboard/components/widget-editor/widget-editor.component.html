@@ -69,7 +69,8 @@
           >
             <option value="">{{ 'dashboard.edit.choose' | translate }}</option>
             @for (dimension of dimensions(); track dimension) {
-              <option [value]="dimension">{{ dimension }}</option>
+              <!-- The registry ships the field key; the wording is the catalog's. -->
+              <option [value]="dimension">{{ dimensionLabelKey(dimension) | translate }}</option>
             }
           </select>
         </div>
@@ -89,7 +90,8 @@
           >
             <option value="">{{ 'dashboard.edit.choose' | translate }}</option>
             @for (dimension of dimensions(); track dimension) {
-              <option [value]="dimension">{{ dimension }}</option>
+              <!-- The registry ships the field key; the wording is the catalog's. -->
+              <option [value]="dimension">{{ dimensionLabelKey(dimension) | translate }}</option>
             }
           </select>
           @if (groupBy() !== '' && groupBy() === columnBy()) {

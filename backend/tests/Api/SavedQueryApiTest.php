@@ -325,6 +325,41 @@ final class SavedQueryApiTest extends TestCase
         self::assertSame('PRIVATE', $listed[0]['visibility'] ?? null);
     }
 
+    public function testSharingAndArchivingLandInTheSecurityLog(): void
+    {
+        $owner = $this->login('sq-owner');
+        $savedQueryId = $this->createId($owner, 'Audited', 'project = APP');
+
+        $this->putGrants($owner, $savedQueryId, [
+            ['membership_id' => $this->memberMembershipId, 'access' => 'VIEW'],
+        ]);
+        $this->putGrants($owner, $savedQueryId, []);
+        $this->archive($owner, $savedQueryId, 1);
+
+        $events = $this->auditEvents($savedQueryId);
+
+        self::assertSame(
+            ['SAVED_QUERY_SHARED', 'SAVED_QUERY_SHARED', 'SAVED_QUERY_ARCHIVED'],
+            array_column($events, 'event_type'),
+        );
+        // Removing every grant is still a sharing decision, but the reason says
+        // which way it went.
+        self::assertSame(
+            ['SAVED_QUERY_SHARED', 'SAVED_QUERY_UNSHARED', 'SAVED_QUERY_ARCHIVED'],
+            array_column($events, 'reason_code'),
+        );
+
+        foreach ($events as $event) {
+            $metadata = $event['metadata'];
+            self::assertIsString($metadata);
+
+            // The log is read with `tenant.audit.view`, which is not the right
+            // to read somebody's private query: no name and no query text.
+            self::assertStringNotContainsString('Audited', $metadata);
+            self::assertStringNotContainsString('project = APP', $metadata);
+        }
+    }
+
     public function testStaleVersionIsReported(): void
     {
         $login = $this->login('sq-owner');
@@ -439,6 +474,29 @@ final class SavedQueryApiTest extends TestCase
         self::assertSame(200, $response->getStatusCode());
 
         return $this->decode($response);
+    }
+
+    /**
+     * @return list<array<string, mixed>>
+     */
+    private function auditEvents(string $savedQueryId): array
+    {
+        /** @var list<array<string, mixed>> $rows */
+        $rows = $this->connection->fetchAllAssociative(
+            <<<'SQL'
+                SELECT event_type, reason_code, metadata
+                FROM security_audit_events
+                WHERE tenant_id = :tenant_id
+                    AND metadata::text LIKE :needle
+                ORDER BY occurred_at, id
+                SQL,
+            [
+                'tenant_id' => $this->tenantId,
+                'needle' => '%' . $savedQueryId . '%',
+            ],
+        );
+
+        return $rows;
     }
 
     private function archive(ResponseInterface $login, string $savedQueryId, int $version): void

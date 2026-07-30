@@ -16,6 +16,7 @@ import {
   ProjectListItem,
   ProjectMember,
   ProjectRole,
+  ProjectVisibility,
   ProjectWorkgroupLink,
   TenantMembership,
   Workgroup,
@@ -24,11 +25,21 @@ import { TranslatePipe } from '../../../../core/i18n/translate.pipe';
 import { TenantStore } from '../../../../core/tenancy/tenant.store';
 import { PageHeaderComponent } from '../../../../shared/components/page-header/page-header.component';
 import { ProjectAdministrationService } from '../../project-administration.service';
+import { describeApiError } from '../../../../core/errors/api-error';
+import { ErrorStateComponent } from '../../../../shared/components/error-state/error-state.component';
+import { AriaRequiredDirective } from '../../../../core/a11y/aria-required.directive';
 
 @Component({
   selector: 'app-project-detail-page',
   standalone: true,
-  imports: [PageHeaderComponent, ReactiveFormsModule, RouterLink, TranslatePipe],
+  imports: [
+    AriaRequiredDirective,
+    ErrorStateComponent,
+    PageHeaderComponent,
+    ReactiveFormsModule,
+    RouterLink,
+    TranslatePipe,
+  ],
   templateUrl: './project-detail-page.component.html',
   styleUrl: './project-detail-page.component.scss',
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -47,7 +58,12 @@ export class ProjectDetailPageComponent {
   protected readonly project = signal<ProjectListItem | null>(null);
   protected readonly projectLoading = signal(false);
   protected readonly projectMissing = signal(false);
-  protected readonly projectError = signal(false);
+  /**
+   * The failed request itself. Loads get the shared error state, which reads
+   * the status; the action alerts below keep their own sentence, because
+   * "try again" on a write is a request to repeat it.
+   */
+  protected readonly projectFailure = signal<unknown>(null);
 
   protected readonly roles = signal<readonly ProjectRole[]>([]);
   protected readonly members = signal<readonly ProjectMember[]>([]);
@@ -56,10 +72,13 @@ export class ProjectDetailPageComponent {
   protected readonly workgroups = signal<readonly Workgroup[]>([]);
 
   protected readonly detailsForbidden = signal(false);
-  protected readonly detailsError = signal(false);
+  protected readonly detailsFailure = signal<unknown>(null);
 
   protected readonly statusChanging = signal(false);
   protected readonly statusError = signal(false);
+  protected readonly visibilityChanging = signal(false);
+  protected readonly visibilityConfirmationOpen = signal(false);
+  protected readonly visibilityError = signal<'MANAGER_REQUIRED' | 'GENERAL' | null>(null);
 
   protected readonly memberActionId = signal<string | null>(null);
   protected readonly memberError = signal(false);
@@ -112,7 +131,7 @@ export class ProjectDetailPageComponent {
   }
 
   private load(tenantId: string, projectId: string): void {
-    this.projectError.set(false);
+    this.projectFailure.set(null);
     this.projectMissing.set(false);
     this.projectLoading.set(true);
     this.administration
@@ -133,13 +152,13 @@ export class ProjectDetailPageComponent {
 
           this.loadDetails(tenantId, projectId);
         },
-        error: () => this.projectError.set(true),
+        error: (failure: unknown) => this.projectFailure.set(failure),
       });
   }
 
   private loadDetails(tenantId: string, projectId: string): void {
     this.detailsForbidden.set(false);
-    this.detailsError.set(false);
+    this.detailsFailure.set(null);
 
     // Every section is loaded on its own: a tenant-visible project the caller
     // holds no role in answers 403 here while the header stays usable.
@@ -184,13 +203,19 @@ export class ProjectDetailPageComponent {
       });
   }
 
+  /**
+   * A `403` here is not a failure to report but a smaller screen: the caller
+   * may see the project and not its membership, so that section says so and
+   * the rest of the page stays usable.
+   */
   private handleDetailsError(error: unknown): void {
-    if ((error as { status?: number } | null)?.status === 403) {
+    if (describeApiError(error).status === 403) {
       this.detailsForbidden.set(true);
+
       return;
     }
 
-    this.detailsError.set(true);
+    this.detailsFailure.set(error);
   }
 
   protected toggleStatus(): void {
@@ -218,6 +243,65 @@ export class ProjectDetailPageComponent {
             updated_at: updated.updated_at,
           }),
         error: () => this.statusError.set(true),
+      });
+  }
+
+  protected requestVisibilityChange(): void {
+    const project = this.project();
+
+    if (project === null || this.visibilityChanging()) {
+      return;
+    }
+
+    this.visibilityError.set(null);
+
+    if (project.visibility === 'TENANT') {
+      this.visibilityConfirmationOpen.set(true);
+
+      return;
+    }
+
+    this.changeVisibility('TENANT');
+  }
+
+  protected confirmPrivateVisibility(): void {
+    this.visibilityConfirmationOpen.set(false);
+    this.changeVisibility('PRIVATE');
+  }
+
+  protected cancelPrivateVisibility(): void {
+    this.visibilityConfirmationOpen.set(false);
+  }
+
+  private changeVisibility(target: ProjectVisibility): void {
+    const tenantId = this.tenantId();
+    const project = this.project();
+
+    if (tenantId === null || project === null || this.visibilityChanging()) {
+      return;
+    }
+
+    this.visibilityError.set(null);
+    this.visibilityChanging.set(true);
+    this.administration
+      .changeVisibility(tenantId, project.id, target)
+      .pipe(
+        takeUntilDestroyed(this.destroyRef),
+        finalize(() => this.visibilityChanging.set(false)),
+      )
+      .subscribe({
+        next: (updated) =>
+          this.project.set({
+            ...project,
+            visibility: updated.visibility,
+            updated_at: updated.updated_at,
+          }),
+        error: (failure: unknown) =>
+          this.visibilityError.set(
+            describeApiError(failure).code === 'PROJECT_PRIVATE_MANAGER_REQUIRED'
+              ? 'MANAGER_REQUIRED'
+              : 'GENERAL',
+          ),
       });
   }
 

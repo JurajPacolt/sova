@@ -325,6 +325,90 @@ describe('DashboardPageComponent', () => {
     expect(cell?.style.getPropertyValue('--widget-column')).toBe('1');
   });
 
+  /**
+   * Settings belong to editing: nothing on a read-only dashboard opens them.
+   * What comes back replaces the widget it came from, so the card asks its new
+   * question instead of the page being reloaded around it.
+   */
+  it('configures one widget in place and swaps in what the server saved', async () => {
+    const element = initialise([dashboard()], [widget({ id: 'a', title: 'Widget' })]);
+
+    expect(element.querySelector('[aria-label="Settings"]')).toBeNull();
+
+    startEditing();
+    clickIn(0, 'Settings');
+    await fixture.whenStable();
+    fixture.detectChanges();
+
+    const field = element.querySelector<HTMLInputElement>('#widget-name');
+    expect(field?.value).toBe('Widget');
+
+    if (field !== null) {
+      field.value = 'Open bugs';
+      field.dispatchEvent(new Event('input'));
+      fixture.detectChanges();
+    }
+
+    element.querySelector('form')?.dispatchEvent(new Event('submit'));
+    fixture.detectChanges();
+
+    const request = http.expectOne(`${DASHBOARDS}/${DASHBOARD_ID}/widgets/a`);
+    expect(request.request.method).toBe('PATCH');
+    request.flush({ widget: widget({ id: 'a', title: 'Open bugs' }) });
+    fixture.detectChanges();
+
+    // The layout was untouched, so no version is read back and nothing is sent.
+    expect(element.querySelector('.widget h3')?.textContent).toContain('Open bugs');
+    expect(element.querySelector('#widget-name')).toBeNull();
+  });
+
+  /**
+   * Saving an arrangement bumps every widget's version. The open form keeps
+   * what is being typed and picks up the version that now exists, so the next
+   * save is not a conflict this tab caused itself.
+   */
+  it('keeps open settings usable after the arrangement underneath them is saved', async () => {
+    const element = initialise(
+      [dashboard({ version: 4 })],
+      [widget({ id: 'a', version: 1, title: 'Widget' })],
+    );
+    startEditing();
+
+    clickIn(0, 'Settings');
+    await fixture.whenStable();
+    fixture.detectChanges();
+
+    const field = element.querySelector<HTMLInputElement>('#widget-name');
+
+    if (field !== null) {
+      field.value = 'Open bugs';
+      field.dispatchEvent(new Event('input'));
+      fixture.detectChanges();
+    }
+
+    click('Move right');
+    click('Save the arrangement');
+    http
+      .expectOne(`${DASHBOARDS}/${DASHBOARD_ID}/layout`)
+      .flush({ widgets: [widget({ id: 'a', version: 2, x: 1, title: 'Widget' })] });
+    http.expectOne(`${DASHBOARDS}/${DASHBOARD_ID}`).flush({ dashboard: dashboard({ version: 5 }) });
+    fixture.detectChanges();
+    await fixture.whenStable();
+    fixture.detectChanges();
+
+    // The half-typed title survived the arrangement it has nothing to do with…
+    expect(element.querySelector<HTMLInputElement>('#widget-name')?.value).toBe('Open bugs');
+
+    element.querySelector('form')?.dispatchEvent(new Event('submit'));
+    fixture.detectChanges();
+
+    // …and the save goes against the version the layout left behind.
+    const request = http.expectOne(`${DASHBOARDS}/${DASHBOARD_ID}/widgets/a`);
+    expect(request.request.body.expected_version).toBe(2);
+    expect(request.request.body.title).toBe('Open bugs');
+    request.flush({ widget: widget({ id: 'a', version: 3, title: 'Open bugs' }) });
+  });
+
   it('removes a widget straight away, because that is not a layout change', () => {
     initialise([dashboard()], [widget({ id: 'a' })]);
     startEditing();
@@ -341,6 +425,30 @@ describe('DashboardPageComponent', () => {
     expect(element.querySelectorAll('.dashboard__cell')).toHaveLength(0);
   });
 
+  /**
+   * A service that failed to answer is worth asking again; the shared error
+   * state decides that from the status, and the retry reloads the screen rather
+   * than making the reader find the page again.
+   */
+  it('offers to try again after a server fault and reloads on demand', () => {
+    fixture.detectChanges();
+    http.expectOne(DASHBOARDS).flush({ dashboards: [dashboard()], active_dashboard_id: null });
+    http
+      .expectOne(`${DASHBOARDS}/${DASHBOARD_ID}/widgets`)
+      .flush('boom', { status: 500, statusText: 'Server Error' });
+    fixture.detectChanges();
+
+    const element: HTMLElement = fixture.nativeElement;
+    expect(element.textContent).toContain('The service failed to answer.');
+
+    click('Try again');
+    http.expectOne(DASHBOARDS).flush({ dashboards: [dashboard()], active_dashboard_id: null });
+    http.expectOne(`${DASHBOARDS}/${DASHBOARD_ID}/widgets`).flush({ widgets: [] });
+    fixture.detectChanges();
+
+    expect(element.textContent).toContain('This dashboard has no widgets yet.');
+  });
+
   it('says a dashboard is gone rather than forbidden when its widgets cannot be read', () => {
     fixture.detectChanges();
     http.expectOne(DASHBOARDS).flush({ dashboards: [dashboard()], active_dashboard_id: null });
@@ -351,5 +459,61 @@ describe('DashboardPageComponent', () => {
 
     const element: HTMLElement = fixture.nativeElement;
     expect(element.textContent).toContain('This dashboard is no longer available.');
+  });
+  /**
+   * The gesture is an addition on top of the buttons, so it writes to the same
+   * draft and obeys the same clamping. jsdom lays out no CSS grid, so the
+   * geometry the handler measures is supplied here — the arithmetic under test
+   * is the mapping from a pointer to a cell, not the browser's layout.
+   */
+  it('drops a widget into the grid cell under the pointer', () => {
+    const element = initialise([dashboard({ version: 4 })], [widget({ id: 'a', x: 0, y: 0 })]);
+    startEditing();
+
+    const grid = element.querySelector<HTMLElement>('.dashboard__grid');
+    const cell = element.querySelector<HTMLElement>('.dashboard__cell');
+
+    if (grid === null || cell === null) {
+      throw new Error('The grid is not on screen.');
+    }
+
+    grid.getBoundingClientRect = () => ({ left: 0, top: 0, width: 1200, height: 600 }) as DOMRect;
+    vi.spyOn(window, 'getComputedStyle').mockReturnValue({
+      columnGap: '0px',
+      rowGap: '0px',
+      gridAutoRows: '100px',
+      gridTemplateColumns: '1fr '.repeat(12).trim(),
+    } as unknown as CSSStyleDeclaration);
+
+    cell.dispatchEvent(new Event('dragstart', { bubbles: true }));
+    const drop = new Event('drop', { bubbles: true });
+    Object.defineProperty(drop, 'clientX', { value: 500 });
+    Object.defineProperty(drop, 'clientY', { value: 250 });
+    grid.dispatchEvent(drop);
+    fixture.detectChanges();
+
+    // 500px over a 100px column step is column 5, 250px over a 100px row step
+    // is row 2 — one-based in the stylesheet, zero-based in the payload.
+    expect(cell.style.getPropertyValue('--widget-column')).toBe('6');
+    expect(cell.style.getPropertyValue('--widget-row')).toBe('3');
+
+    vi.restoreAllMocks();
+  });
+
+  it('leaves the arrangement alone when the grid cannot be measured', () => {
+    const element = initialise([dashboard({ version: 4 })], [widget({ id: 'a', x: 2, y: 1 })]);
+    startEditing();
+
+    const grid = element.querySelector<HTMLElement>('.dashboard__grid');
+    const cell = element.querySelector<HTMLElement>('.dashboard__cell');
+
+    cell?.dispatchEvent(new Event('dragstart', { bubbles: true }));
+    grid?.dispatchEvent(new Event('drop', { bubbles: true }));
+    fixture.detectChanges();
+
+    // A single-column layout has no column to compute, so a drop means nothing
+    // there; guessing would move somebody's widget for them.
+    expect(cell?.style.getPropertyValue('--widget-column')).toBe('3');
+    expect(cell?.style.getPropertyValue('--widget-row')).toBe('2');
   });
 });

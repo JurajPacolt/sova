@@ -18,13 +18,17 @@ import {
   ProjectIssueType,
   ProjectListItem,
 } from '../../../../core/api/api.models';
+import { FocusSummaryDirective } from '../../../../core/a11y/focus-summary.directive';
+import { describeApiError } from '../../../../core/errors/api-error';
 import { TranslatePipe } from '../../../../core/i18n/translate.pipe';
 import { TranslationKey } from '../../../../core/i18n/translations';
 import { TenantStore } from '../../../../core/tenancy/tenant.store';
+import { ErrorStateComponent } from '../../../../shared/components/error-state/error-state.component';
 import { PageHeaderComponent } from '../../../../shared/components/page-header/page-header.component';
 import { QueryEditorComponent } from '../../components/query-editor/query-editor.component';
 import { SavedQueryPanelComponent } from '../../components/saved-query-panel/saved-query-panel.component';
 import { IssueWorkspaceService } from '../../issue-workspace.service';
+import { AriaRequiredDirective } from '../../../../core/a11y/aria-required.directive';
 
 /**
  * The issue list is the SovaQL search: there is no second listing endpoint, so
@@ -39,6 +43,9 @@ import { IssueWorkspaceService } from '../../issue-workspace.service';
   selector: 'app-issue-list-page',
   standalone: true,
   imports: [
+    AriaRequiredDirective,
+    ErrorStateComponent,
+    FocusSummaryDirective,
     PageHeaderComponent,
     QueryEditorComponent,
     ReactiveFormsModule,
@@ -63,9 +70,22 @@ export class IssueListPageComponent implements OnInit {
 
   protected readonly issues = signal<readonly IssueSearchHit[]>([]);
   protected readonly loading = signal(false);
-  protected readonly error = signal<TranslationKey | null>(null);
+  protected readonly failure = signal<unknown>(null);
   protected readonly hasMore = signal(false);
   protected readonly searched = signal(false);
+
+  /**
+   * A rejected query is the user's to fix, so it reads differently from a
+   * server that could not answer at all. Every other status is left to the
+   * shared error state, which knows what a `429` or a lost connection means.
+   */
+  protected readonly failureKey = computed<TranslationKey | null>(() => {
+    const failure = this.failure();
+
+    return failure !== null && describeApiError(failure).status === 422
+      ? 'issue.list.invalid'
+      : null;
+  });
 
   protected readonly count = computed(() => this.issues().length);
 
@@ -237,7 +257,7 @@ export class IssueListPageComponent implements OnInit {
     }
 
     this.loading.set(true);
-    this.error.set(null);
+    this.failure.set(null);
 
     this.workspace
       .search(tenantId, {
@@ -258,27 +278,17 @@ export class IssueListPageComponent implements OnInit {
           this.searched.set(true);
         },
         error: (failure: unknown) => {
+          // A failed *next page* leaves the rows that already arrived where
+          // they are: they are still the answer to the same query, and throwing
+          // them away would cost the reader their place for nothing.
           if (!append) {
             this.issues.set([]);
             this.hasMore.set(false);
           }
 
           this.searched.set(true);
-          this.error.set(this.messageFor(failure));
+          this.failure.set(failure);
         },
       });
-  }
-
-  /**
-   * A rejected query is the user's to fix, so it reads differently from a
-   * server that could not answer at all.
-   */
-  private messageFor(failure: unknown): TranslationKey {
-    const status =
-      typeof failure === 'object' && failure !== null && 'status' in failure
-        ? (failure as { status: unknown }).status
-        : null;
-
-    return status === 422 ? 'issue.list.invalid' : 'issue.list.loadError';
   }
 }

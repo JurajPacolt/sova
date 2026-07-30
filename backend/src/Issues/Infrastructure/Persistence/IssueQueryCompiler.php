@@ -529,8 +529,7 @@ final readonly class IssueQueryCompiler implements QueryCompiler
         }
 
         return sprintf(
-            "%sto_tsvector('simple', issue.title || ' ' || issue.description)"
-                . " @@ websearch_to_tsquery('simple', :%s)",
+            '%sissue.search_vector @@ websearch_to_tsquery(\'simple\', :%s)',
             $predicate->operator === ComparisonOperator::NotMatches ? 'NOT ' : '',
             $state->bind($value->value, ParameterType::STRING),
         );

@@ -6,6 +6,7 @@
 export interface LoginRequest {
   readonly email: string;
   readonly password: string;
+  readonly mfa_code?: string;
 }
 
 export type LocaleCode = 'sk' | 'cs' | 'en' | 'de' | 'pl' | 'hu';
@@ -23,14 +24,54 @@ export interface CreatedSession {
   readonly expires_at: string;
 }
 
+export interface MfaStatus {
+  readonly enabled: boolean;
+  readonly verified: boolean;
+  readonly enrollment_required: boolean;
+  readonly recovery_codes_remaining: number;
+}
+
 export interface LoginResponse {
   readonly user: AuthenticatedUser;
   readonly session: CreatedSession;
+  readonly mfa: MfaStatus;
 }
 
 export interface CurrentSessionResponse {
   readonly user: AuthenticatedUser;
   readonly impersonation: ImpersonationContext | null;
+  readonly mfa: MfaStatus;
+}
+
+export interface MfaStatusResponse {
+  readonly mfa: MfaStatus;
+}
+
+export interface BeginMfaEnrollmentRequest {
+  readonly current_password: string;
+}
+
+export interface MfaEnrollmentResponse {
+  readonly secret: string;
+  readonly otpauth_uri: string;
+}
+
+export interface ConfirmMfaEnrollmentRequest {
+  readonly code: string;
+}
+
+export interface MfaRecoveryCodesResponse {
+  readonly recovery_codes: readonly string[];
+  readonly recovery_codes_remaining?: number;
+}
+
+export interface MfaConfirmationResponse extends MfaRecoveryCodesResponse {
+  readonly mfa: MfaStatus;
+}
+
+export interface RegenerateMfaRecoveryCodesRequest {
+  readonly current_password: string;
+  readonly code: string;
 }
 
 export type ImpersonationStatus = 'ACTIVE' | 'EXPIRED' | 'INVALIDATED';
@@ -97,6 +138,30 @@ export interface TenantResponse {
    * only — every endpoint authorizes itself again.
    */
   readonly permissions: readonly string[];
+}
+
+export interface TenantSettings {
+  readonly tenant_id: string;
+  readonly name: string;
+  readonly slug: string;
+  readonly default_locale: LocaleCode;
+  readonly timezone: string;
+  readonly revision: number;
+}
+
+export interface TenantSettingsResponse {
+  readonly settings: TenantSettings;
+}
+
+export interface UpdateTenantGeneralSettingsRequest {
+  readonly name: string;
+  readonly expected_revision: number;
+}
+
+export interface UpdateTenantLocalizationSettingsRequest {
+  readonly default_locale: LocaleCode;
+  readonly timezone: string;
+  readonly expected_revision: number;
 }
 
 export interface SystemTenant {
@@ -254,6 +319,32 @@ export interface CreatedInvitationResponse {
   readonly invitation: CreatedInvitation;
 }
 
+export interface TenantInvitation {
+  readonly id: string;
+  readonly tenant_id: string;
+  readonly email: string;
+  readonly status: 'PENDING' | 'ACCEPTED' | 'REVOKED' | 'EXPIRED';
+  readonly invited_by_display_name: string;
+  readonly initial_role_code: string | null;
+  readonly expires_at: string;
+  readonly created_at: string;
+  readonly updated_at: string;
+  readonly accepted_at: string | null;
+  readonly revoked_at: string | null;
+}
+
+export interface TenantInvitationList {
+  readonly invitations: readonly TenantInvitation[];
+}
+
+export interface TenantInvitationResponse {
+  readonly invitation: TenantInvitation;
+}
+
+export interface ChangeInvitationExpiryRequest {
+  readonly expires_at: string;
+}
+
 export type PermissionScope = 'TENANT' | 'PROJECT' | 'WORKGROUP';
 
 export interface TenantPermissionDefinition {
@@ -400,6 +491,10 @@ export interface ChangeProjectStatusRequest {
   readonly status: ProjectStatus;
 }
 
+export interface ChangeProjectVisibilityRequest {
+  readonly visibility: ProjectVisibility;
+}
+
 export interface ProjectRole {
   readonly id: string;
   readonly project_id: string;
@@ -542,6 +637,12 @@ export interface IssueSearchHit {
     readonly name: string | null;
   } | null;
   readonly parent_key: string | null;
+  /**
+   * Whether an issue the caller may also see blocks this one and is not done
+   * yet. It travels with the row rather than being asked for per card — a board
+   * of forty cards would otherwise be forty extra requests.
+   */
+  readonly blocked: boolean;
   readonly resolution: string | null;
   readonly resolved_at: string | null;
   readonly created_at: string;
@@ -891,11 +992,44 @@ export interface ProjectIssueType {
   readonly code: string;
   readonly name: string;
   readonly description: string;
-  readonly hierarchy_level: number;
+  readonly hierarchy_level: IssueHierarchyLevel;
   readonly position: number;
+  readonly icon: string;
+  readonly color_token: string;
   readonly status: 'ACTIVE' | 'ARCHIVED';
   readonly version: number;
   readonly workflow_id: string | null;
+}
+
+export type IssueHierarchyLevel = -1 | 0 | 1;
+
+export interface ProjectIssueTypeList {
+  readonly issue_types: readonly ProjectIssueType[];
+}
+
+export interface ProjectIssueTypeResponse {
+  readonly issue_type: ProjectIssueType;
+}
+
+export interface CreateProjectIssueTypeRequest {
+  readonly code: string;
+  readonly name: string;
+  readonly description: string;
+  readonly hierarchy_level: IssueHierarchyLevel;
+  readonly position: number;
+  readonly icon: string;
+  readonly color_token: string;
+  readonly workflow_id: string;
+  readonly expected_config_version: number;
+}
+
+export interface UpdateProjectIssueTypeRequest extends Omit<CreateProjectIssueTypeRequest, 'code'> {
+  readonly expected_type_version: number;
+}
+
+export interface ArchiveProjectIssueTypeRequest {
+  readonly expected_config_version: number;
+  readonly expected_type_version: number;
 }
 
 export interface ProjectWorkflowStatus {
@@ -907,10 +1041,169 @@ export interface ProjectWorkflowStatus {
   readonly status: 'ACTIVE' | 'ARCHIVED';
 }
 
+export type WorkflowVersionState = 'DRAFT' | 'PUBLISHED' | 'ARCHIVED';
+
+/**
+ * A rule the server stores on a transition. The editor does not offer to change
+ * one, but it must send them back untouched: `PUT …/draft` replaces the whole
+ * transition set, so a rule left out of the payload is a rule deleted.
+ */
+export interface WorkflowTransitionRule {
+  readonly id: string;
+  readonly type: string;
+  readonly key: string;
+  readonly configuration: Readonly<Record<string, unknown>>;
+  readonly position: number;
+}
+
+export interface WorkflowVersionStatus {
+  readonly status_id: string;
+  readonly code: string;
+  readonly name: string;
+  readonly category: IssueStatusCategory;
+  readonly color_token: string | null;
+  readonly position: number;
+}
+
+export interface WorkflowVersionTransition {
+  readonly id: string;
+  readonly code: string;
+  readonly name: string;
+  readonly from_status_id: string;
+  readonly to_status_id: string;
+  readonly permission_code: string | null;
+  readonly is_primary: boolean;
+  readonly position: number;
+  readonly rules: readonly WorkflowTransitionRule[];
+}
+
+export interface WorkflowVersion {
+  readonly id: string;
+  readonly workflow_id: string;
+  readonly version_number: number;
+  readonly state: WorkflowVersionState;
+  /** Optimistic lock of this version; `PUT …/draft` is checked against it. */
+  readonly version: number;
+  readonly initial_status_id: string | null;
+  readonly statuses: readonly WorkflowVersionStatus[];
+  readonly transitions: readonly WorkflowVersionTransition[];
+}
+
+export interface ProjectWorkflow {
+  readonly id: string;
+  readonly name: string;
+  readonly description: string;
+  readonly status: 'ACTIVE' | 'ARCHIVED';
+  readonly active_version_id: string | null;
+  readonly published_version: WorkflowVersion | null;
+  readonly draft_version: WorkflowVersion | null;
+}
+
+export interface ProjectWorkflowList {
+  readonly workflows: readonly ProjectWorkflow[];
+}
+
+export interface WorkflowDraftResponse {
+  readonly draft_version: WorkflowVersion;
+}
+
+export interface PublishedWorkflowResponse {
+  readonly published_version: WorkflowVersion;
+}
+
+/** Transitions name statuses by code here, unlike the read model's ids. */
+export interface UpdateWorkflowDraftRequest {
+  readonly expected_version: number;
+  readonly initial_status_code: string;
+  readonly statuses: readonly {
+    readonly code: string;
+    readonly name: string;
+    readonly description?: string;
+    readonly category: IssueStatusCategory;
+    readonly color_token?: string;
+    readonly position?: number;
+  }[];
+  readonly transitions: readonly {
+    readonly code: string;
+    readonly name: string;
+    readonly from: string;
+    readonly to: string;
+    readonly permission_code?: string | null;
+    readonly is_primary?: boolean;
+    readonly position?: number;
+    readonly rules?: readonly {
+      readonly type: string;
+      readonly key: string;
+      readonly configuration?: Readonly<Record<string, unknown>>;
+      readonly position?: number;
+    }[];
+  }[];
+}
+
+export interface WorkflowValidationError {
+  readonly code: string;
+  readonly detail: string;
+}
+
+export interface WorkflowValidationResponse {
+  readonly valid: boolean;
+  readonly validation_errors: readonly WorkflowValidationError[];
+}
+
+export interface WorkflowStatusIssueCount {
+  readonly status_id: string;
+  readonly status_code: string;
+  readonly status_name: string;
+  readonly count: number;
+}
+
+export interface WorkflowImpact {
+  readonly workflow_id: string;
+  /** The revision a publish must be sent against. */
+  readonly expected_config_version: number;
+  readonly publishable: boolean;
+  readonly requires_migration: boolean;
+  readonly validation_errors: readonly WorkflowValidationError[];
+  readonly type_codes_using_workflow: readonly string[];
+  readonly added_status_codes: readonly string[];
+  readonly removed_status_codes: readonly string[];
+  readonly added_transition_codes: readonly string[];
+  readonly removed_transition_codes: readonly string[];
+  readonly affected_issue_counts: readonly WorkflowStatusIssueCount[];
+  /** Removed statuses that still carry issues, so publishing needs a target. */
+  readonly required_status_mapping_codes: readonly string[];
+}
+
+export interface WorkflowImpactResponse {
+  readonly impact: WorkflowImpact;
+}
+
+export interface PublishWorkflowRequest {
+  readonly expected_config_version: number;
+  /** Removed status code → target status code, for issues that still sit there. */
+  readonly status_mapping?: Readonly<Record<string, string>>;
+}
+
+export interface ConfigurationHistoryEntry {
+  readonly id: string;
+  readonly revision: number;
+  readonly event_type: string;
+  readonly workflow_id: string | null;
+  readonly workflow_version_id: string | null;
+  readonly actor_user_id: string | null;
+  readonly metadata: Readonly<Record<string, unknown>>;
+  readonly created_at: string;
+}
+
+export interface ConfigurationHistoryList {
+  readonly history: readonly ConfigurationHistoryEntry[];
+}
+
 export interface ProjectConfiguration {
   readonly revision: number;
   readonly issue_types: readonly ProjectIssueType[];
   readonly statuses: readonly ProjectWorkflowStatus[];
+  readonly workflows: readonly ProjectWorkflow[];
 }
 
 export interface CreateIssueRequest {
@@ -1134,6 +1427,70 @@ export function isWidgetMatrixData(data: WidgetData): data is WidgetMatrixData {
 
 export function isWidgetTimeSeriesData(data: WidgetData): data is WidgetTimeSeriesData {
   return Array.isArray((data as Partial<WidgetTimeSeriesData>).series);
+}
+
+export type NotificationKind =
+  'ISSUE_ASSIGNED' | 'ISSUE_MENTIONED' | 'ISSUE_COMMENTED' | 'ISSUE_TRANSITIONED';
+
+/**
+ * What the server put in the row when the event was delivered, not what the
+ * issue says today. A notification is a record of something that happened, so
+ * the key and title it carries are the ones that were true at delivery time.
+ */
+export interface NotificationPayload {
+  readonly issue_key?: string;
+  readonly issue_title?: string;
+  readonly project_id?: string;
+  readonly comment_id?: string;
+}
+
+export interface NotificationEntry {
+  readonly id: string;
+  readonly kind: NotificationKind;
+  readonly project_id: string | null;
+  readonly issue_id: string | null;
+  readonly actor: {
+    readonly user_id: string;
+    readonly display_name: string;
+  } | null;
+  readonly payload: NotificationPayload;
+  readonly read_at: string | null;
+  readonly created_at: string;
+}
+
+export interface NotificationList {
+  readonly notifications: readonly NotificationEntry[];
+  readonly unread_count: number;
+}
+
+/** An empty or absent list means every notification of the caller. */
+export interface MarkNotificationsReadRequest {
+  readonly notification_ids?: readonly string[];
+}
+
+export interface MarkNotificationsReadResponse {
+  readonly updated: number;
+  readonly unread_count: number;
+}
+
+export interface NotificationPreference {
+  readonly kind: NotificationKind;
+  readonly in_app: boolean;
+  readonly email: boolean;
+  /** Assignment and being addressed by name may not be silently missed. */
+  readonly in_app_locked: boolean;
+}
+
+export interface NotificationPreferenceList {
+  readonly preferences: readonly NotificationPreference[];
+}
+
+export interface ReplaceNotificationPreferencesRequest {
+  readonly preferences: readonly {
+    readonly kind: NotificationKind;
+    readonly in_app: boolean;
+    readonly email: boolean;
+  }[];
 }
 
 export interface ProblemDetails {
