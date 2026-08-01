@@ -174,7 +174,7 @@
             <td>
               <span class="badge text-bg-secondary">{{ issue.status.name }}</span>
             </td>
-            <td>{{ issue.priority }}</td>
+            <td>{{ priorityKey(issue.priority) | translate }}</td>
             <td>
               {{ issue.assignee?.display_name ?? ('issue.unassigned' | translate) }}
             </td>

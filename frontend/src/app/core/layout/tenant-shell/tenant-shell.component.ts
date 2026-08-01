@@ -50,6 +50,9 @@ interface NavigationItem {
   ],
   templateUrl: './tenant-shell.component.html',
   styleUrl: './tenant-shell.component.scss',
+  // The way out of an open drawer that costs nothing to offer. The backdrop and
+  // the close button cover the pointer; this covers the keyboard.
+  host: { '(document:keydown.escape)': 'closeSidebar()' },
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class TenantShellComponent {

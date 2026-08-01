@@ -2,13 +2,18 @@
 
 FROM node:24.15.0-bookworm-slim AS frontend-build
 
+# Staging and CI build through the full gate. The local stack in
+# docker-compose.yml sets this to 0, so a formatting or unit test failure cannot
+# stop the application from starting; the bundle is identical either way.
+ARG FRONTEND_VERIFY=1
+
 WORKDIR /build/frontend
 
 COPY frontend/package.json frontend/package-lock.json ./
 RUN npm ci
 
 COPY frontend/ ./
-RUN npm run check
+RUN if [ "$FRONTEND_VERIFY" = "1" ]; then npm run check; else npm run build; fi
 
 FROM composer:2.9.7 AS composer-bin
 

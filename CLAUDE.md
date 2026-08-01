@@ -30,7 +30,8 @@ commit messages are English.
 Database (from repository root):
 
 ```powershell
-docker compose up -d postgres     # PostgreSQL 17, localhost:5432, db/user sova
+docker compose -f docker-compose-postgresql.yml up -d postgres   # PostgreSQL 17, localhost:5432
+docker compose up --build         # whole stack on http://localhost:8080, migrations included
 ```
 
 Backend (from `backend/`, first run needs `Copy-Item .env.example .env`):

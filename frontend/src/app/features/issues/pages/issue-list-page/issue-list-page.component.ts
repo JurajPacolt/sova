@@ -28,6 +28,7 @@ import { PageHeaderComponent } from '../../../../shared/components/page-header/p
 import { QueryEditorComponent } from '../../components/query-editor/query-editor.component';
 import { SavedQueryPanelComponent } from '../../components/saved-query-panel/saved-query-panel.component';
 import { IssueWorkspaceService } from '../../issue-workspace.service';
+import { issuePriorityKey } from '../../issue-labels';
 import { AriaRequiredDirective } from '../../../../core/a11y/aria-required.directive';
 
 /**
@@ -117,16 +118,7 @@ export class IssueListPageComponent implements OnInit {
   }
 
   protected priorityKey(priority: IssuePriority): TranslationKey {
-    switch (priority) {
-      case 'LOW':
-        return 'issue.priority.low';
-      case 'HIGH':
-        return 'issue.priority.high';
-      case 'CRITICAL':
-        return 'issue.priority.critical';
-      default:
-        return 'issue.priority.normal';
-    }
+    return issuePriorityKey(priority);
   }
 
   protected toggleCreate(): void {

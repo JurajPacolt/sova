@@ -22,6 +22,9 @@ clover.xml
 backend/var/*
 !backend/var/.gitignore
 
+# Release packages from scripts/build-hosting-package.sh
+/build/
+
 # Node / Angular
 node_modules/
 frontend/dist/

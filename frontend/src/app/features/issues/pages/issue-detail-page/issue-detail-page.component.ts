@@ -1,3 +1,4 @@
+import { DatePipe } from '@angular/common';
 import {
   ChangeDetectionStrategy,
   Component,
@@ -20,6 +21,7 @@ import {
   IssueLink,
   IssueLinkRelation,
   IssueLinkType,
+  IssuePriority,
   IssueTransition,
 } from '../../../../core/api/api.models';
 import { describeApiError, problemCode } from '../../../../core/errors/api-error';
@@ -29,6 +31,7 @@ import { TenantStore } from '../../../../core/tenancy/tenant.store';
 import { ErrorStateComponent } from '../../../../shared/components/error-state/error-state.component';
 import { PageHeaderComponent } from '../../../../shared/components/page-header/page-header.component';
 import { IssueWorkspaceService } from '../../issue-workspace.service';
+import { issuePriorityKey } from '../../issue-labels';
 
 /**
  * The issue detail.
@@ -43,6 +46,7 @@ import { IssueWorkspaceService } from '../../issue-workspace.service';
   selector: 'app-issue-detail-page',
   standalone: true,
   imports: [
+    DatePipe,
     ErrorStateComponent,
     PageHeaderComponent,
     ReactiveFormsModule,
@@ -295,6 +299,10 @@ export class IssueDetailPageComponent implements OnInit {
     this.loadLinks(tenantId, issueId);
     this.loadHistory(tenantId, issueId);
     this.loadWatchers(tenantId, issueId);
+  }
+
+  protected priorityKey(priority: IssuePriority): TranslationKey {
+    return issuePriorityKey(priority);
   }
 
   protected relationKey(relation: IssueLinkRelation): TranslationKey {

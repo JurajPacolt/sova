@@ -14,7 +14,7 @@ Slim 4 REST API pre multitenantný issue tracker SOVA.
 Z koreňového adresára projektu spustite databázu:
 
 ```powershell
-docker compose up -d postgres
+docker compose -f docker-compose-postgresql.yml up -d postgres
 ```
 
 V adresári `backend` pripravte lokálnu konfiguráciu a závislosti:

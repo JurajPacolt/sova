@@ -1,9 +1,18 @@
-<main class="container py-5">
-  <div class="d-flex justify-content-end gap-2 mb-4">
+<!--
+  The screen between signing in and being inside a tenant. It had no bar at all
+  and two switchers floating in a corner, which made the step read as a
+  different application than the one on either side of it.
+-->
+<header class="app-bar">
+  <span class="app-bar__brand">SOVA</span>
+
+  <div class="app-bar__actions">
     <app-language-switcher />
     <app-theme-switcher />
   </div>
+</header>
 
+<main class="tenant-selection__content sova-page">
   <app-page-header
     [eyebrow]="'tenant.eyebrow' | translate"
     [title]="'tenant.title' | translate"

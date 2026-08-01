@@ -1,21 +1,232 @@
+# SOVA – the whole application in one command.
+#
+#   docker compose up --build
+#   → http://localhost:8080        the application (frontend + /api/v1)
+#   → http://localhost:8025        Mailpit, where every outgoing mail lands
+#
+# The stack brings up PostgreSQL, runs the Doctrine migrations, creates the
+# first SUPERADMIN, serves the built Angular bundle and the API from one Apache
+# process, and keeps both background workers running. Nothing else has to be
+# installed on the host — no PHP, no Node, no Composer.
+#
+# Rebuild after changing backend or frontend source: the image carries a
+# compiled bundle, so `docker compose up --build` is what picks changes up.
+#
+# For classic development (`composer serve` + `npm start`) use the database-only
+# file instead: docker compose -f docker-compose-postgresql.yml up -d
+#
+# Every default below is a local development value. They are deliberately
+# readable and committed; production secrets belong in deploy/staging/.env or in
+# the hosting provider's configuration (see docs/NASADENIE.md). Any of them can
+# be overridden from a .env file next to this file.
+
+name: sova-stack
+
+x-app-environment: &app-environment
+  APP_NAME: SOVA
+  # Development keeps the "no antivirus" and "unencrypted cookie" combination
+  # legal. Production refuses both, which is exactly what a local stack must
+  # not do.
+  APP_ENV: ${SOVA_APP_ENV:-development}
+  APP_DEBUG: ${SOVA_APP_DEBUG:-true}
+  APP_VERSION: local
+  APP_PUBLIC_URL: http://localhost:${SOVA_HTTP_PORT:-8080}
+  LOG_LEVEL: ${SOVA_LOG_LEVEL:-debug}
+  LOG_PATH: php://stderr
+
+  DATABASE_HOST: postgres
+  DATABASE_PORT: "5432"
+  DATABASE_NAME: ${SOVA_DATABASE_NAME:-sova}
+  DATABASE_USER: ${SOVA_DATABASE_USER:-sova_app}
+  DATABASE_PASSWORD: ${SOVA_DATABASE_PASSWORD:-sova_local_app_password}
+  DATABASE_SERVER_VERSION: "17"
+  DATABASE_SSL_MODE: disable
+
+  # Plain HTTP on localhost, so a Secure cookie would never be sent back.
+  AUTH_COOKIE_SECURE: "false"
+  AUTH_COOKIE_SAME_SITE: Lax
+  AUTH_RATE_LIMIT_SECRET: ${SOVA_AUTH_RATE_LIMIT_SECRET:-sova-local-development-rate-limit-secret}
+
+  SENSITIVE_PAYLOAD_KEY_ID: ${SOVA_SENSITIVE_PAYLOAD_KEY_ID:-local-v1}
+  SENSITIVE_PAYLOAD_KEY: ${SOVA_SENSITIVE_PAYLOAD_KEY:-pwVMvMjmoKvtY3Wz0pBdg9HZBOyv7hwU4BL36AlkEwc=}
+
+  ATTACHMENT_STORAGE_PATH: /var/lib/sova/attachments
+  # "none" records an upload as SKIPPED rather than clean. Start the stack with
+  # `--profile antivirus` and set SOVA_ATTACHMENT_SCANNER=clamav to scan for
+  # real; the scanner needs ~4 GB and a few minutes to load its signatures.
+  ATTACHMENT_SCANNER: ${SOVA_ATTACHMENT_SCANNER:-none}
+  ATTACHMENT_SCANNER_HOST: clamav
+  ATTACHMENT_SCANNER_PORT: "3310"
+
+  MAILER_DSN: smtp://mailpit:1025
+  # Must satisfy FILTER_VALIDATE_EMAIL, which both mailers assert in their
+  # constructor — a bare "localhost" domain fails it and crash-loops the workers.
+  MAILER_FROM: ${SOVA_MAILER_FROM:-sova@sova.test}
+
+  CORS_ALLOWED_ORIGINS: http://localhost:${SOVA_HTTP_PORT:-8080}
+
+x-app-build: &app-build
+  context: .
+  dockerfile: deploy/staging/Dockerfile
+  target: web
+  args:
+    # The local stack must start even when a unit test or a formatting rule is
+    # currently failing. `composer check` / `npm run check` remain the gate for
+    # submitting work.
+    FRONTEND_VERIFY: "0"
+
+x-app-service: &app-service
+  image: sova-app:local
+  build: *app-build
+  pull_policy: never
+  restart: unless-stopped
+  environment: *app-environment
+  volumes:
+    - attachments:/var/lib/sova/attachments
+  depends_on:
+    migrate:
+      condition: service_completed_successfully
+
 services:
   postgres:
-    image: postgres:17
+    image: postgres:17.10-bookworm
     restart: unless-stopped
     environment:
-      POSTGRES_DB: ${POSTGRES_DB:-sova}
-      POSTGRES_USER: ${POSTGRES_USER:-sova}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-sova_dev_password}
+      POSTGRES_DB: ${SOVA_DATABASE_NAME:-sova}
+      # The application never connects as this role. postgres-init.sh uses it
+      # once to create the NOSUPERUSER / NOBYPASSRLS application role, without
+      # which the row level security policies would be silently inert.
+      POSTGRES_USER: ${SOVA_POSTGRES_ADMIN_USER:-sova_bootstrap}
+      POSTGRES_PASSWORD: ${SOVA_POSTGRES_ADMIN_PASSWORD:-sova_local_admin_password}
+      SOVA_DATABASE_USER: ${SOVA_DATABASE_USER:-sova_app}
+      SOVA_DATABASE_PASSWORD: ${SOVA_DATABASE_PASSWORD:-sova_local_app_password}
     ports:
-      - "${POSTGRES_PORT:-5432}:5432"
+      # 5433 by default, so the database-only compose file can keep 5432.
+      - "${SOVA_BIND_ADDRESS:-127.0.0.1}:${SOVA_DATABASE_PORT:-5433}:5432"
     volumes:
-      - sova_postgres_data:/var/lib/postgresql/data
+      - postgres_data:/var/lib/postgresql/data
+      - ./deploy/staging/postgres-init.sh:/docker-entrypoint-initdb.d/10-sova-app-role.sh:ro
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
       interval: 5s
       timeout: 5s
-      retries: 10
+      retries: 20
       start_period: 10s
 
+  mailpit:
+    image: axllent/mailpit:v1.30.0
+    restart: unless-stopped
+    environment:
+      MP_MAX_MESSAGES: "500"
+      MP_SMTP_AUTH_ACCEPT_ANY: "1"
+      MP_SMTP_AUTH_ALLOW_INSECURE: "1"
+    ports:
+      - "${SOVA_BIND_ADDRESS:-127.0.0.1}:${SOVA_MAILPIT_PORT:-8025}:8025"
+
+  # Opt in with `docker compose --profile antivirus up --build` and
+  # SOVA_ATTACHMENT_SCANNER=clamav. Off by default because it downloads the
+  # signature database on first start.
+  clamav:
+    profiles: ["antivirus"]
+    image: clamav/clamav:1.5.2
+    restart: unless-stopped
+    volumes:
+      - clamav_database:/var/lib/clamav
+    healthcheck:
+      test: ["CMD", "/usr/local/bin/clamdcheck.sh"]
+      interval: 10s
+      timeout: 5s
+      retries: 60
+      start_period: 120s
+    mem_limit: 4g
+
+  # Runs to completion before the API and the workers start, so no process ever
+  # sees a half-migrated schema. Re-running it on an up-to-date database is a
+  # no-op.
+  migrate:
+    image: sova-app:local
+    build: *app-build
+    pull_policy: never
+    restart: "no"
+    entrypoint: ["docker-php-entrypoint"]
+    user: www-data
+    command:
+      [
+        "vendor/bin/doctrine-migrations",
+        "migrations:migrate",
+        "--no-interaction",
+      ]
+    environment: *app-environment
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  # Creates the first installation administrator. The bootstrapper permanently
+  # closes this path once any SUPERADMIN grant exists, so on every later start
+  # it simply reports that and exits successfully.
+  bootstrap:
+    image: sova-app:local
+    build: *app-build
+    pull_policy: never
+    restart: "no"
+    entrypoint: ["sh", "-c"]
+    user: www-data
+    environment:
+      <<: *app-environment
+      SOVA_BOOTSTRAP_EMAIL: ${SOVA_BOOTSTRAP_EMAIL:-admin@sova.local}
+      SOVA_BOOTSTRAP_NAME: ${SOVA_BOOTSTRAP_NAME:-SOVA Administrator}
+      SOVA_BOOTSTRAP_PASSWORD: ${SOVA_BOOTSTRAP_PASSWORD:-SovaLocalDev2026!}
+      SOVA_BOOTSTRAP_LOCALE: ${SOVA_BOOTSTRAP_LOCALE:-sk}
+    command:
+      - |
+        if printf '%s' "$$SOVA_BOOTSTRAP_PASSWORD" | php bin/bootstrap-superadmin.php \
+            --email="$$SOVA_BOOTSTRAP_EMAIL" \
+            --display-name="$$SOVA_BOOTSTRAP_NAME" \
+            --locale="$$SOVA_BOOTSTRAP_LOCALE"
+        then
+          echo "Sign in at http://localhost:${SOVA_HTTP_PORT:-8080}"
+          echo "  e-mail:   $$SOVA_BOOTSTRAP_EMAIL"
+          echo "  password: $$SOVA_BOOTSTRAP_PASSWORD"
+        else
+          echo "Superadmin bootstrap skipped, see the message above."
+        fi
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+
+  # Apache serves the compiled Angular bundle and hands /api to the PHP front
+  # controller, so browser and API share one origin and no proxy is needed.
+  web:
+    <<: *app-service
+    ports:
+      - "${SOVA_BIND_ADDRESS:-127.0.0.1}:${SOVA_HTTP_PORT:-8080}:80"
+
+  outbox-worker:
+    <<: *app-service
+    init: true
+    entrypoint: ["docker-php-entrypoint"]
+    user: www-data
+    command: ["php", "bin/outbox-worker.php"]
+    stop_signal: SIGTERM
+    stop_grace_period: 30s
+    # The image healthcheck probes Apache, which this container does not run.
+    healthcheck:
+      disable: true
+
+  # Delivers verification, invitation and recovery mails to Mailpit. Without it
+  # no sign-up or invitation flow can be completed.
+  email-worker:
+    <<: *app-service
+    init: true
+    entrypoint: ["docker-php-entrypoint"]
+    user: www-data
+    command: ["php", "bin/email-worker.php"]
+    stop_signal: SIGTERM
+    stop_grace_period: 30s
+    healthcheck:
+      disable: true
+
 volumes:
-  sova_postgres_data:
+  attachments:
+  clamav_database:
+  postgres_data:

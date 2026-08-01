@@ -49,6 +49,16 @@
   --sova-radius-lg: 0.875rem;
   --sova-radius-xl: 1.25rem;
   --sova-radius-pill: 999rem;
+
+  // The shell's own measurements. They were literals repeated in two component
+  // stylesheets — a 56px header that had grown to 60px in one shell and wrapped
+  // onto a second row in the other, while the offsets kept quoting the old
+  // number. One token, and the bar is told to be exactly this tall.
+  --sova-header-height: 3.5rem;
+  --sova-sidebar-width: 16rem;
+  // Long lines are hard to read and a table stretched across a 27" monitor is
+  // harder still, so a screen stops widening here and centres instead.
+  --sova-page-max: 88rem;
   --sova-motion-fast: 120ms;
   --sova-motion-base: 180ms;
   --sova-motion-slow: 240ms;
@@ -203,6 +213,50 @@ body {
   --bs-btn-active-border-color: var(--sova-color-action-primary-pressed);
 }
 
+// Overriding `--bs-primary` is not enough. Bootstrap's compiled stylesheet sets
+// most component variables to the literal `#0d6efd` on the component's own
+// class, and a class beats `:root` — so the brand reached the buttons while the
+// active navigation pill, the checked checkbox and the pagination stayed
+// Bootstrap blue. That is the "two different blues on one screen" everybody
+// sees first. Each leak is re-pointed at the token here.
+.nav-pills {
+  --bs-nav-pills-link-active-bg: var(--sova-color-action-primary);
+  --bs-nav-pills-link-active-color: var(--sova-color-on-primary);
+}
+
+.nav-underline {
+  --bs-nav-underline-link-active-color: var(--sova-color-link);
+}
+
+.list-group {
+  --bs-list-group-active-bg: var(--sova-color-action-primary);
+  --bs-list-group-active-border-color: var(--sova-color-action-primary);
+  --bs-list-group-color: var(--sova-color-text);
+  --bs-list-group-bg: var(--sova-color-surface);
+  --bs-list-group-border-color: var(--sova-color-border);
+}
+
+.pagination {
+  --bs-pagination-active-bg: var(--sova-color-action-primary);
+  --bs-pagination-active-border-color: var(--sova-color-action-primary);
+  --bs-pagination-color: var(--sova-color-link);
+  --bs-pagination-hover-color: var(--sova-color-link);
+}
+
+.dropdown-menu {
+  --bs-dropdown-link-active-bg: var(--sova-color-action-primary);
+  --bs-dropdown-link-active-color: var(--sova-color-on-primary);
+}
+
+.progress {
+  --bs-progress-bar-bg: var(--sova-color-action-primary);
+}
+
+.accordion {
+  --bs-accordion-active-bg: var(--sova-color-selection);
+  --bs-accordion-active-color: var(--sova-color-text);
+}
+
 .card {
   --bs-card-bg: var(--sova-color-surface);
   --bs-card-border-color: var(--sova-color-border);
@@ -211,7 +265,32 @@ body {
 .form-control,
 .form-select {
   border-color: var(--sova-color-control-border);
+}
+
+// The comfortable target size is for the controls somebody fills in. The `-sm`
+// variants exist for dense rows and for the application bar, where a 44px box
+// is what made the header wrap in the first place; 2.25rem still clears the
+// 24px minimum of WCAG 2.5.8.
+.form-control:not(.form-control-sm),
+.form-select:not(.form-select-sm) {
   min-height: 2.75rem;
+}
+
+.form-control-sm,
+.form-select-sm {
+  min-height: 2.25rem;
+}
+
+// Bootstrap paints these from the literal rather than from a variable.
+.form-check-input:checked {
+  background-color: var(--sova-color-action-primary);
+  border-color: var(--sova-color-action-primary);
+}
+
+.form-control:focus,
+.form-select:focus,
+.form-check-input:focus {
+  border-color: var(--sova-color-focus);
 }
 
 // Bootstrap turns the outline off on its own controls and replaces it with a
@@ -237,6 +316,164 @@ textarea,
     // Ours is a solid ring that the contrast check measures; Bootstrap's glow
     // would only blur its edge.
     box-shadow: none;
+  }
+}
+
+// ── Shell primitives ────────────────────────────────────────────────────────
+// Both shells wear the same bar and the same content measure. They live here
+// rather than in two encapsulated component stylesheets, because the moment
+// they were written twice they drifted apart — which is how one shell ended up
+// subtracting 56px from the viewport and the other 60px for the same bar.
+
+.app-bar {
+  align-items: center;
+  background: var(--sova-color-header);
+  // In dark mode the header token and the canvas are a few steps apart, and
+  // without an edge the bar dissolves into the page below it.
+  border-bottom: 1px solid rgb(255 255 255 / 12%);
+  color: #ffffff;
+  display: flex;
+  // Never wraps. `.navbar` did, and below `md` the bar became two rows tall
+  // while every offset in the layout still assumed one.
+  flex-wrap: nowrap;
+  gap: var(--sova-space-3);
+  height: var(--sova-header-height);
+  padding-inline: var(--sova-space-4);
+  position: sticky;
+  top: 0;
+  z-index: 1030;
+}
+
+.app-bar__brand {
+  align-items: center;
+  color: #ffffff;
+  display: inline-flex;
+  font-size: 1.125rem;
+  font-weight: 700;
+  gap: var(--sova-space-2);
+  letter-spacing: 0.02em;
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.app-bar__brand:hover,
+.app-bar__brand:focus {
+  color: #ffffff;
+}
+
+/** The privileged context, said once and quietly, next to the wordmark. */
+.app-bar__mark {
+  background: rgb(45 212 191 / 20%);
+  border-radius: var(--sova-radius-sm);
+  color: var(--sova-teal-200);
+  font-size: 0.6875rem;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  padding: 0.125rem var(--sova-space-2);
+}
+
+/** The tenant or context the bar is standing in, next to the mark. */
+.app-bar__context {
+  border-inline-start: 1px solid rgb(255 255 255 / 30%);
+  color: rgb(255 255 255 / 85%);
+  font-size: 0.875rem;
+  margin-inline-start: var(--sova-space-1);
+  min-width: 0;
+  overflow: hidden;
+  padding-inline-start: var(--sova-space-3);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.app-bar__actions {
+  align-items: center;
+  display: flex;
+  flex-shrink: 0;
+  gap: var(--sova-space-2);
+  margin-inline-start: auto;
+}
+
+// One family of controls on the bar: same height, same weight, no wrapping
+// labels. What was there instead was a yellow button beside a dark one beside
+// two white select boxes beside three outlined links.
+.app-bar .btn {
+  --bs-btn-border-color: rgb(255 255 255 / 45%);
+  --bs-btn-color: #ffffff;
+  --bs-btn-hover-bg: rgb(255 255 255 / 15%);
+  --bs-btn-hover-border-color: rgb(255 255 255 / 70%);
+  --bs-btn-hover-color: #ffffff;
+  --bs-btn-active-bg: rgb(255 255 255 / 25%);
+  --bs-btn-active-border-color: rgb(255 255 255 / 70%);
+  --bs-btn-active-color: #ffffff;
+  align-items: center;
+  border-width: 1px;
+  display: inline-flex;
+  gap: var(--sova-space-1);
+  height: 2.25rem;
+  white-space: nowrap;
+}
+
+// A select on the bar is still a select, but it was rendering as a white box on
+// a near-black bar — the loudest thing in the header and the reason the row
+// looked assembled from parts of two different applications.
+.app-bar .form-select {
+  --bs-form-select-bg-img: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3e%3cpath fill='none' stroke='%23dee2e6' stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='m2 5 6 6 6-6'/%3e%3c/svg%3e");
+  background-color: rgb(255 255 255 / 12%);
+  border-color: rgb(255 255 255 / 45%);
+  color: #ffffff;
+  height: 2.25rem;
+  min-height: 2.25rem;
+  padding-block: 0;
+  width: auto;
+}
+
+// The list itself drops back onto a normal surface: a translucent white on a
+// dark bar is not a background the options inherit.
+.app-bar .form-select option {
+  background-color: var(--sova-color-surface);
+  color: var(--sova-color-text);
+}
+
+.app-bar .btn:focus-visible,
+.app-bar .form-select:focus-visible {
+  outline-color: #ffffff;
+}
+
+// The way into the privileged context. It was a yellow warning button shouting
+// from the middle of the bar; the teal edge is the same accent the system shell
+// wears, so the door is marked without being the loudest thing on screen.
+.app-bar .app-bar__system {
+  --bs-btn-border-color: var(--sova-teal-400);
+  --bs-btn-color: var(--sova-teal-200);
+  --bs-btn-hover-bg: rgb(45 212 191 / 20%);
+  --bs-btn-hover-border-color: var(--sova-teal-300);
+  --bs-btn-hover-color: var(--sova-teal-100);
+  --bs-btn-active-bg: rgb(45 212 191 / 30%);
+  --bs-btn-active-border-color: var(--sova-teal-300);
+  --bs-btn-active-color: var(--sova-teal-100);
+}
+
+.sova-page {
+  margin-inline: auto;
+  max-width: var(--sova-page-max);
+  width: 100%;
+}
+
+// After a route change focus is moved to the new screen's heading, so the
+// screen is announced from its title (`route-focus.ts`). Chrome paints its own
+// `outline: auto` around that heading, and a hard black rectangle around a page
+// title on every navigation reads as a rendering fault rather than as focus.
+// The ring is kept for the keyboard — that is who the move is for — and drawn
+// in the app's own colour instead of the browser's.
+h1[tabindex='-1'],
+main[tabindex='-1'] {
+  &:focus:not(:focus-visible) {
+    outline: none;
+  }
+
+  &:focus-visible {
+    outline: 0.1875rem solid var(--sova-color-focus);
+    outline-offset: 0.25rem;
   }
 }
 

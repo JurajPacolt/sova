@@ -15,7 +15,8 @@ inštalácii.
 Aktuálne je pripravené:
 
 - produktová, technická a webflow dokumentácia,
-- PostgreSQL 17 v `docker-compose.yml`,
+- celý stack v `docker-compose.yml` a samostatný PostgreSQL 17
+  v `docker-compose-postgresql.yml`,
 - PHP 8.3+ Composer projekt v adresári `backend`,
 - Slim 4 bootstrap, dependency injection, konfigurácia a middleware,
 - Doctrine DBAL a základ databázových migrácií,
@@ -239,6 +240,7 @@ MVP. Typy, stavy, prechody a mapovanie workflow musia byť konfigurovateľné u�
 | [Threat model](./docs/THREAT_MODEL.md)                 | Hranice dôvery, implementované obrany a konkrétne zostatkové riziká                   |
 | [Prevádzkový runbook](./docs/OPERATIONS.md)            | Monitoring, incidenty, zálohovanie, restore drill a produkčná obnova                  |
 | [Staging runbook](./docs/STAGING.md)                   | Konfigurácia, TLS hrana, deploy, bootstrap, smoke, rollback a diagnostika             |
+| [Nasadenie na webhosting](./docs/NASADENIE.md)         | Krok za krokom na klasickom PHP + PostgreSQL hostingu, bez Dockera                    |
 | [Výkon a query plány](./docs/PERFORMANCE.md)           | Opakovateľný dataset, EXPLAIN regresie, indexy, N+1 budgety a hranice lokálneho smoke |
 | [Register ADR](./docs/adr/README.md)                   | Modulárny monolit, multitenancy, sessions, permissions, UUID, UTC, OpenAPI a outbox   |
 
@@ -270,7 +272,8 @@ sova/
 │   ├── webflow/             # Navigácia, obrazovky a používateľské toky
 │   └── adr/                 # Architektonické rozhodnutia
 ├── README.md
-└── docker-compose.yml
+├── docker-compose.yml              # Celá aplikácia jedným príkazom
+└── docker-compose-postgresql.yml   # Iba databáza pre lokálny vývoj
 ```
 
 Podrobnejšia štruktúra backendu a frontendu je navrhnutá v
@@ -305,7 +308,33 @@ Tým sa ešte pred projektmi a úlohami overia najrizikovejšie základy systém
 
 ## Vývoj a lokálne spustenie
 
+### Celá aplikácia jedným príkazom
+
+Ak chcete aplikáciu iba spustiť a otvoriť v prehliadači, stačí Docker
+s Compose pluginom. Nič iné netreba inštalovať:
+
+```powershell
+docker compose up --build
+```
+
+Compose zdvihne PostgreSQL, prevedie migrácie, vytvorí prvého administrátora,
+naservíruje skompilovaný frontend spolu s API a spustí obidva workery.
+
+| Adresa                  | Čo tam je                                      |
+| ----------------------- | ---------------------------------------------- |
+| `http://localhost:8080` | aplikácia (frontend aj `/api/v1`)              |
+| `http://localhost:8025` | Mailpit – všetka odoslaná pošta                |
+
+Prihlasovacie údaje vypíše kontajner `bootstrap` do konzoly; predvolene sú to
+`admin@sova.local` a `SovaLocalDev2026!`. Po zmene zdrojového kódu treba znova
+spustiť `docker compose up --build`, pretože image nesie skompilovaný balík.
+Zastavenie aj s dátami: `docker compose down --volumes`.
+
+Nasadenie u poskytovateľa hostingu popisuje [návod na nasadenie](./docs/NASADENIE.md).
+
 ### Backend
+
+Pre bežný vývoj s `composer serve` a `npm start` sa hodí samostatná databáza.
 
 Požiadavky na aktuálny backend:
 
@@ -317,7 +346,7 @@ Požiadavky na aktuálny backend:
 Spustenie databázy z koreňového adresára:
 
 ```powershell
-docker compose up -d postgres
+docker compose -f docker-compose-postgresql.yml up -d postgres
 ```
 
 Príprava a spustenie backendu:

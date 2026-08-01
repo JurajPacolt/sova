@@ -244,7 +244,7 @@
             <dt class="col-5">{{ 'issue.status' | translate }}</dt>
             <dd class="col-7">{{ detail.status.name }}</dd>
             <dt class="col-5">{{ 'issue.priority' | translate }}</dt>
-            <dd class="col-7">{{ detail.priority }}</dd>
+            <dd class="col-7">{{ priorityKey(detail.priority) | translate }}</dd>
             <dt class="col-5">{{ 'issue.assignee' | translate }}</dt>
             <dd class="col-7">
               {{ detail.assignee?.display_name ?? ('issue.unassigned' | translate) }}
@@ -252,9 +252,9 @@
             <dt class="col-5">{{ 'issue.detail.reporter' | translate }}</dt>
             <dd class="col-7">{{ detail.reporter.display_name ?? '—' }}</dd>
             <dt class="col-5">{{ 'issue.detail.created' | translate }}</dt>
-            <dd class="col-7">{{ detail.created_at }}</dd>
+            <dd class="col-7">{{ detail.created_at | date: 'medium' }}</dd>
             <dt class="col-5">{{ 'issue.detail.updated' | translate }}</dt>
-            <dd class="col-7 mb-0">{{ detail.updated_at }}</dd>
+            <dd class="col-7 mb-0">{{ detail.updated_at | date: 'medium' }}</dd>
           </dl>
         </div>
       </section>
