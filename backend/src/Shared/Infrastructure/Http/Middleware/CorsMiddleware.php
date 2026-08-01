@@ -9,6 +9,8 @@ use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
 use Psr\Http\Server\MiddlewareInterface;
 use Psr\Http\Server\RequestHandlerInterface;
+use Sova\Shared\Domain\Error\DomainProblemException;
+use Sova\Shared\Domain\Error\ProblemType;
 use Sova\Shared\Infrastructure\Configuration\Settings;
 
 final readonly class CorsMiddleware implements MiddlewareInterface
@@ -31,10 +33,11 @@ final readonly class CorsMiddleware implements MiddlewareInterface
         $allowedOrigins = $this->settings->stringList('cors.allowed_origins');
 
         if (!in_array($origin, $allowedOrigins, true)) {
-            return $this->responseFactory
-                ->createResponse(403)
-                ->withHeader('Content-Type', 'application/problem+json; charset=utf-8')
-                ->withHeader('Vary', 'Origin');
+            throw new DomainProblemException(
+                ProblemType::PermissionDenied,
+                'CORS_ORIGIN_DENIED',
+                'The request origin is not allowed.',
+            );
         }
 
         if (strtoupper($request->getMethod()) === 'OPTIONS') {

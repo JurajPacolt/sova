@@ -1,48 +1,69 @@
-<main class="container py-5">
-  <div class="d-flex justify-content-end mb-4">
-    <app-language-switcher />
-  </div>
+<!--
+  The screen between signing in and being inside a tenant. It had no bar at all
+  and two switchers floating in a corner, which made the step read as a
+  different application than the one on either side of it.
+-->
+<header class="app-bar">
+  <span class="app-bar__brand">SOVA</span>
 
+  <div class="app-bar__actions">
+    <app-language-switcher />
+    <app-theme-switcher />
+  </div>
+</header>
+
+<main class="tenant-selection__content sova-page">
   <app-page-header
     [eyebrow]="'tenant.eyebrow' | translate"
     [title]="'tenant.title' | translate"
     [subtitle]="'tenant.subtitle' | translate"
   />
 
+  @if (loadFailure(); as failure) {
+    <app-error-state [error]="failure" (retry)="refresh()" />
+  }
+
+  @if (loading() && tenants().length === 0) {
+    <div class="d-flex align-items-center gap-2 text-body-secondary" role="status">
+      <span class="spinner-border spinner-border-sm" aria-hidden="true"></span>
+      <span>{{ 'common.loading' | translate }}</span>
+    </div>
+  }
+
   <div class="row g-3">
-    @for (tenant of tenants(); track tenant.slug) {
+    @for (tenant of tenants(); track tenant.id) {
       <div class="col-12 col-md-6">
-        <article class="card h-100" [class.opacity-75]="tenant.status === 'suspended'">
+        <article class="card h-100">
           <div class="card-body">
             <div class="d-flex align-items-start justify-content-between gap-3">
               <div>
-                <h2 class="h5 mb-1">{{ tenant.nameKey | translate }}</h2>
-                <p class="text-body-secondary small mb-0">{{ tenant.role }}</p>
+                <h2 class="h5 mb-1">{{ tenant.name }}</h2>
+                <p class="text-body-secondary small mb-0">
+                  {{ accessKey(tenant.access.type) | translate }}
+                </p>
               </div>
 
-              @if (tenant.status === 'active') {
-                <span class="badge text-bg-success">{{ 'common.active' | translate }}</span>
-              } @else {
-                <span class="badge text-bg-secondary">{{ 'common.suspended' | translate }}</span>
-              }
+              <span
+                class="badge"
+                [class.text-bg-success]="tenant.status === 'ACTIVE'"
+                [class.text-bg-secondary]="tenant.status !== 'ACTIVE'"
+              >
+                {{ statusKey(tenant.status) | translate }}
+              </span>
             </div>
           </div>
 
           <div class="card-footer bg-transparent border-0 pt-0">
-            @if (tenant.status === 'active') {
-              <a class="btn btn-outline-primary" [routerLink]="['/t', tenant.slug, 'dashboard']">
-                {{ 'tenant.open' | translate }}
-              </a>
-            } @else {
-              <button class="btn btn-outline-secondary" type="button" disabled>
-                {{ 'common.unavailable' | translate }}
-              </button>
-            }
+            <a class="btn btn-outline-primary" [routerLink]="['/t', tenant.slug, 'dashboard']">
+              {{ 'tenant.open' | translate }}
+            </a>
           </div>
         </article>
       </div>
     } @empty {
-      <p>{{ 'tenant.noMemberships' | translate }}</p>
+      @if (!loading() && loadFailure() === null) {
+        <p>{{ 'tenant.noMemberships' | translate }}</p>
+      }
     }
   </div>
 

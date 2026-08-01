@@ -1,0 +1,113 @@
+<app-page-header
+  [eyebrow]="'notifications.title' | translate"
+  [title]="'notifications.preferences.title' | translate"
+  [subtitle]="'notifications.preferences.subtitle' | translate"
+/>
+
+<p>
+  <a class="btn btn-sm btn-outline-secondary" [routerLink]="['..']">
+    {{ 'notifications.preferences.back' | translate }}
+  </a>
+</p>
+
+@if (loadFailure(); as failure) {
+  <app-error-state [error]="failure" (retry)="refresh()" />
+}
+
+@if (loading() && preferences().length === 0) {
+  <div class="d-flex align-items-center gap-2 text-body-secondary" role="status">
+    <span class="spinner-border spinner-border-sm" aria-hidden="true"></span>
+    <span>{{ 'common.loading' | translate }}</span>
+  </div>
+} @else if (preferences().length > 0) {
+  <section class="card border-0 shadow-sm" aria-labelledby="notification-preferences-title">
+    <div class="card-body">
+      <h2 id="notification-preferences-title" class="h5">
+        {{ 'notifications.preferences.channels' | translate }}
+      </h2>
+
+      @if (saveError()) {
+        <div class="alert alert-danger" role="alert">
+          {{ 'notifications.preferences.saveError' | translate }}
+        </div>
+      }
+      @if (saved()) {
+        <div class="alert alert-success" role="status">
+          {{ 'notifications.preferences.saved' | translate }}
+        </div>
+      }
+
+      <div class="table-responsive">
+        <table class="table align-middle">
+          <caption class="visually-hidden">
+            {{
+              'notifications.preferences.tableCaption' | translate
+            }}
+          </caption>
+          <thead>
+            <tr>
+              <th scope="col">{{ 'notifications.preferences.event' | translate }}</th>
+              <th scope="col">{{ 'notifications.preferences.inApp' | translate }}</th>
+              <th scope="col">{{ 'notifications.preferences.email' | translate }}</th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (preference of preferences(); track preference.kind) {
+              <tr>
+                <th scope="row" class="fw-normal">{{ kindKey(preference.kind) | translate }}</th>
+                <td>
+                  <div class="form-check mb-0">
+                    <input
+                      class="form-check-input"
+                      type="checkbox"
+                      [id]="'in-app-' + preference.kind"
+                      [checked]="preference.in_app"
+                      [disabled]="preference.in_app_locked"
+                      (change)="toggleInApp(preference.kind, checked($event))"
+                    />
+                    <label class="form-check-label" [attr.for]="'in-app-' + preference.kind">
+                      @if (preference.in_app_locked) {
+                        {{ 'notifications.preferences.locked' | translate }}
+                      } @else {
+                        {{ 'notifications.preferences.optional' | translate }}
+                      }
+                    </label>
+                  </div>
+                </td>
+                <td>
+                  <div class="form-check mb-0">
+                    <input
+                      class="form-check-input"
+                      type="checkbox"
+                      [id]="'email-' + preference.kind"
+                      [checked]="preference.email"
+                      (change)="toggleEmail(preference.kind, checked($event))"
+                    />
+                    <label class="form-check-label" [attr.for]="'email-' + preference.kind">
+                      {{ 'notifications.preferences.optional' | translate }}
+                    </label>
+                  </div>
+                </td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+
+      <p class="small text-body-secondary">
+        {{ 'notifications.preferences.lockedNotice' | translate }}
+      </p>
+      <p class="small text-body-secondary">
+        {{ 'notifications.preferences.securityNotice' | translate }}
+      </p>
+
+      <button class="btn btn-primary" type="button" [disabled]="saving()" (click)="save()">
+        @if (saving()) {
+          {{ 'notifications.preferences.saving' | translate }}
+        } @else {
+          {{ 'notifications.preferences.save' | translate }}
+        }
+      </button>
+    </div>
+  </section>
+}

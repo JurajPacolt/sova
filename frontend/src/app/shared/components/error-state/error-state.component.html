@@ -1,0 +1,22 @@
+<div class="alert alert-warning d-flex flex-column gap-2" role="alert">
+  <p class="mb-0">{{ text() | translate }}</p>
+
+  @if (retryAfter(); as seconds) {
+    <p class="small mb-0">{{ 'error.retryAfter' | translate: { seconds: seconds } }}</p>
+  }
+
+  @if (correlationId(); as requestId) {
+    <!-- The one detail worth quoting: it finds this exact request in the logs. -->
+    <p class="small mb-0">
+      {{ 'error.correlationId' | translate }}: <code>{{ requestId }}</code>
+    </p>
+  }
+
+  @if (canRetry()) {
+    <div>
+      <button type="button" class="btn btn-sm btn-outline-dark" (click)="retry.emit()">
+        {{ 'common.retry' | translate }}
+      </button>
+    </div>
+  }
+</div>

@@ -1,0 +1,149 @@
+<app-page-header
+  [eyebrow]="'system.eyebrow' | translate"
+  [title]="'audit.title' | translate"
+  [subtitle]="'audit.subtitle' | translate"
+/>
+
+<section class="card border-0 shadow-sm mb-4" aria-labelledby="audit-filter-title">
+  <div class="card-body">
+    <h2 id="audit-filter-title" class="h5">{{ 'audit.filters' | translate }}</h2>
+    <form class="row g-3" [formGroup]="filterForm" (ngSubmit)="applyFilters()">
+      <div class="col-12 col-lg-3">
+        <label class="form-label" for="audit-event-type">
+          {{ 'audit.eventType' | translate }}
+        </label>
+        <input
+          id="audit-event-type"
+          class="form-control"
+          type="text"
+          formControlName="event_type"
+          placeholder="SYSTEM_TENANT_CREATED"
+        />
+      </div>
+      <div class="col-12 col-lg-3">
+        <label class="form-label" for="audit-outcome">
+          {{ 'audit.outcome' | translate }}
+        </label>
+        <select id="audit-outcome" class="form-select" formControlName="outcome">
+          <option value="">{{ 'audit.allOutcomes' | translate }}</option>
+          <option value="SUCCESS">{{ 'audit.success' | translate }}</option>
+          <option value="FAILURE">{{ 'audit.failure' | translate }}</option>
+        </select>
+      </div>
+      <div class="col-12 col-lg-3">
+        <label class="form-label" for="audit-actor">
+          {{ 'audit.actorId' | translate }}
+        </label>
+        <input id="audit-actor" class="form-control" type="text" formControlName="actor_user_id" />
+      </div>
+      <div class="col-12 col-lg-3">
+        <label class="form-label" for="audit-request">
+          {{ 'audit.requestId' | translate }}
+        </label>
+        <input id="audit-request" class="form-control" type="text" formControlName="request_id" />
+      </div>
+      <div class="col-12 d-flex gap-2">
+        <button class="btn btn-primary" type="submit" [disabled]="loading()">
+          {{ 'audit.applyFilters' | translate }}
+        </button>
+        <button
+          class="btn btn-outline-secondary"
+          type="button"
+          [disabled]="loading()"
+          (click)="resetFilters()"
+        >
+          {{ 'audit.resetFilters' | translate }}
+        </button>
+      </div>
+    </form>
+  </div>
+</section>
+
+@if (loadFailure(); as failure) {
+  <app-error-state [error]="failure" (retry)="applyFilters()" />
+}
+
+@if (loading() && events().length === 0) {
+  <div class="d-flex align-items-center gap-2 text-body-secondary" role="status">
+    <span class="spinner-border spinner-border-sm" aria-hidden="true"></span>
+    <span>{{ 'common.loading' | translate }}</span>
+  </div>
+}
+
+<div class="card border-0 shadow-sm">
+  <div class="list-group list-group-flush">
+    @for (event of events(); track event.id) {
+      <article class="list-group-item py-3">
+        <div class="d-flex flex-column flex-lg-row justify-content-between gap-3">
+          <div class="min-width-0">
+            <div class="d-flex flex-wrap align-items-center gap-2">
+              <h2 class="h6 mb-0 audit-event-code">{{ event.event_type }}</h2>
+              <span
+                class="badge"
+                [class.text-bg-success]="event.outcome === 'SUCCESS'"
+                [class.text-bg-danger]="event.outcome === 'FAILURE'"
+              >
+                {{
+                  event.outcome === 'SUCCESS'
+                    ? ('audit.success' | translate)
+                    : ('audit.failure' | translate)
+                }}
+              </span>
+            </div>
+            <p class="mb-1 mt-2">
+              <strong>{{ event.actor.display_name }}</strong>
+              <span class="text-body-secondary">· {{ event.actor.email }}</span>
+            </p>
+            @if (event.effective_user) {
+              <p class="text-warning-emphasis small mb-1">
+                {{ 'audit.effectiveUser' | translate }}: {{ event.effective_user.display_name }} ·
+                {{ event.effective_user.email }}
+              </p>
+            }
+            <p class="text-body-secondary small mb-1">
+              {{ event.occurred_at | date: 'medium' }}
+              · {{ event.reason_code }}
+              @if (event.tenant) {
+                · {{ event.tenant.name }} ({{ event.tenant.slug }})
+              } @else {
+                · {{ 'audit.systemContext' | translate }}
+              }
+            </p>
+            <p class="text-body-secondary small mb-1">
+              {{ 'audit.requestId' | translate }}:
+              <code>{{ event.request_id }}</code>
+              @if (event.ip_address) {
+                · IP {{ event.ip_address }}
+              }
+            </p>
+            <code class="audit-metadata">{{ metadata(event) }}</code>
+          </div>
+          <span class="text-body-secondary small audit-id">{{ event.id }}</span>
+        </div>
+      </article>
+    } @empty {
+      @if (!loading() && loadFailure() === null) {
+        <div class="list-group-item text-body-secondary py-4">
+          {{ 'audit.noEvents' | translate }}
+        </div>
+      }
+    }
+  </div>
+</div>
+
+@if (nextCursor()) {
+  <div class="d-flex justify-content-center mt-4">
+    <button
+      class="btn btn-outline-primary"
+      type="button"
+      [disabled]="loadingMore()"
+      (click)="loadMore()"
+    >
+      @if (loadingMore()) {
+        {{ 'common.loading' | translate }}
+      } @else {
+        {{ 'audit.loadMore' | translate }}
+      }
+    </button>
+  </div>
+}

@@ -1,35 +1,149 @@
-<a class="visually-hidden-focusable skip-link" href="#main-content">
+<a class="visually-hidden-focusable skip-link" href="#main-content" appSkipLink>
   {{ 'nav.skipToContent' | translate }}
 </a>
 
 <div class="tenant-shell">
-  <header class="navbar navbar-dark bg-dark sticky-top px-3">
+  @if (session.impersonation(); as impersonation) {
+    <section class="impersonation-banner px-3 py-2" role="alert">
+      <div
+        class="d-flex flex-column flex-lg-row align-items-lg-center justify-content-between gap-2"
+      >
+        <div>
+          <strong>{{ 'impersonation.bannerTitle' | translate }}</strong>
+          <span class="ms-2">
+            {{
+              'impersonation.bannerIdentity'
+                | translate
+                  : {
+                      actor: impersonation.actor.display_name,
+                      effective: impersonation.effective_user.display_name,
+                    }
+            }}
+          </span>
+          <span class="ms-2">
+            {{ 'impersonation.remaining' | translate }}:
+            {{ remainingTime(impersonationRemaining()) }}
+          </span>
+          <span class="d-block small mt-1">
+            {{ 'impersonation.reason' | translate }}: {{ impersonation.reason }}
+          </span>
+          @if (impersonation.status !== 'ACTIVE' || impersonationRemaining() === 0) {
+            <span class="d-block fw-semibold mt-1">
+              {{ 'impersonation.mustEnd' | translate }}
+            </span>
+          }
+        </div>
+        <button
+          class="btn btn-sm btn-dark flex-shrink-0"
+          type="button"
+          [disabled]="endingImpersonation()"
+          (click)="endImpersonation()"
+        >
+          @if (endingImpersonation()) {
+            {{ 'impersonation.ending' | translate }}
+          } @else {
+            {{ 'impersonation.end' | translate }}
+          }
+        </button>
+      </div>
+      @if (impersonationEndError()) {
+        <div class="small fw-semibold mt-2">{{ 'impersonation.endError' | translate }}</div>
+      }
+    </section>
+  }
+
+  <header class="app-bar">
     <button
-      class="btn btn-outline-light d-lg-none"
+      class="btn btn-sm btn-outline-light d-lg-none"
       type="button"
       [attr.aria-label]="'nav.toggle' | translate"
       [attr.aria-expanded]="sidebarOpen()"
+      aria-controls="tenant-navigation"
       (click)="toggleSidebar()"
     >
-      ☰
+      <span aria-hidden="true">☰</span>
     </button>
 
-    <a class="navbar-brand fw-bold" [routerLink]="['dashboard']">SOVA</a>
+    <a class="app-bar__brand" [routerLink]="['dashboards']">SOVA</a>
+    <span class="app-bar__context d-none d-sm-inline">{{ tenantName() }}</span>
 
-    <div class="d-flex align-items-center gap-3 text-white">
-      <app-language-switcher />
-      <span class="tenant-name d-none d-sm-inline">{{ tenantName() }}</span>
-      <button class="btn btn-sm btn-outline-light" type="button">
-        {{ 'common.profile' | translate }}
+    <div class="app-bar__actions">
+      @if (session.isSuperadmin()) {
+        <a
+          class="btn btn-sm btn-outline-light app-bar__system d-none d-md-inline-flex"
+          routerLink="/system/tenants"
+        >
+          {{ 'system.contextTitle' | translate }}
+        </a>
+      }
+      <!--
+        A link, not a popover: the centre is a screen that already gets focus
+        after navigation, and a dropdown would need focus management that
+        Bootstrap's JavaScript is deliberately not here to provide. The count
+        travels in the accessible name, so it is not carried by the badge alone.
+      -->
+      <a
+        class="btn btn-sm btn-outline-light"
+        routerLink="notifications"
+        [attr.aria-label]="'notifications.badge' | translate: { count: unreadNotifications() }"
+      >
+        <span aria-hidden="true">🔔</span>
+        @if (unreadNotifications() > 0) {
+          <span class="badge rounded-pill text-bg-danger" aria-hidden="true">
+            {{ unreadNotifications() }}
+          </span>
+        }
+      </a>
+      <button
+        class="btn btn-sm btn-outline-light"
+        type="button"
+        [disabled]="loggingOut()"
+        (click)="logout()"
+      >
+        @if (loggingOut()) {
+          {{ 'auth.loggingOut' | translate }}
+        } @else {
+          {{ 'auth.logout' | translate }}
+        }
       </button>
     </div>
   </header>
 
   <div class="tenant-shell__body">
-    <aside class="tenant-sidebar bg-body border-end" [class.tenant-sidebar--open]="sidebarOpen()">
-      <div class="p-3 border-bottom">
-        <span class="text-body-secondary small">{{ 'nav.activeTenant' | translate }}</span>
-        <strong class="d-block">{{ tenantName() }}</strong>
+    <!--
+      The drawer used to open with nothing behind it and no way out but
+      following a link. The backdrop dismisses it, so does Escape, and so does
+      the close button below.
+    -->
+    @if (sidebarOpen()) {
+      <div
+        class="tenant-sidebar__backdrop d-lg-none"
+        aria-hidden="true"
+        (click)="closeSidebar()"
+      ></div>
+    }
+
+    <aside
+      id="tenant-navigation"
+      class="tenant-sidebar"
+      [class.tenant-sidebar--open]="sidebarOpen()"
+    >
+      <div class="tenant-sidebar__header">
+        <div class="tenant-sidebar__identity">
+          <span class="text-body-secondary small d-block">
+            {{ 'nav.activeTenant' | translate }}
+          </span>
+          <strong class="d-block text-truncate">{{ tenantName() }}</strong>
+        </div>
+
+        <button
+          class="btn btn-sm btn-outline-secondary d-lg-none flex-shrink-0"
+          type="button"
+          [attr.aria-label]="'nav.close' | translate"
+          (click)="closeSidebar()"
+        >
+          <span aria-hidden="true">✕</span>
+        </button>
       </div>
 
       <nav class="nav nav-pills flex-column gap-1 p-3" [attr.aria-label]="'nav.main' | translate">
@@ -44,10 +158,44 @@
           </a>
         }
       </nav>
+
+      <!--
+        Preferences, not navigation. They were sitting in the bar as two white
+        select boxes and a third link, which is what pushed it onto a second row
+        below `md`; down here they are out of the way and still one tap from
+        anywhere.
+      -->
+      <div class="tenant-sidebar__footer">
+        <span class="text-body-secondary small d-block mb-2">
+          {{ 'nav.preferences' | translate }}
+        </span>
+        <app-language-switcher />
+        <app-theme-switcher />
+        <a class="btn btn-sm btn-outline-secondary w-100" routerLink="/mfa/setup">
+          {{ 'mfa.title' | translate }}
+        </a>
+      </div>
     </aside>
 
     <main id="main-content" class="tenant-content" tabindex="-1">
-      <router-outlet />
+      <div class="sova-page">
+        @if (!online()) {
+          <!--
+            The connection, not the data (webflow §10). Screens keep what they
+            already have and mark it out of date; nothing is repeated on its
+            own, because a mutation sent twice is worse than one sent late.
+          -->
+          <div class="alert alert-warning" role="status">
+            {{ 'error.offlineBanner' | translate }}
+          </div>
+        }
+        @if (logoutError()) {
+          <div class="alert alert-danger" role="alert">
+            {{ 'auth.logoutError' | translate }}
+          </div>
+        }
+        <router-outlet />
+      </div>
     </main>
   </div>
 </div>

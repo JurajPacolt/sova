@@ -1,0 +1,86 @@
+<a class="visually-hidden-focusable skip-link" href="#system-main-content" appSkipLink>
+  {{ 'nav.skipToContent' | translate }}
+</a>
+
+<div class="system-shell">
+  <header class="app-bar system-shell__header">
+    <a class="app-bar__brand" routerLink="/system/tenants">
+      SOVA
+      <span class="app-bar__mark">SYSTEM</span>
+    </a>
+
+    <div class="app-bar__actions">
+      <span class="app-bar__context d-none d-md-inline">{{ session.user()?.display_name }}</span>
+      <button
+        class="btn btn-sm btn-outline-light"
+        type="button"
+        [disabled]="loggingOut()"
+        (click)="logout()"
+      >
+        @if (loggingOut()) {
+          {{ 'auth.loggingOut' | translate }}
+        } @else {
+          {{ 'auth.logout' | translate }}
+        }
+      </button>
+    </div>
+  </header>
+
+  <div class="system-shell__body">
+    <aside class="system-sidebar">
+      <div class="system-sidebar__header">
+        <strong class="d-block">{{ 'system.contextTitle' | translate }}</strong>
+        <span class="text-body-secondary small">{{ 'system.contextSubtitle' | translate }}</span>
+      </div>
+
+      <nav class="nav nav-pills flex-column gap-1 p-3" [attr.aria-label]="'nav.main' | translate">
+        <a class="nav-link" routerLink="/system/tenants" routerLinkActive="active">
+          {{ 'system.tenantsTitle' | translate }}
+        </a>
+        <a class="nav-link" routerLink="/system/audit" routerLinkActive="active">
+          {{ 'audit.title' | translate }}
+        </a>
+        <a class="nav-link" routerLink="/system/users" routerLinkActive="active">
+          {{ 'systemUsers.title' | translate }}
+        </a>
+        <a class="nav-link" routerLink="/select-tenant">
+          {{ 'system.tenantContexts' | translate }}
+        </a>
+      </nav>
+
+      <div class="system-sidebar__footer">
+        <span class="text-body-secondary small d-block mb-2">
+          {{ 'nav.preferences' | translate }}
+        </span>
+        <app-language-switcher />
+        <app-theme-switcher />
+        <a class="btn btn-sm btn-outline-secondary w-100" routerLink="/mfa/setup">
+          {{ 'mfa.title' | translate }}
+        </a>
+      </div>
+    </aside>
+
+    <main id="system-main-content" class="system-content" tabindex="-1">
+      <div class="sova-page">
+        @if (!online()) {
+          <div class="alert alert-warning" role="status">
+            {{ 'error.offlineBanner' | translate }}
+          </div>
+        }
+
+        <div class="alert alert-warning d-flex flex-wrap gap-2" role="status">
+          <strong>{{ 'system.warningTitle' | translate }}</strong>
+          <span>{{ 'system.warningText' | translate }}</span>
+        </div>
+
+        @if (logoutError()) {
+          <div class="alert alert-danger" role="alert">
+            {{ 'auth.logoutError' | translate }}
+          </div>
+        }
+
+        <router-outlet />
+      </div>
+    </main>
+  </div>
+</div>

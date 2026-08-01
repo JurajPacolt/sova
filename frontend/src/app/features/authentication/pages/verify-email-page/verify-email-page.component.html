@@ -1,0 +1,71 @@
+<app-public-auth-layout title="access.verifyTitle" subtitle="access.verifySubtitle">
+  @switch (state()) {
+    @case ('loading') {
+      <p class="text-center mb-0" role="status" aria-live="polite">
+        {{ 'access.verifying' | translate }}
+      </p>
+    }
+    @case ('verified') {
+      <div class="alert alert-success" role="status">
+        {{ 'access.emailVerified' | translate }}
+      </div>
+      <a class="btn btn-primary w-100" routerLink="/login">
+        {{ 'access.signIn' | translate }}
+      </a>
+    }
+    @case ('already-verified') {
+      <div class="alert alert-info" role="status">
+        {{ 'access.emailAlreadyVerified' | translate }}
+      </div>
+      <a class="btn btn-primary w-100" routerLink="/login">
+        {{ 'access.signIn' | translate }}
+      </a>
+    }
+    @case ('error') {
+      <div class="alert alert-danger" role="alert">
+        {{ 'access.serviceUnavailable' | translate }}
+      </div>
+      <button class="btn btn-outline-primary w-100" type="button" (click)="ngOnInit()">
+        {{ 'common.retry' | translate }}
+      </button>
+    }
+    @case ('invalid') {
+      <div class="alert alert-warning" role="alert">
+        {{ 'access.invalidVerificationLink' | translate }}
+      </div>
+
+      @if (resendCompleted()) {
+        <div class="alert alert-success mb-0" role="status" aria-live="polite">
+          {{ 'access.verificationAccepted' | translate }}
+        </div>
+      } @else {
+        <form [formGroup]="resendForm" (ngSubmit)="requestAgain()">
+          @if (resendError(); as errorMessage) {
+            <div class="alert alert-danger" role="alert">
+              {{ errorMessage | translate }}
+            </div>
+          }
+          <div class="mb-3">
+            <label class="form-label" for="verification-email">
+              {{ 'auth.email' | translate }}
+            </label>
+            <input
+              id="verification-email"
+              class="form-control"
+              type="email"
+              autocomplete="email"
+              formControlName="email"
+            />
+          </div>
+          <button class="btn btn-primary w-100" type="submit" [disabled]="resendSubmitting()">
+            @if (resendSubmitting()) {
+              {{ 'access.sending' | translate }}
+            } @else {
+              {{ 'access.sendVerificationLink' | translate }}
+            }
+          </button>
+        </form>
+      }
+    }
+  }
+</app-public-auth-layout>

@@ -1,0 +1,220 @@
+<app-page-header
+  [eyebrow]="'admin.eyebrow' | translate"
+  [title]="'workgroups.title' | translate"
+  [subtitle]="'workgroups.subtitle' | translate: { count: activeCount() }"
+/>
+
+<section class="card border-0 shadow-sm mb-4" aria-labelledby="create-workgroup-title">
+  <div class="card-body">
+    <h2 id="create-workgroup-title" class="h5">{{ 'workgroups.create' | translate }}</h2>
+
+    @if (createError()) {
+      <div class="alert alert-danger" role="alert">
+        {{ 'workgroups.createError' | translate }}
+      </div>
+    }
+
+    <form class="row g-3" [formGroup]="createForm" (ngSubmit)="createWorkgroup()">
+      <div class="col-12 col-lg-4">
+        <label class="form-label" for="workgroup-name">
+          {{ 'workgroups.name' | translate }}
+        </label>
+        <input id="workgroup-name" class="form-control" type="text" formControlName="name" />
+      </div>
+      <div class="col-12 col-lg-6">
+        <label class="form-label" for="workgroup-description">
+          {{ 'workgroups.description' | translate }}
+        </label>
+        <input
+          id="workgroup-description"
+          class="form-control"
+          type="text"
+          formControlName="description"
+        />
+      </div>
+      <div class="col-12">
+        <button class="btn btn-primary" type="submit" [disabled]="creating()">
+          @if (creating()) {
+            {{ 'workgroups.creating' | translate }}
+          } @else {
+            {{ 'workgroups.create' | translate }}
+          }
+        </button>
+      </div>
+    </form>
+  </div>
+</section>
+
+@if (loadFailure(); as failure) {
+  <app-error-state [error]="failure" (retry)="refresh()" />
+}
+@if (statusError()) {
+  <div class="alert alert-danger">{{ 'workgroups.statusError' | translate }}</div>
+}
+
+@if (loading() && workgroups().length === 0) {
+  <div class="d-flex align-items-center gap-2 text-body-secondary" role="status">
+    <span class="spinner-border spinner-border-sm" aria-hidden="true"></span>
+    <span>{{ 'common.loading' | translate }}</span>
+  </div>
+}
+
+<div class="card border-0 shadow-sm">
+  <div class="card-header bg-transparent">
+    <strong>{{ 'workgroups.allWorkgroups' | translate }}</strong>
+  </div>
+
+  <div class="list-group list-group-flush">
+    @for (workgroup of workgroups(); track workgroup.id) {
+      <article class="list-group-item py-3">
+        <div class="d-flex flex-column flex-md-row justify-content-between gap-3">
+          <div>
+            <div class="d-flex align-items-center gap-2 flex-wrap">
+              <h2 class="h6 mb-0">{{ workgroup.name }}</h2>
+              <span
+                class="badge"
+                [class.text-bg-success]="workgroup.status === 'ACTIVE'"
+                [class.text-bg-secondary]="workgroup.status !== 'ACTIVE'"
+              >
+                {{
+                  (workgroup.status === 'ACTIVE' ? 'common.active' : 'common.archived') | translate
+                }}
+              </span>
+            </div>
+            @if (workgroup.description) {
+              <p class="text-body-secondary small mb-0 mt-1">{{ workgroup.description }}</p>
+            }
+            <p class="text-body-secondary small mb-0 mt-1">
+              {{ 'workgroups.memberCount' | translate: { count: workgroup.member_count } }}
+            </p>
+          </div>
+
+          <div class="d-flex flex-wrap align-items-start gap-2">
+            <button
+              class="btn btn-sm btn-outline-primary"
+              type="button"
+              (click)="toggleMembers(workgroup)"
+            >
+              @if (expandedWorkgroupId() === workgroup.id) {
+                {{ 'workgroups.hideMembers' | translate }}
+              } @else {
+                {{ 'workgroups.manageMembers' | translate }}
+              }
+            </button>
+            <button
+              class="btn btn-sm btn-outline-secondary"
+              type="button"
+              [disabled]="statusActionId() !== null"
+              (click)="toggleStatus(workgroup)"
+            >
+              {{
+                (workgroup.status === 'ACTIVE' ? 'common.archived' : 'common.active') | translate
+              }}
+            </button>
+          </div>
+        </div>
+
+        @if (expandedWorkgroupId() === workgroup.id) {
+          <div class="members-panel border rounded p-3 mt-3">
+            @if (membersLoading()) {
+              <div class="d-flex align-items-center gap-2 text-body-secondary" role="status">
+                <span class="spinner-border spinner-border-sm" aria-hidden="true"></span>
+                <span>{{ 'common.loading' | translate }}</span>
+              </div>
+            }
+            @if (membersError()) {
+              <div class="alert alert-danger mb-3" role="alert">
+                {{ 'workgroups.membersError' | translate }}
+              </div>
+            }
+
+            <ul class="list-unstyled mb-3">
+              @for (member of members(); track member.membership_id) {
+                <li class="d-flex align-items-center justify-content-between gap-2 py-1">
+                  <span>
+                    {{ member.user.display_name }}
+                    <span class="text-body-secondary small">· {{ member.user.email }}</span>
+                    <span
+                      class="badge ms-2"
+                      [class.text-bg-dark]="member.role === 'MANAGER'"
+                      [class.text-bg-light]="member.role === 'MEMBER'"
+                    >
+                      {{
+                        (member.role === 'MANAGER' ? 'workgroups.manager' : 'workgroups.member')
+                          | translate
+                      }}
+                    </span>
+                  </span>
+                  <button
+                    class="btn btn-sm btn-outline-danger"
+                    type="button"
+                    [disabled]="memberActionId() !== null"
+                    (click)="removeMember(workgroup.id, member.membership_id)"
+                  >
+                    {{ 'common.cancel' | translate }}
+                  </button>
+                </li>
+              } @empty {
+                <li class="text-body-secondary small">{{ 'workgroups.noMembers' | translate }}</li>
+              }
+            </ul>
+
+            @if (availableMemberships().length > 0) {
+              <form
+                class="row g-2 align-items-end"
+                [formGroup]="addMemberForm"
+                (ngSubmit)="addMember()"
+              >
+                <div class="col-12 col-lg-5">
+                  <label class="form-label" [for]="'add-member-' + workgroup.id">
+                    {{ 'workgroups.addMember' | translate }}
+                  </label>
+                  <select
+                    class="form-select"
+                    [id]="'add-member-' + workgroup.id"
+                    formControlName="membership_id"
+                  >
+                    <option value="">{{ 'workgroups.chooseMember' | translate }}</option>
+                    @for (membership of availableMemberships(); track membership.id) {
+                      <option [value]="membership.id">
+                        {{ membership.user.display_name }} · {{ membership.user.email }}
+                      </option>
+                    }
+                  </select>
+                </div>
+                <div class="col-12 col-lg-3">
+                  <label class="form-label" [for]="'add-role-' + workgroup.id">
+                    {{ 'workgroups.role' | translate }}
+                  </label>
+                  <select
+                    class="form-select"
+                    [id]="'add-role-' + workgroup.id"
+                    formControlName="role"
+                  >
+                    <option value="MEMBER">{{ 'workgroups.member' | translate }}</option>
+                    <option value="MANAGER">{{ 'workgroups.manager' | translate }}</option>
+                  </select>
+                </div>
+                <div class="col-12 col-lg-4">
+                  <button
+                    class="btn btn-sm btn-primary"
+                    type="submit"
+                    [disabled]="memberActionId() !== null"
+                  >
+                    {{ 'workgroups.addMember' | translate }}
+                  </button>
+                </div>
+              </form>
+            }
+          </div>
+        }
+      </article>
+    } @empty {
+      @if (!loading() && loadFailure() === null) {
+        <div class="list-group-item text-body-secondary py-4">
+          {{ 'workgroups.noWorkgroups' | translate }}
+        </div>
+      }
+    }
+  </div>
+</div>

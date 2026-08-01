@@ -3,3 +3,35 @@
   margin-inline: auto;
   max-width: 90rem;
 }
+
+.issue-source {
+  font-family: inherit;
+  margin: 0;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.issue-comment {
+  border-top: 1px solid var(--bs-border-color);
+  padding-block: 0.75rem;
+
+  &:first-child {
+    border-top: 0;
+    padding-top: 0;
+  }
+}
+
+.issue-history-entry {
+  padding-block: 0.25rem;
+}
+
+.issue-attachment,
+.issue-link-entry {
+  border-top: 1px solid var(--bs-border-color);
+  padding-block: 0.5rem;
+
+  &:first-child {
+    border-top: 0;
+    padding-top: 0;
+  }
+}

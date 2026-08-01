@@ -158,6 +158,59 @@ komunikuje aj textom a podľa kontextu ikonou; samotná farba nestačí.
 
 ![Sémantické stavy SOVA](./design/sova-semantic-states.svg)
 
+### 3.4 Farby dátových sérií
+
+| Token | Light | Dark | Účel |
+|---|---|---|---|
+| `--sova-color-chart-series-1` | `--sova-indigo-600` | `--sova-indigo-500` | prvá séria, jednofarebné stĺpce a bunky matice |
+| `--sova-color-chart-series-2` | `--sova-teal-600` | `--sova-teal-600` | druhá séria (napr. „vyriešené“ oproti „vytvorené“) |
+
+Séria nesie **identitu**, preto je dvojica zvolená podľa odstupu pri poruchách
+farbocitu, nie podľa toho, ako vyzerá vedľa seba: obe kombinácie sú overené
+voči vlastnému povrchu svojho režimu (light `ΔE 22,1` deutan, dark `ΔE 18,9`),
+nie prevrátené z jedného do druhého — preto má dark iný indigo stupeň. Tmavý
+režim je vybraný, nie odvodený.
+
+#### 3.4.1 Kategorická škála (výseky prstenca)
+
+| Token | Light | Dark | Odtieň |
+|---|---|---|---|
+| `--sova-color-chart-categorical-1` | `#4f46e5` | `#818cf8` | indigo |
+| `--sova-color-chart-categorical-2` | `#0d9488` | `#2dd4bf` | teal |
+| `--sova-color-chart-categorical-3` | `#b45309` | `#fbbf24` | amber |
+| `--sova-color-chart-categorical-4` | `#be123c` | `#fb7185` | rose |
+| `--sova-color-chart-categorical-5` | `#4d7c0f` | `#a3e635` | lime |
+| `--sova-color-chart-categorical-6` | `#a21caf` | `#e879f9` | fuchsia |
+| `--sova-color-chart-categorical-rest` | `color-text-subtle` | `color-text-subtle` | zvyšok |
+
+Šesť odtieňov s odstupom približne 60° — **rozostup, nie zbierka vybraných
+farieb**. Každý spĺňa 3:1 voči povrchu, na ktorom leží (1.4.11), a meria to
+`npm run check:contrast` v oboch režimoch; tmavý režim je znovu zvolený voči
+tmavému povrchu, nie prevrátený zo svetlého.
+
+Škála platí **iba tam, kde je farba jediné, čo dva tvary oddeľuje** — v praxi
+výseky prstenca. Stĺpec nesie svoj názov vedľa seba, preto ostáva jednofarebný.
+Ani v prstenci nenesie identitu samotný odtieň: susedné výseky delí medzera vo
+farbe povrchu, legenda menuje každý výsek s počtom a percentom a skrytá tabuľka
+vypisuje **všetky** kategórie vrátane tých, ktoré obrázok zlúčil.
+
+Za šiestym výsekom sa zvyšok zlúči do jedného neutrálneho — siedmy odtieň by bol
+vymyslený, nie zvolený, a dvadsaťvýsekový prstenec je nečitateľný v akejkoľvek
+palete. Zlúčenie mení obrázok, nikdy dáta.
+
+Pravidlá pre komponenty:
+
+- Viac než dve **série** sa nedopĺňajú generovanými odtieňmi. Namiesto toho sa
+  zlúčia do „ostatné“, rozdelia na viac grafov, alebo sa použije tabuľka.
+  Kategorická škála vyššie je uzavretá množina, nie generátor.
+- Veličina (rozdelenie, teplota bunky) je **jeden odtieň** so škálou svetlosti,
+  nikdy dúha; polarita by potrebovala dvojicu s neutrálnym stredom.
+- Stavové farby z §3.3 sú vyhradené stavu a nikdy sa nepoužijú ako „séria 3“.
+- Text nesie textové tokeny, nikdy farbu série; identitu nesie značka vedľa neho.
+- Legenda je prítomná od druhej série; jedna séria ju nepotrebuje, lebo ju
+  pomenúva nadpis. Ku každému grafu patrí aj textová alternatíva (tabuľka), aby
+  tvar nebol jediný zdroj údaja.
+
 ## 4. Typografia
 
 ### 4.1 Rodiny písma

@@ -1,7 +1,8 @@
 <main class="login-page d-flex align-items-center py-5">
   <div class="container">
-    <div class="d-flex justify-content-end mb-4">
+    <div class="d-flex justify-content-end gap-2 mb-4">
       <app-language-switcher />
+      <app-theme-switcher />
     </div>
 
     <div class="row justify-content-center">
@@ -15,7 +16,9 @@
         <form class="card border-0 shadow-sm" [formGroup]="form" (ngSubmit)="submit()">
           <div class="card-body p-4">
             @if (formError(); as errorMessage) {
-              <div class="alert alert-danger" role="alert">{{ errorMessage }}</div>
+              <div class="alert alert-danger" role="alert" aria-live="polite">
+                {{ errorMessage | translate }}
+              </div>
             }
 
             <div class="mb-3">
@@ -36,7 +39,7 @@
             <div class="mb-3">
               <div class="d-flex justify-content-between">
                 <label class="form-label" for="password">{{ 'auth.password' | translate }}</label>
-                <a class="small" href="#" aria-disabled="true">
+                <a class="small" routerLink="/forgot-password">
                   {{ 'auth.forgotPassword' | translate }}
                 </a>
               </div>
@@ -55,6 +58,30 @@
               }
             </div>
 
+            @if (mfaChallenge()) {
+              <div class="mb-3">
+                <label class="form-label" for="mfa-code">
+                  {{ 'auth.mfaCode' | translate }}
+                </label>
+                <input
+                  id="mfa-code"
+                  class="form-control"
+                  type="text"
+                  autocomplete="one-time-code"
+                  autocapitalize="characters"
+                  spellcheck="false"
+                  formControlName="mfa_code"
+                  [class.is-invalid]="
+                    form.controls.mfa_code.touched && form.controls.mfa_code.invalid
+                  "
+                />
+                <div class="form-text">{{ 'auth.mfaCodeHint' | translate }}</div>
+                @if (form.controls.mfa_code.touched && form.controls.mfa_code.invalid) {
+                  <div class="invalid-feedback">{{ 'auth.mfaCodeRequired' | translate }}</div>
+                }
+              </div>
+            }
+
             <button class="btn btn-primary w-100" type="submit" [disabled]="submitting()">
               @if (submitting()) {
                 {{ 'auth.submitting' | translate }}
@@ -68,10 +95,6 @@
             </p>
           </div>
         </form>
-
-        <p class="text-center mt-3">
-          <a routerLink="/t/demo/dashboard">{{ 'auth.openDemo' | translate }}</a>
-        </p>
       </div>
     </div>
   </div>

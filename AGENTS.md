@@ -13,7 +13,8 @@ SOVA is a modular monorepo:
   isolated, lazy-loaded product areas. Keep component tests beside components as
   `*.spec.ts`.
 - `docs/` contains architecture, product analysis, and webflow documentation.
-- `docker-compose.yml` provides the local PostgreSQL 17 database.
+- `docker-compose.yml` runs the whole application stack; `docker-compose-postgresql.yml`
+  provides only the local PostgreSQL 17 database.
 
 Do not place feature-specific code in `shared`, and do not import another feature's
 internal files directly.
@@ -23,7 +24,7 @@ internal files directly.
 Start PostgreSQL from the repository root:
 
 ```powershell
-docker compose up -d postgres
+docker compose -f docker-compose-postgresql.yml up -d postgres
 ```
 
 Backend commands, run from `backend/`:

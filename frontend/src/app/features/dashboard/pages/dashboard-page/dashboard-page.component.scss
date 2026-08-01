@@ -3,3 +3,60 @@
   margin-inline: auto;
   max-width: 90rem;
 }
+
+.dashboard__switcher .nav-link {
+  // Bootstrap styles pills through anchors; these are buttons, because
+  // switching is an action on this page rather than a new document.
+  border: 0;
+  background: none;
+}
+
+.dashboard__grid {
+  display: grid;
+  // A single column until there is room for the real thing. The order comes
+  // from the document, which the page sorts by row, then column, then id.
+  grid-template-columns: 1fr;
+  gap: var(--sova-space-3);
+}
+
+.dashboard__cell {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--sova-space-2);
+}
+
+.dashboard__grid--editing .dashboard__cell {
+  // An outline while arranging, so a widget's own bounds are visible even when
+  // its content stops short of them.
+  outline: 1px dashed var(--sova-color-border-strong);
+  outline-offset: var(--sova-space-1);
+}
+
+.dashboard__tools {
+  flex-wrap: wrap;
+}
+
+@media (min-width: 62em) {
+  .dashboard__grid {
+    grid-template-columns: repeat(12, 1fr);
+    // Rows are a fixed step so a widget's stored height means the same thing on
+    // every dashboard; taller content scrolls inside its own card.
+    grid-auto-rows: 5.5rem;
+  }
+
+  .dashboard__cell {
+    grid-column: var(--widget-column) / span var(--widget-span);
+    grid-row: var(--widget-row) / span var(--widget-rows);
+  }
+}
+
+.dashboard__cell--dragging {
+  opacity: 0.6;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .dashboard__cell--dragging {
+    opacity: 1;
+  }
+}

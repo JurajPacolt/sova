@@ -1,4 +1,6 @@
 import { Routes } from '@angular/router';
+import { authChildGuard, authGuard, superadminGuard } from './core/auth/auth.guards';
+import { tenantChildGuard, tenantGuard } from './core/tenancy/tenant.guard';
 
 export const routes = [
   {
@@ -7,7 +9,7 @@ export const routes = [
     redirectTo: 'login',
   },
   {
-    path: 'login',
+    path: '',
     loadChildren: () =>
       import('./features/authentication/authentication.routes').then(
         (routesModule) => routesModule.AUTHENTICATION_ROUTES,
@@ -15,6 +17,7 @@ export const routes = [
   },
   {
     path: 'select-tenant',
+    canActivate: [authGuard],
     loadChildren: () =>
       import('./features/tenant-selection/tenant-selection.routes').then(
         (routesModule) => routesModule.TENANT_SELECTION_ROUTES,
@@ -22,6 +25,8 @@ export const routes = [
   },
   {
     path: 't/:tenantSlug',
+    canActivate: [authGuard, tenantGuard],
+    canActivateChild: [authChildGuard, tenantChildGuard],
     loadComponent: () =>
       import('./core/layout/tenant-shell/tenant-shell.component').then(
         (componentModule) => componentModule.TenantShellComponent,
@@ -30,10 +35,17 @@ export const routes = [
       {
         path: '',
         pathMatch: 'full',
-        redirectTo: 'dashboard',
+        redirectTo: 'dashboards',
       },
       {
+        // The singular path stays as an entry point (spec §7.2) so older links
+        // and anything pointing at "the dashboard" still land somewhere.
         path: 'dashboard',
+        pathMatch: 'full',
+        redirectTo: 'dashboards',
+      },
+      {
+        path: 'dashboards',
         loadChildren: () =>
           import('./features/dashboard/dashboard.routes').then(
             (routesModule) => routesModule.DASHBOARD_ROUTES,
@@ -54,10 +66,65 @@ export const routes = [
           ),
       },
       {
+        path: 'notifications',
+        loadChildren: () =>
+          import('./features/notifications/notifications.routes').then(
+            (routesModule) => routesModule.NOTIFICATION_ROUTES,
+          ),
+      },
+      {
         path: 'admin',
         loadChildren: () =>
           import('./features/administration/administration.routes').then(
             (routesModule) => routesModule.ADMINISTRATION_ROUTES,
+          ),
+      },
+      {
+        // Where `permissionGuard` sends a caller who may not open a screen. It
+        // lives inside the tenant shell on purpose: the navigation and the
+        // tenant they are in stay visible, so this is a closed door rather than
+        // the floor disappearing.
+        path: 'forbidden',
+        loadComponent: () =>
+          import('./shared/components/forbidden/forbidden.component').then(
+            (componentModule) => componentModule.ForbiddenComponent,
+          ),
+      },
+    ],
+  },
+  {
+    path: 'system',
+    canActivate: [superadminGuard],
+    canActivateChild: [superadminGuard],
+    loadComponent: () =>
+      import('./core/layout/system-shell/system-shell.component').then(
+        (componentModule) => componentModule.SystemShellComponent,
+      ),
+    children: [
+      {
+        path: '',
+        pathMatch: 'full',
+        redirectTo: 'tenants',
+      },
+      {
+        path: 'tenants',
+        loadChildren: () =>
+          import('./features/system-administration/system-administration.routes').then(
+            (routesModule) => routesModule.SYSTEM_ADMINISTRATION_ROUTES,
+          ),
+      },
+      {
+        path: 'audit',
+        loadComponent: () =>
+          import('./features/system-administration/pages/system-security-audit-page/system-security-audit-page.component').then(
+            (componentModule) => componentModule.SystemSecurityAuditPageComponent,
+          ),
+      },
+      {
+        path: 'users',
+        loadComponent: () =>
+          import('./features/system-administration/pages/system-user-list-page/system-user-list-page.component').then(
+            (componentModule) => componentModule.SystemUserListPageComponent,
           ),
       },
     ],

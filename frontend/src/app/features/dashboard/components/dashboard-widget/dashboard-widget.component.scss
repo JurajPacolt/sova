@@ -1,0 +1,172 @@
+:host {
+  display: block;
+  min-height: 0;
+}
+
+.widget {
+  overflow: hidden;
+}
+
+.widget__header {
+  padding-block: var(--sova-space-2);
+}
+
+.widget__body {
+  // A widget must be usable without horizontal scrolling; only its own data
+  // table may scroll, inside its own bounds.
+  overflow-y: auto;
+}
+
+.widget__count {
+  font-size: 2.5rem;
+  font-weight: 600;
+  line-height: 1;
+  // The number wears text ink. Colour rides on the labelled chip beside it, so
+  // the meaning never depends on being able to tell two hues apart.
+  color: var(--sova-color-text);
+}
+
+.widget__cell-title {
+  min-width: 12ch;
+}
+
+.widget__bars {
+  display: grid;
+  gap: var(--sova-space-2);
+}
+
+.widget__bar {
+  display: grid;
+  grid-template-columns: minmax(6ch, 10ch) 1fr auto;
+  align-items: center;
+  gap: var(--sova-space-2);
+}
+
+.widget__bar-track {
+  display: block;
+  block-size: 0.75rem;
+  background-color: var(--sova-color-surface-subtle);
+  border-radius: var(--sova-radius-sm);
+  overflow: hidden;
+}
+
+.widget__bar-fill {
+  display: block;
+  block-size: 100%;
+  min-inline-size: 2px;
+  background-color: var(--sova-color-chart-series-1);
+  // Rounded only at the data end; the bar stays anchored to its baseline.
+  border-start-end-radius: 4px;
+  border-end-end-radius: 4px;
+}
+
+.widget__matrix td {
+  // The shading is a magnitude cue; the number is always present, so the cell
+  // never depends on colour alone.
+  transition: none;
+}
+
+.widget__legend {
+  flex-wrap: wrap;
+}
+
+.widget__swatch {
+  inline-size: 0.75rem;
+  block-size: 0.75rem;
+  border-radius: 2px;
+  background-color: var(--sova-color-chart-series-1);
+  display: inline-block;
+}
+
+.widget__swatch--second {
+  background-color: var(--sova-color-chart-series-2);
+}
+
+.widget__donut-layout {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--sova-space-3);
+}
+
+.widget__donut {
+  inline-size: 7rem;
+  block-size: 7rem;
+  flex: 0 0 auto;
+}
+
+/* The hole and the gaps between arcs are this circle showing through. */
+.widget__donut-track {
+  fill: none;
+  stroke: var(--sova-color-surface);
+  stroke-width: 6;
+}
+
+.widget__donut-slice {
+  fill: none;
+  stroke-width: 6;
+  /* Twelve o'clock, so the first slice starts where a reader looks first. */
+  transform: rotate(-90deg);
+  transform-origin: 50% 50%;
+}
+
+.widget__donut-legend {
+  flex: 1 1 10rem;
+  min-inline-size: 0;
+  display: grid;
+  gap: var(--sova-space-1);
+}
+
+.widget__chart {
+  inline-size: 100%;
+  block-size: 7rem;
+  display: block;
+}
+
+.widget__line {
+  fill: none;
+  stroke: var(--sova-color-chart-series-1);
+  stroke-width: 2;
+  stroke-linejoin: round;
+  stroke-linecap: round;
+  // The view box is stretched to the card, so the stroke must not stretch with
+  // it or a wide widget would draw a thin line and a narrow one a fat one.
+  vector-effect: non-scaling-stroke;
+}
+
+.widget__line--second {
+  stroke: var(--sova-color-chart-series-2);
+}
+
+.widget__columns {
+  display: flex;
+  align-items: flex-end;
+  gap: 2px;
+  block-size: 7rem;
+}
+
+.widget__column {
+  display: flex;
+  align-items: flex-end;
+  // A 2px gap of surface between adjacent fills keeps two bars from reading as
+  // one wide bar.
+  gap: 2px;
+  flex: 1 1 0;
+  block-size: 100%;
+}
+
+.widget__column-fill {
+  flex: 1 1 0;
+  min-block-size: 2px;
+  background-color: var(--sova-color-chart-series-1);
+  border-start-start-radius: 4px;
+  border-start-end-radius: 4px;
+}
+
+.widget__column-fill--second {
+  background-color: var(--sova-color-chart-series-2);
+}
+
+.widget__range {
+  margin-block-start: var(--sova-space-2);
+}

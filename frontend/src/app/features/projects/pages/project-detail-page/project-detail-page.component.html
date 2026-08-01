@@ -1,0 +1,303 @@
+@if (project(); as current) {
+  <app-page-header [eyebrow]="current.code" [title]="current.name" [subtitle]="current.description">
+    <div actions class="d-flex flex-wrap gap-2">
+      <a class="btn btn-outline-secondary" routerLink="..">
+        {{ 'projects.backToList' | translate }}
+      </a>
+      <!-- A link, not an import: the board belongs to the issues feature. -->
+      <a class="btn btn-outline-primary" [routerLink]="['../..', 'issues', 'board', projectId()]">
+        {{ 'issue.board.title' | translate }}
+      </a>
+      <a class="btn btn-outline-primary" [routerLink]="['configuration']">
+        {{ 'projectConfig.title' | translate }}
+      </a>
+      <button
+        class="btn btn-outline-primary"
+        type="button"
+        [disabled]="statusChanging() || visibilityChanging()"
+        (click)="toggleStatus()"
+      >
+        @if (current.status === 'ACTIVE') {
+          {{ 'projects.archive' | translate }}
+        } @else {
+          {{ 'projects.reactivate' | translate }}
+        }
+      </button>
+      <button
+        class="btn btn-outline-primary"
+        type="button"
+        [disabled]="statusChanging() || visibilityChanging()"
+        (click)="requestVisibilityChange()"
+      >
+        {{
+          (current.visibility === 'PRIVATE' ? 'projects.makeTenantVisible' : 'projects.makePrivate')
+            | translate
+        }}
+      </button>
+    </div>
+  </app-page-header>
+
+  <div class="d-flex flex-wrap gap-2 mb-3">
+    <span
+      class="badge"
+      [class.text-bg-success]="current.status === 'ACTIVE'"
+      [class.text-bg-secondary]="current.status !== 'ACTIVE'"
+    >
+      {{ (current.status === 'ACTIVE' ? 'common.active' : 'common.archived') | translate }}
+    </span>
+    <span class="badge text-bg-dark">
+      {{
+        (current.visibility === 'PRIVATE'
+          ? 'projects.visibilityPrivate'
+          : 'projects.visibilityTenant'
+        ) | translate
+      }}
+    </span>
+    <span class="badge text-bg-light">
+      {{ 'projects.lead' | translate }}:
+      {{ current.lead?.display_name ?? ('projects.noLead' | translate) }}
+    </span>
+  </div>
+
+  @if (statusError()) {
+    <div class="alert alert-danger" role="alert">{{ 'projects.statusError' | translate }}</div>
+  }
+  @if (visibilityConfirmationOpen()) {
+    <section
+      class="alert alert-warning"
+      role="alert"
+      aria-labelledby="project-visibility-confirmation-title"
+    >
+      <h2 id="project-visibility-confirmation-title" class="h6">
+        {{ 'projects.visibilityConfirmationTitle' | translate }}
+      </h2>
+      <p>{{ 'projects.visibilityPrivateImpact' | translate }}</p>
+      <div class="d-flex flex-wrap gap-2">
+        <button
+          class="btn btn-warning"
+          type="button"
+          [disabled]="visibilityChanging()"
+          (click)="confirmPrivateVisibility()"
+        >
+          {{ 'projects.confirmPrivate' | translate }}
+        </button>
+        <button
+          class="btn btn-outline-secondary"
+          type="button"
+          [disabled]="visibilityChanging()"
+          (click)="cancelPrivateVisibility()"
+        >
+          {{ 'common.cancel' | translate }}
+        </button>
+      </div>
+    </section>
+  }
+  @if (visibilityError(); as failure) {
+    <div class="alert alert-danger" role="alert">
+      {{
+        (failure === 'MANAGER_REQUIRED'
+          ? 'projects.visibilityManagerRequired'
+          : 'projects.visibilityError'
+        ) | translate
+      }}
+    </div>
+  }
+  @if (detailsForbidden()) {
+    <div class="alert alert-warning" role="alert">
+      {{ 'projects.detailsForbidden' | translate }}
+    </div>
+  }
+  @if (detailsFailure(); as failure) {
+    <app-error-state [error]="failure" (retry)="reload()" />
+  }
+
+  @if (!detailsForbidden()) {
+    <section class="card border-0 shadow-sm mb-4" aria-labelledby="project-members-title">
+      <div class="card-header bg-transparent">
+        <strong id="project-members-title">{{ 'projects.members' | translate }}</strong>
+      </div>
+      <div class="card-body">
+        @if (memberError()) {
+          <div class="alert alert-danger" role="alert">
+            {{ 'projects.memberError' | translate }}
+          </div>
+        }
+
+        <ul class="list-unstyled mb-3">
+          @for (member of members(); track member.membership_id) {
+            <li class="border-bottom py-2">
+              <div class="d-flex flex-column flex-md-row justify-content-between gap-2">
+                <span>
+                  {{ member.user.display_name }}
+                  <span class="text-body-secondary small">· {{ member.user.email }}</span>
+                </span>
+                <span class="d-flex flex-wrap gap-1">
+                  @for (role of member.roles; track role.id) {
+                    <span class="badge text-bg-light d-inline-flex align-items-center gap-1">
+                      {{ role.name }}
+                      <button
+                        class="btn btn-sm btn-link p-0 lh-1 text-danger"
+                        type="button"
+                        [disabled]="memberActionId() !== null"
+                        [attr.aria-label]="'projects.removeRole' | translate"
+                        (click)="unassignRole(member.membership_id, role.id)"
+                      >
+                        ×
+                      </button>
+                    </span>
+                  }
+                </span>
+              </div>
+            </li>
+          } @empty {
+            <li class="text-body-secondary small">{{ 'projects.noMembers' | translate }}</li>
+          }
+        </ul>
+
+        <form class="row g-2 align-items-end" [formGroup]="assignForm" (ngSubmit)="assignRole()">
+          <div class="col-12 col-lg-5">
+            <label class="form-label" for="assign-membership">
+              {{ 'projects.addMember' | translate }}
+            </label>
+            <select id="assign-membership" class="form-select" formControlName="membership_id">
+              <option value="">{{ 'projects.chooseMember' | translate }}</option>
+              @for (membership of availableMemberships(); track membership.id) {
+                <option [value]="membership.id">
+                  {{ membership.user.display_name }} · {{ membership.user.email }}
+                </option>
+              }
+            </select>
+          </div>
+          <div class="col-12 col-lg-4">
+            <label class="form-label" for="assign-role">{{ 'projects.role' | translate }}</label>
+            <select id="assign-role" class="form-select" formControlName="role_id">
+              <option value="">{{ 'projects.chooseRole' | translate }}</option>
+              @for (role of assignableRoles(); track role.id) {
+                <option [value]="role.id">{{ role.name }}</option>
+              }
+            </select>
+          </div>
+          <div class="col-12 col-lg-3">
+            <button
+              class="btn btn-primary w-100"
+              type="submit"
+              [disabled]="memberActionId() !== null"
+            >
+              {{ 'projects.assignRole' | translate }}
+            </button>
+          </div>
+        </form>
+      </div>
+    </section>
+
+    <section class="card border-0 shadow-sm mb-4" aria-labelledby="project-workgroups-title">
+      <div class="card-header bg-transparent">
+        <strong id="project-workgroups-title">{{ 'projects.workgroups' | translate }}</strong>
+      </div>
+      <div class="card-body">
+        <p class="text-body-secondary small">{{ 'projects.workgroupsHint' | translate }}</p>
+
+        @if (workgroupError()) {
+          <div class="alert alert-danger" role="alert">
+            {{ 'projects.workgroupError' | translate }}
+          </div>
+        }
+
+        <ul class="list-unstyled mb-3">
+          @for (link of workgroupLinks(); track link.workgroup_id) {
+            <li class="d-flex align-items-center justify-content-between gap-2 border-bottom py-2">
+              <span>
+                {{ link.workgroup_name }}
+                <span class="badge text-bg-light ms-2">{{ link.role.name }}</span>
+              </span>
+              <button
+                class="btn btn-sm btn-outline-danger"
+                type="button"
+                [disabled]="workgroupActionId() !== null"
+                (click)="unlinkWorkgroup(link.workgroup_id)"
+              >
+                {{ 'projects.unlinkWorkgroup' | translate }}
+              </button>
+            </li>
+          } @empty {
+            <li class="text-body-secondary small">{{ 'projects.noWorkgroups' | translate }}</li>
+          }
+        </ul>
+
+        <form class="row g-2 align-items-end" [formGroup]="linkForm" (ngSubmit)="linkWorkgroup()">
+          <div class="col-12 col-lg-5">
+            <label class="form-label" for="link-workgroup">
+              {{ 'projects.linkWorkgroup' | translate }}
+            </label>
+            <select id="link-workgroup" class="form-select" formControlName="workgroup_id">
+              <option value="">{{ 'projects.chooseWorkgroup' | translate }}</option>
+              @for (workgroup of availableWorkgroups(); track workgroup.id) {
+                <option [value]="workgroup.id">{{ workgroup.name }}</option>
+              }
+            </select>
+          </div>
+          <div class="col-12 col-lg-4">
+            <label class="form-label" for="link-role">{{ 'projects.role' | translate }}</label>
+            <select id="link-role" class="form-select" formControlName="role_id">
+              <option value="">{{ 'projects.chooseRole' | translate }}</option>
+              @for (role of assignableRoles(); track role.id) {
+                <option [value]="role.id">{{ role.name }}</option>
+              }
+            </select>
+          </div>
+          <div class="col-12 col-lg-3">
+            <button
+              class="btn btn-primary w-100"
+              type="submit"
+              [disabled]="workgroupActionId() !== null"
+            >
+              {{ 'projects.linkWorkgroup' | translate }}
+            </button>
+          </div>
+        </form>
+      </div>
+    </section>
+
+    <section class="card border-0 shadow-sm" aria-labelledby="project-roles-title">
+      <div class="card-header bg-transparent">
+        <strong id="project-roles-title">{{ 'projects.roles' | translate }}</strong>
+      </div>
+      <div class="list-group list-group-flush">
+        @for (role of roles(); track role.id) {
+          <div class="list-group-item">
+            <div class="d-flex flex-wrap align-items-center gap-2">
+              <strong>{{ role.name }}</strong>
+              <code class="small">{{ role.code }}</code>
+              @if (role.is_system) {
+                <span class="badge text-bg-light">{{ 'tenantRoles.systemRole' | translate }}</span>
+              }
+            </div>
+            <p class="text-body-secondary small mb-0 mt-1">
+              {{ 'tenantRoles.permissionCount' | translate: { count: role.permissions.length } }}
+              ·
+              {{ 'projects.assignmentCount' | translate: { count: role.assignment_count } }}
+            </p>
+          </div>
+        } @empty {
+          <div class="list-group-item text-body-secondary">
+            {{ 'projects.noRolesDefined' | translate }}
+          </div>
+        }
+      </div>
+    </section>
+  }
+} @else if (projectLoading()) {
+  <div class="d-flex align-items-center gap-2 text-body-secondary" role="status">
+    <span class="spinner-border spinner-border-sm" aria-hidden="true"></span>
+    <span>{{ 'common.loading' | translate }}</span>
+  </div>
+} @else if (projectMissing()) {
+  <div class="alert alert-warning">
+    <p class="mb-2">{{ 'projects.notFound' | translate }}</p>
+    <a class="btn btn-sm btn-outline-secondary" routerLink="..">
+      {{ 'projects.backToList' | translate }}
+    </a>
+  </div>
+} @else if (projectFailure(); as failure) {
+  <app-error-state [error]="failure" (retry)="reload()" />
+}

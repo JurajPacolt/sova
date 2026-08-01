@@ -1,0 +1,197 @@
+<app-page-header
+  [eyebrow]="'issue.eyebrow' | translate"
+  [title]="'issue.list.title' | translate"
+  [subtitle]="'issue.list.subtitle' | translate"
+>
+  <button actions class="btn btn-primary" type="button" (click)="toggleCreate()">
+    @if (createVisible()) {
+      {{ 'issue.create.close' | translate }}
+    } @else {
+      {{ 'issue.create.open' | translate }}
+    }
+  </button>
+</app-page-header>
+
+@if (createVisible()) {
+  <section class="card border-0 shadow-sm mb-4" aria-labelledby="issue-create-title">
+    <div class="card-body">
+      <h2 class="h6 mb-3" id="issue-create-title">{{ 'issue.create.title' | translate }}</h2>
+
+      @if (createError(); as message) {
+        <div class="alert alert-warning" role="alert" appFocusSummary>
+          {{ message | translate }}
+        </div>
+      }
+
+      @if (availableProjects().length === 0) {
+        <p class="text-body-secondary mb-0">{{ 'issue.create.noProjects' | translate }}</p>
+      } @else {
+        <form class="row g-3" [formGroup]="createForm" (ngSubmit)="submitCreate()">
+          <div class="col-12 col-md-6">
+            <label class="form-label" for="issue-create-project">
+              {{ 'issue.create.project' | translate }}
+            </label>
+            <select
+              class="form-select"
+              id="issue-create-project"
+              formControlName="projectId"
+              (change)="projectChanged()"
+            >
+              <option value="">{{ 'issue.create.projectPlaceholder' | translate }}</option>
+              @for (project of availableProjects(); track project.id) {
+                <option [value]="project.id">{{ project.code }} — {{ project.name }}</option>
+              }
+            </select>
+          </div>
+
+          <div class="col-12 col-md-6">
+            <label class="form-label" for="issue-create-type">
+              {{ 'issue.create.type' | translate }}
+            </label>
+            <select class="form-select" id="issue-create-type" formControlName="issueTypeId">
+              @for (type of issueTypes(); track type.id) {
+                <option [value]="type.id">{{ type.name }}</option>
+              }
+            </select>
+            @if (createForm.controls.projectId.value !== '' && issueTypes().length === 0) {
+              <p class="form-text mb-0">{{ 'issue.create.noTypes' | translate }}</p>
+            }
+          </div>
+
+          <div class="col-12 col-md-8">
+            <label class="form-label" for="issue-create-title-field">
+              {{ 'issue.create.summary' | translate }}
+            </label>
+            <input
+              class="form-control"
+              id="issue-create-title-field"
+              type="text"
+              maxlength="255"
+              formControlName="title"
+            />
+          </div>
+
+          <div class="col-12 col-md-4">
+            <label class="form-label" for="issue-create-priority">
+              {{ 'issue.create.priority' | translate }}
+            </label>
+            <select class="form-select" id="issue-create-priority" formControlName="priority">
+              @for (priority of priorities; track priority) {
+                <option [value]="priority">{{ priorityKey(priority) | translate }}</option>
+              }
+            </select>
+          </div>
+
+          <div class="col-12">
+            <label class="form-label" for="issue-create-description">
+              {{ 'issue.create.description' | translate }}
+            </label>
+            <textarea
+              class="form-control"
+              id="issue-create-description"
+              rows="4"
+              formControlName="description"
+            ></textarea>
+          </div>
+
+          <div class="col-12">
+            <button
+              class="btn btn-primary"
+              type="submit"
+              [disabled]="creating() || createForm.invalid"
+            >
+              {{ 'issue.create.submit' | translate }}
+            </button>
+          </div>
+        </form>
+      }
+    </div>
+  </section>
+}
+
+<section class="card border-0 shadow-sm mb-4" aria-labelledby="issue-search-title">
+  <div class="card-body">
+    <h2 class="visually-hidden" id="issue-search-title">
+      {{ 'issue.list.queryLabel' | translate }}
+    </h2>
+    <!-- Validation belongs to the server: a second grammar in the client would
+         drift from the language it is meant to describe. -->
+    <app-query-editor [(query)]="queryText" (submitted)="submit()"></app-query-editor>
+
+    <hr class="my-3" />
+
+    <!-- Loading a saved query fills the same box, so what runs is always what
+         the editor shows. -->
+    <app-saved-query-panel [(query)]="queryText" (applied)="submit()"></app-saved-query-panel>
+  </div>
+</section>
+
+@if (failure(); as searchFailure) {
+  <app-error-state [error]="searchFailure" [messageKey]="failureKey()" (retry)="submit()" />
+}
+
+@if (loading() && count() === 0) {
+  <p class="text-body-secondary" role="status">{{ 'common.loading' | translate }}</p>
+} @else if (count() === 0) {
+  @if (searched() && failure() === null) {
+    <p class="text-body-secondary" role="status">{{ 'issue.list.empty' | translate }}</p>
+  }
+} @else {
+  <div class="table-responsive">
+    <table class="table align-middle">
+      <caption class="text-body-secondary">
+        {{
+          'issue.list.count' | translate: { count: count() }
+        }}
+      </caption>
+      <thead>
+        <tr>
+          <th scope="col">{{ 'issue.list.key' | translate }}</th>
+          <th scope="col">{{ 'issue.list.summary' | translate }}</th>
+          <th scope="col">{{ 'issue.list.project' | translate }}</th>
+          <th scope="col">{{ 'issue.list.type' | translate }}</th>
+          <th scope="col">{{ 'issue.status' | translate }}</th>
+          <th scope="col">{{ 'issue.priority' | translate }}</th>
+          <th scope="col">{{ 'issue.assignee' | translate }}</th>
+        </tr>
+      </thead>
+      <tbody>
+        @for (issue of issues(); track issue.id) {
+          <tr>
+            <td>
+              <a class="issue-key" [routerLink]="['..', 'issues', issue.key]">{{ issue.key }}</a>
+            </td>
+            <td>
+              {{ issue.title }}
+              @if (issue.blocked) {
+                <span class="badge text-bg-danger ms-1">
+                  {{ 'issue.board.blocked' | translate }}
+                </span>
+              }
+            </td>
+            <td>{{ issue.project.code }}</td>
+            <td>{{ issue.issue_type.name }}</td>
+            <td>
+              <span class="badge text-bg-secondary">{{ issue.status.name }}</span>
+            </td>
+            <td>{{ priorityKey(issue.priority) | translate }}</td>
+            <td>
+              {{ issue.assignee?.display_name ?? ('issue.unassigned' | translate) }}
+            </td>
+          </tr>
+        }
+      </tbody>
+    </table>
+  </div>
+
+  @if (hasMore()) {
+    <button
+      class="btn btn-outline-secondary"
+      type="button"
+      [disabled]="loading()"
+      (click)="loadMore()"
+    >
+      {{ 'issue.list.more' | translate }}
+    </button>
+  }
+}

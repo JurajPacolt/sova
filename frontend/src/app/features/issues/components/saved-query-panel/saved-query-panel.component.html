@@ -1,0 +1,230 @@
+@if (!unavailable()) {
+  <div class="d-flex flex-wrap align-items-center gap-2 mb-2">
+    <h3 class="h6 mb-0 me-auto">{{ 'savedQuery.title' | translate }}</h3>
+
+    @if (canUpdateLoaded()) {
+      <button
+        class="btn btn-sm btn-outline-secondary"
+        type="button"
+        [disabled]="saving()"
+        (click)="update()"
+      >
+        {{ 'savedQuery.update' | translate: { name: loaded()!.name } }}
+      </button>
+    }
+
+    @if (canCreate()) {
+      <button class="btn btn-sm btn-outline-primary" type="button" (click)="toggleSave()">
+        @if (saveVisible()) {
+          {{ 'common.cancel' | translate }}
+        } @else {
+          {{ 'savedQuery.save' | translate }}
+        }
+      </button>
+    }
+  </div>
+
+  @if (saveError(); as message) {
+    <div class="alert alert-warning py-2" role="alert">{{ message | translate }}</div>
+  }
+
+  @if (saveVisible()) {
+    <form class="row g-2 align-items-end mb-3" (ngSubmit)="save()">
+      <div class="col-12 col-md-8">
+        <label class="form-label" for="saved-query-name">
+          {{ 'savedQuery.name' | translate }}
+        </label>
+        <input
+          class="form-control form-control-sm"
+          id="saved-query-name"
+          type="text"
+          maxlength="160"
+          [ngModel]="name()"
+          (ngModelChange)="name.set($event)"
+          name="savedQueryName"
+        />
+        <!-- The server normalises the query text; only the name is ours to send. -->
+        <p class="form-text mb-0">{{ 'savedQuery.saveHint' | translate }}</p>
+      </div>
+      <div class="col-12 col-md-4">
+        <button
+          class="btn btn-sm btn-primary w-100"
+          type="submit"
+          [disabled]="saving() || name().trim() === ''"
+        >
+          {{ 'savedQuery.saveSubmit' | translate }}
+        </button>
+      </div>
+    </form>
+  }
+
+  @if (listError(); as message) {
+    <div class="alert alert-warning py-2" role="alert">{{ message | translate }}</div>
+  }
+
+  @if (loading() && live().length === 0) {
+    <p class="text-body-secondary mb-0" role="status">{{ 'common.loading' | translate }}</p>
+  } @else if (live().length === 0) {
+    <p class="text-body-secondary mb-0">{{ 'savedQuery.empty' | translate }}</p>
+  } @else {
+    <ul class="list-unstyled mb-0">
+      @for (query of live(); track query.id) {
+        <li class="saved-query border-top py-2">
+          <div class="d-flex flex-wrap align-items-center gap-2">
+            <button
+              class="btn btn-sm btn-link p-0 text-decoration-none saved-query-star"
+              type="button"
+              [attr.aria-pressed]="query.favourite"
+              [attr.aria-label]="
+                (query.favourite ? 'savedQuery.unfavourite' : 'savedQuery.favourite') | translate
+              "
+              (click)="toggleFavourite(query)"
+            >
+              {{ query.favourite ? '★' : '☆' }}
+            </button>
+
+            <button
+              class="btn btn-sm btn-link p-0 text-start text-decoration-none me-auto"
+              type="button"
+              (click)="load(query)"
+            >
+              {{ query.name }}
+            </button>
+
+            @if (query.visibility === 'SHARED') {
+              <span class="badge text-bg-light">{{ 'savedQuery.shared' | translate }}</span>
+            }
+
+            @if (!query.viewer_is_owner) {
+              <span class="text-body-secondary small">
+                {{ 'savedQuery.ownedBy' | translate: { name: query.owner.display_name ?? '' } }}
+              </span>
+            }
+
+            @if (canRename(query)) {
+              <button
+                class="btn btn-sm btn-outline-secondary"
+                type="button"
+                [attr.aria-expanded]="renamingId() === query.id"
+                (click)="startRename(query)"
+              >
+                {{ 'savedQuery.rename' | translate }}
+              </button>
+            }
+
+            @if (canManageGrants(query)) {
+              <button
+                class="btn btn-sm btn-outline-secondary"
+                type="button"
+                [attr.aria-expanded]="sharingId() === query.id"
+                (click)="toggleSharing(query)"
+              >
+                {{ 'savedQuery.share' | translate }}
+              </button>
+            }
+
+            @if (canArchive(query)) {
+              <button
+                class="btn btn-sm btn-outline-secondary"
+                type="button"
+                (click)="archive(query)"
+              >
+                {{ 'savedQuery.archive' | translate }}
+              </button>
+            }
+          </div>
+
+          @if (renamingId() === query.id) {
+            <!--
+              Its own form, not a field bolted onto "Overwrite": renaming leaves
+              the query text alone and collides against the owner's names.
+            -->
+            <form class="row g-2 align-items-end mt-1" (ngSubmit)="confirmRename(query)">
+              <div class="col-12 col-md-8">
+                <label class="form-label" [attr.for]="'rename-' + query.id">
+                  {{ 'savedQuery.renameTitle' | translate }}
+                </label>
+                <input
+                  class="form-control form-control-sm"
+                  type="text"
+                  maxlength="160"
+                  [id]="'rename-' + query.id"
+                  [ngModel]="renameName()"
+                  (ngModelChange)="renameName.set($event)"
+                  [name]="'renameSavedQuery-' + query.id"
+                />
+                @if (!query.viewer_is_owner) {
+                  <p class="form-text mb-0">{{ 'savedQuery.renameForeign' | translate }}</p>
+                }
+              </div>
+              <div class="col-12 col-md-4 d-flex gap-2">
+                <button
+                  class="btn btn-sm btn-primary flex-grow-1"
+                  type="submit"
+                  [disabled]="renaming() || renameName().trim() === ''"
+                >
+                  @if (renaming()) {
+                    {{ 'savedQuery.renaming' | translate }}
+                  } @else {
+                    {{ 'savedQuery.renameSubmit' | translate }}
+                  }
+                </button>
+                <button
+                  class="btn btn-sm btn-outline-secondary"
+                  type="button"
+                  (click)="cancelRename()"
+                >
+                  {{ 'common.cancel' | translate }}
+                </button>
+              </div>
+              @if (renameError(); as message) {
+                <div class="col-12">
+                  <div class="alert alert-warning py-2 mb-0" role="alert">
+                    {{ message | translate }}
+                  </div>
+                </div>
+              }
+            </form>
+          }
+
+          <p class="text-body-secondary small mb-0 saved-query-text">{{ query.canonical_query }}</p>
+
+          @if (sharingId() === query.id) {
+            <app-saved-query-grants
+              [savedQueryId]="query.id"
+              (changed)="reload()"
+            ></app-saved-query-grants>
+          }
+        </li>
+      }
+    </ul>
+  }
+
+  @if (archived().length > 0) {
+    <button
+      class="btn btn-sm btn-link p-0 mt-2 text-decoration-none"
+      type="button"
+      [attr.aria-expanded]="archivedVisible()"
+      (click)="toggleArchived()"
+    >
+      {{ 'savedQuery.archivedCount' | translate: { count: archived().length } }}
+    </button>
+
+    @if (archivedVisible()) {
+      <ul class="list-unstyled mb-0">
+        @for (query of archived(); track query.id) {
+          <li class="saved-query border-top py-2 d-flex flex-wrap align-items-center gap-2">
+            <button
+              class="btn btn-sm btn-link p-0 text-start text-decoration-none me-auto"
+              type="button"
+              (click)="load(query)"
+            >
+              {{ query.name }}
+            </button>
+            <span class="badge text-bg-light">{{ 'common.archived' | translate }}</span>
+          </li>
+        }
+      </ul>
+    }
+  }
+}

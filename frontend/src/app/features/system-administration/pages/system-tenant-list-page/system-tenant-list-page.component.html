@@ -1,0 +1,315 @@
+<app-page-header
+  [eyebrow]="'system.eyebrow' | translate"
+  [title]="'system.tenantsTitle' | translate"
+  [subtitle]="'system.tenantsSubtitle' | translate: { count: tenants().length }"
+/>
+
+<section class="card border-0 shadow-sm mb-4" aria-labelledby="create-tenant-title">
+  <div class="card-body">
+    <h2 id="create-tenant-title" class="h5">{{ 'system.createTenant' | translate }}</h2>
+    <p class="text-body-secondary">{{ 'system.createTenantHelp' | translate }}</p>
+
+    @if (createdOwnerEmail(); as email) {
+      <div class="alert alert-success" role="status">
+        {{ 'system.ownerInvitationCreated' | translate: { email } }}
+      </div>
+    }
+    @if (createError()) {
+      <div class="alert alert-danger" role="alert">
+        {{ 'system.createError' | translate }}
+      </div>
+    }
+
+    <form class="row g-3" [formGroup]="createForm" (ngSubmit)="createTenant()">
+      <div class="col-12 col-lg-4">
+        <label class="form-label" for="system-tenant-name">
+          {{ 'system.tenantName' | translate }}
+        </label>
+        <input
+          id="system-tenant-name"
+          class="form-control"
+          type="text"
+          formControlName="name"
+          autocomplete="organization"
+        />
+      </div>
+      <div class="col-12 col-lg-4">
+        <label class="form-label" for="system-tenant-slug">
+          {{ 'system.tenantSlug' | translate }}
+        </label>
+        <input
+          id="system-tenant-slug"
+          class="form-control"
+          type="text"
+          formControlName="slug"
+          autocomplete="off"
+        />
+      </div>
+      <div class="col-12 col-lg-4">
+        <label class="form-label" for="system-owner-email">
+          {{ 'system.ownerEmail' | translate }}
+        </label>
+        <input
+          id="system-owner-email"
+          class="form-control"
+          type="email"
+          formControlName="owner_email"
+          autocomplete="email"
+        />
+      </div>
+      <div class="col-12">
+        <button class="btn btn-primary" type="submit" [disabled]="creating()">
+          @if (creating()) {
+            {{ 'system.creatingTenant' | translate }}
+          } @else {
+            {{ 'system.createTenant' | translate }}
+          }
+        </button>
+      </div>
+    </form>
+  </div>
+</section>
+
+@if (loadFailure(); as failure) {
+  <app-error-state [error]="failure" (retry)="refresh()" />
+}
+
+@if (loading() && tenants().length === 0) {
+  <div class="d-flex align-items-center gap-2 text-body-secondary" role="status">
+    <span class="spinner-border spinner-border-sm" aria-hidden="true"></span>
+    <span>{{ 'common.loading' | translate }}</span>
+  </div>
+}
+
+<div class="card border-0 shadow-sm">
+  <div class="card-header bg-transparent d-flex justify-content-between align-items-center gap-3">
+    <strong>{{ 'system.allTenants' | translate }}</strong>
+    <span class="badge text-bg-success">
+      {{ 'system.activeTenants' | translate: { count: activeCount() } }}
+    </span>
+  </div>
+
+  <div class="list-group list-group-flush">
+    @for (tenant of tenants(); track tenant.id) {
+      <article class="list-group-item py-3">
+        <div class="d-flex flex-column flex-md-row justify-content-between gap-3">
+          <div>
+            <div class="d-flex align-items-center gap-2">
+              <h2 class="h6 mb-0">{{ tenant.name }}</h2>
+              <span
+                class="badge"
+                [class.text-bg-success]="tenant.status === 'ACTIVE'"
+                [class.text-bg-secondary]="tenant.status !== 'ACTIVE'"
+              >
+                {{ statusKey(tenant.status) | translate }}
+              </span>
+            </div>
+            <p class="text-body-secondary small mb-0 mt-1">{{ tenant.slug }} · {{ tenant.id }}</p>
+            <p class="text-body-secondary small mb-0 mt-1">
+              {{ 'system.owner' | translate }}:
+              {{ tenant.owner_email ?? ('system.ownerPending' | translate) }}
+              ·
+              {{
+                'system.memberCount'
+                  | translate
+                    : {
+                        count: tenant.active_member_count,
+                      }
+              }}
+              · r{{ tenant.revision }}
+            </p>
+            @if (tenant.deletion_effective_at) {
+              <p class="text-danger small mb-0 mt-1">
+                {{
+                  'system.deletionEffective'
+                    | translate
+                      : {
+                          date: tenant.deletion_effective_at,
+                        }
+                }}
+              </p>
+            }
+          </div>
+
+          <div class="d-flex flex-wrap align-items-start gap-2">
+            <a
+              class="btn btn-sm btn-outline-primary"
+              [routerLink]="['/t', tenant.slug, 'dashboard']"
+            >
+              {{ 'system.enterTenant' | translate }}
+            </a>
+            @if (tenant.status === 'ACTIVE') {
+              <button
+                class="btn btn-sm btn-warning"
+                type="button"
+                [disabled]="impersonationTargetsLoading() !== null"
+                (click)="selectImpersonation(tenant)"
+              >
+                {{ 'impersonation.start' | translate }}
+              </button>
+            }
+            @for (target of transitions(tenant.status); track target) {
+              <button
+                class="btn btn-sm btn-outline-secondary"
+                type="button"
+                (click)="selectLifecycle(tenant, target)"
+              >
+                {{ statusKey(target) | translate }}
+              </button>
+            }
+          </div>
+        </div>
+
+        @if (lifecycleSelection(); as selection) {
+          @if (selection.tenant.id === tenant.id) {
+            <form class="lifecycle-panel border rounded p-3 mt-3" (ngSubmit)="changeStatus()">
+              <p class="mb-2">
+                {{
+                  'system.lifecycleConfirmation'
+                    | translate
+                      : {
+                          name: tenant.name,
+                          status: statusKey(selection.target) | translate,
+                        }
+                }}
+              </p>
+              <label class="form-label" [for]="'lifecycle-reason-' + tenant.id">
+                {{ 'system.lifecycleReason' | translate }}
+              </label>
+              <textarea
+                class="form-control"
+                rows="3"
+                [id]="'lifecycle-reason-' + tenant.id"
+                [formControl]="reasonControl"
+              ></textarea>
+              @if (reasonControl.touched && reasonControl.invalid) {
+                <p class="text-danger small mt-1 mb-0">
+                  {{ 'system.lifecycleReasonHelp' | translate }}
+                </p>
+              }
+              @if (lifecycleError()) {
+                <div class="alert alert-danger mt-3 mb-0" role="alert">
+                  {{ 'system.lifecycleError' | translate }}
+                </div>
+              }
+              <div class="d-flex gap-2 mt-3">
+                <button
+                  class="btn btn-sm btn-danger"
+                  type="submit"
+                  [disabled]="lifecycleTenantId() !== null"
+                >
+                  {{ 'common.confirm' | translate }}
+                </button>
+                <button
+                  class="btn btn-sm btn-outline-secondary"
+                  type="button"
+                  [disabled]="lifecycleTenantId() !== null"
+                  (click)="cancelLifecycle()"
+                >
+                  {{ 'common.cancel' | translate }}
+                </button>
+              </div>
+            </form>
+          }
+        }
+
+        @if (impersonationSelection(); as selection) {
+          @if (selection.tenant.id === tenant.id) {
+            <form
+              class="lifecycle-panel border border-warning rounded p-3 mt-3"
+              [formGroup]="impersonationForm"
+              (ngSubmit)="startImpersonation()"
+            >
+              <h3 class="h6">{{ 'impersonation.formTitle' | translate }}</h3>
+              <p class="text-body-secondary small">
+                {{ 'impersonation.formHelp' | translate }}
+              </p>
+
+              <div class="row g-3">
+                <div class="col-12 col-lg-4">
+                  <label class="form-label" [for]="'impersonation-user-' + tenant.id">
+                    {{ 'impersonation.effectiveUser' | translate }}
+                  </label>
+                  <select
+                    class="form-select"
+                    [id]="'impersonation-user-' + tenant.id"
+                    formControlName="effective_user_id"
+                  >
+                    <option value="">{{ 'impersonation.chooseUser' | translate }}</option>
+                    @for (membership of selection.members; track membership.id) {
+                      <option [value]="membership.user.id">
+                        {{ membership.user.display_name }} · {{ membership.user.email }}
+                      </option>
+                    }
+                  </select>
+                </div>
+                <div class="col-12 col-lg-4">
+                  <label class="form-label" [for]="'impersonation-reason-' + tenant.id">
+                    {{ 'impersonation.reason' | translate }}
+                  </label>
+                  <textarea
+                    class="form-control"
+                    rows="3"
+                    [id]="'impersonation-reason-' + tenant.id"
+                    formControlName="reason"
+                  ></textarea>
+                </div>
+                <div class="col-12 col-lg-4">
+                  <label class="form-label" [for]="'impersonation-password-' + tenant.id">
+                    {{ 'impersonation.password' | translate }}
+                  </label>
+                  <input
+                    class="form-control"
+                    type="password"
+                    [id]="'impersonation-password-' + tenant.id"
+                    formControlName="password"
+                    autocomplete="current-password"
+                  />
+                </div>
+              </div>
+
+              @if (selection.members.length === 0) {
+                <div class="alert alert-warning mt-3 mb-0">
+                  {{ 'impersonation.noTargets' | translate }}
+                </div>
+              }
+              @if (impersonationError()) {
+                <div class="alert alert-danger mt-3 mb-0" role="alert">
+                  {{ 'impersonation.startError' | translate }}
+                </div>
+              }
+
+              <div class="d-flex gap-2 mt-3">
+                <button
+                  class="btn btn-sm btn-warning"
+                  type="submit"
+                  [disabled]="impersonationStarting() || selection.members.length === 0"
+                >
+                  @if (impersonationStarting()) {
+                    {{ 'impersonation.starting' | translate }}
+                  } @else {
+                    {{ 'impersonation.confirmStart' | translate }}
+                  }
+                </button>
+                <button
+                  class="btn btn-sm btn-outline-secondary"
+                  type="button"
+                  [disabled]="impersonationStarting()"
+                  (click)="cancelImpersonation()"
+                >
+                  {{ 'common.cancel' | translate }}
+                </button>
+              </div>
+            </form>
+          }
+        }
+      </article>
+    } @empty {
+      @if (!loading() && loadFailure() === null) {
+        <div class="list-group-item text-body-secondary py-4">
+          {{ 'system.noTenants' | translate }}
+        </div>
+      }
+    }
+  </div>
+</div>

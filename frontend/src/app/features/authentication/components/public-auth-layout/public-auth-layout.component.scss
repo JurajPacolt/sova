@@ -1,0 +1,27 @@
+:host {
+  display: block;
+}
+
+.public-auth-layout {
+  background:
+    radial-gradient(
+      circle at top left,
+      rgb(var(--sova-color-action-primary-rgb) / 16%),
+      transparent 34rem
+    ),
+    var(--sova-color-canvas);
+  min-height: 100dvh;
+}
+
+.public-auth-layout__logo {
+  align-items: center;
+  background: var(--sova-color-action-primary);
+  border-radius: 1rem;
+  color: var(--sova-color-on-primary);
+  display: inline-flex;
+  font-size: 1.5rem;
+  font-weight: 800;
+  height: 3.5rem;
+  justify-content: center;
+  width: 3.5rem;
+}

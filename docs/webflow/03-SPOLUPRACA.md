@@ -15,19 +15,19 @@ Dokument opisuje:
 
 ## 2. Katalóg obrazoviek a komponentov
 
-| ID | Obrazovka/komponent | Umiestnenie |
-|---|---|---|
-| COL-01 | Aktivita úlohy | Detail úlohy |
-| COL-02 | Editor komentára | Detail úlohy |
-| COL-03 | Správa príloh | Detail úlohy |
-| COL-04 | Väzby úloh | Detail úlohy |
-| COL-05 | Sledovatelia | Detail úlohy |
-| SRC-01 | Rýchle vyhľadávanie | Globálna hlavička |
-| SRC-02 | Rozšírené vyhľadávanie | `/t/:tenantSlug/search` |
-| SRC-03 | Uložené filtre | Bočná navigácia a vyhľadávanie |
-| NOT-01 | Notification popover | Globálna hlavička |
-| NOT-02 | Centrum notifikácií | `/t/:tenantSlug/notifications` |
-| NOT-03 | Nastavenia notifikácií | Profil používateľa |
+| ID     | Obrazovka/komponent    | Umiestnenie                    |
+| ------ | ---------------------- | ------------------------------ |
+| COL-01 | Aktivita úlohy         | Detail úlohy                   |
+| COL-02 | Editor komentára       | Detail úlohy                   |
+| COL-03 | Správa príloh          | Detail úlohy                   |
+| COL-04 | Väzby úloh             | Detail úlohy                   |
+| COL-05 | Sledovatelia           | Detail úlohy                   |
+| SRC-01 | Rýchle vyhľadávanie    | Globálna hlavička              |
+| SRC-02 | Rozšírené vyhľadávanie | `/t/:tenantSlug/search`        |
+| SRC-03 | Uložené filtre         | Bočná navigácia a vyhľadávanie |
+| NOT-01 | Notification popover   | Globálna hlavička              |
+| NOT-02 | Centrum notifikácií    | `/t/:tenantSlug/notifications` |
+| NOT-03 | Nastavenia notifikácií | Profil používateľa             |
 
 ## 3. Aktivita úlohy
 
@@ -59,7 +59,7 @@ starších položiek nesmie presunúť používateľovi aktuálnu pozíciu bez k
 
 Editor podporuje:
 
-- čistý text alebo potvrdený formátovací jazyk,
+- CommonMark Markdown bez raw HTML,
 - zmienky používateľov,
 - odkazy na úlohy,
 - vloženie prílohy,
@@ -85,6 +85,10 @@ Počas odosielania:
 - text zostáva viditeľný,
 - optimisticky zobrazený komentár musí byť označený ako odosielaný,
 - pri chybe nesmie používateľ o text prísť.
+
+Ukladá sa pôvodný Markdown source. Náhľad aj výsledný obsah používajú rovnaký
+allowlist renderer a sanitizáciu; vložené HTML sa nevykoná. Zmienky a odkazy na
+úlohy sú štruktúrované referencie, ktoré backend znovu autorizuje.
 
 ### 4.2 Zmienky
 
@@ -124,6 +128,11 @@ Používateľ môže:
 - pretiahnuť súbor do drop zóny,
 - vložiť obrázok zo schránky, ak to produkt povolí.
 
+MVP limity sú 25 MiB na súbor, jeden súbor na upload request, najviac 20 aktívnych
+príloh na úlohu a predvolená tenantová kvóta 20 GiB. Povolené typy sú PNG, JPEG,
+WebP, PDF, UTF-8 text, CSV, DOCX, XLSX a PPTX. HTML, SVG, archívy, spustiteľné
+súbory, skripty a neznáme typy sa odmietnu.
+
 Každý súbor má samostatný stav:
 
 ```mermaid
@@ -155,7 +164,7 @@ UI musí rozlíšiť:
 - obrázok môže mať bezpečný náhľad,
 - ostatné typy zobrazia názov, typ a veľkosť,
 - stiahnutie vždy vyžaduje aktuálnu autorizáciu,
-- privátna podpísaná URL má krátku platnosť,
+- privátna podpísaná URL platí najviac 5 minút,
 - nebezpečné typy sa nemajú otvárať inline.
 
 ### 5.3 Odstránenie
@@ -167,6 +176,9 @@ Odstránenie prílohy:
 3. odstráni prístup k súboru,
 4. zapíše históriu a audit,
 5. fyzické odstránenie môže vykonať asynchrónny cleanup.
+
+Bežný cleanup fyzicky odstráni objekt po 30 dňoch. Malware alebo iný zamietnutý
+obsah sa z karantény odstráni najneskôr do 24 hodín; legal hold má prednosť.
 
 ## 6. Sledovatelia
 
@@ -355,14 +367,14 @@ Ak sa použije WebSocket alebo Server-Sent Events:
 
 Používateľ nastavuje kanál podľa typu udalosti:
 
-| Udalosť | In-app | E-mail |
-|---|---:|---:|
-| Pridelenie úlohy | Povinné/predvolené | Voliteľné |
-| Zmienka | Povinné/predvolené | Voliteľné |
-| Nový komentár sledovanej úlohy | Voliteľné | Voliteľné |
-| Zmena stavu | Voliteľné | Voliteľné |
-| Blížiaci sa termín | Voliteľné | Voliteľné |
-| Bezpečnostná udalosť účtu | Povinné | Povinné |
+| Udalosť                        |             In-app |    E-mail |
+| ------------------------------ | -----------------: | --------: |
+| Pridelenie úlohy               | Povinné/predvolené | Voliteľné |
+| Zmienka                        | Povinné/predvolené | Voliteľné |
+| Nový komentár sledovanej úlohy |          Voliteľné | Voliteľné |
+| Zmena stavu                    |          Voliteľné | Voliteľné |
+| Blížiaci sa termín             |          Voliteľné | Voliteľné |
+| Bezpečnostná udalosť účtu      |            Povinné |   Povinné |
 
 Bezpečnostné e-maily nemožno úplne vypnúť.
 

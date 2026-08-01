@@ -13,20 +13,23 @@ Dokument opisuje používateľské toky:
 - správa profilu a relácií,
 - expirovaná alebo zrušená relácia.
 
+SOVA nemá verejnú registráciu. Účet možno vytvoriť iba cez platnú pozvánku a nový
+tenant zakladá `SUPERADMIN`.
+
 ## 2. Katalóg obrazoviek
 
-| ID | Obrazovka | Route | Prístup |
-|---|---|---|---|
-| AUTH-01 | Prihlásenie | `/login` | Verejný |
-| AUTH-02 | Zabudnuté heslo | `/forgot-password` | Verejný |
-| AUTH-03 | Nastavenie nového hesla | `/reset-password/:token` | Platný token |
-| AUTH-04 | Overenie e-mailu | `/verify-email/:token` | Platný token |
-| AUTH-05 | Prijatie pozvánky | `/accept-invitation/:token` | Platný token |
-| AUTH-06 | Výber tenantu | `/select-tenant` | Prihlásený |
-| AUTH-07 | Prvé nastavenie tenantu | `/t/:tenantSlug/onboarding` | Tenant owner |
-| AUTH-08 | Profil | `/t/:tenantSlug/profile` | Prihlásený člen |
-| AUTH-09 | Aktívne relácie | `/t/:tenantSlug/profile/sessions` | Prihlásený člen |
-| AUTH-10 | Relácia skončila | modal + `/login` | Pôvodne prihlásený |
+| ID      | Obrazovka               | Route                             | Prístup            |
+| ------- | ----------------------- | --------------------------------- | ------------------ |
+| AUTH-01 | Prihlásenie             | `/login`                          | Verejný            |
+| AUTH-02 | Zabudnuté heslo         | `/forgot-password`                | Verejný            |
+| AUTH-03 | Nastavenie nového hesla | `/reset-password/:token`          | Platný token       |
+| AUTH-04 | Overenie e-mailu        | `/verify-email/:token`            | Platný token       |
+| AUTH-05 | Prijatie pozvánky       | `/accept-invitation/:token`       | Platný token       |
+| AUTH-06 | Výber tenantu           | `/select-tenant`                  | Prihlásený         |
+| AUTH-07 | Prvé nastavenie tenantu | `/t/:tenantSlug/onboarding`       | Tenant owner       |
+| AUTH-08 | Profil                  | `/t/:tenantSlug/profile`          | Prihlásený člen    |
+| AUTH-09 | Aktívne relácie         | `/t/:tenantSlug/profile/sessions` | Prihlásený člen    |
+| AUTH-10 | Relácia skončila        | modal + `/login`                  | Pôvodne prihlásený |
 
 ## 3. Prihlásenie
 
@@ -79,15 +82,15 @@ flowchart TD
 
 ### 3.3 Neúspešné prihlásenie
 
-| Situácia | UI reakcia | Ďalšia akcia |
-|---|---|---|
-| Neplatný formát e-mailu | Inline chyba | Opraviť e-mail |
-| Prázdne heslo | Inline chyba | Doplniť heslo |
-| Nesprávne údaje | Všeobecná chyba formulára | Skúsiť znova alebo obnoviť heslo |
-| Rate limit | Informácia o dočasnom obmedzení | Počkať |
-| Neoverený e-mail | Výzva na nové odoslanie overenia | Poslať overovací e-mail |
-| Deaktivovaný účet | Neodhaľujúca informačná správa | Kontaktovať administrátora |
-| Nedostupné API | Obnoviteľný error stav | Opakovať |
+| Situácia                | UI reakcia                       | Ďalšia akcia                     |
+| ----------------------- | -------------------------------- | -------------------------------- |
+| Neplatný formát e-mailu | Inline chyba                     | Opraviť e-mail                   |
+| Prázdne heslo           | Inline chyba                     | Doplniť heslo                    |
+| Nesprávne údaje         | Všeobecná chyba formulára        | Skúsiť znova alebo obnoviť heslo |
+| Rate limit              | Informácia o dočasnom obmedzení  | Počkať                           |
+| Neoverený e-mail        | Výzva na nové odoslanie overenia | Poslať overovací e-mail          |
+| Deaktivovaný účet       | Neodhaľujúca informačná správa   | Kontaktovať administrátora       |
+| Nedostupné API          | Obnoviteľný error stav           | Opakovať                         |
 
 ## 4. Obnova hesla
 
@@ -110,10 +113,9 @@ sequenceDiagram
 
     User->>UI: Zadá e-mail
     UI->>API: POST /auth/password/forgot
-    API->>DB: Vyhľadaj účet a aplikuj rate limit
-    API->>DB: Ulož hash jednorazového tokenu
+    API->>DB: HMAC rate limit + šifrovaná outbox požiadavka
     API-->>UI: Všeobecné potvrdenie
-    API-->>Mail: Outbox udalosť, ak účet existuje
+    Mail->>DB: Over účet a vytvor hash tokenu
     Mail-->>User: Odkaz na obnovu hesla
 ```
 
@@ -141,21 +143,21 @@ flowchart TD
     Revoke --> Success["Potvrdenie a odkaz na prihlásenie"]
 ```
 
-Po úspechu sa token odstráni z URL histórie. Odporúča sa zrušiť všetky existujúce
-relácie účtu, prípadne ponechať iba reláciu, ktorá bezpečne dokončila reset, ak bude
-tento variant produktovo potvrdený.
+Po načítaní sa token cez `replaceState` odstráni z URL histórie a do API odchádza
+iba v JSON tele. Po úspechu sa zrušia všetky existujúce relácie účtu; reset
+automaticky nevytvorí novú reláciu.
 
 ## 5. Overenie e-mailu
 
 Po otvorení overovacieho odkazu nastane jedna z možností:
 
-| Stav | Výsledok |
-|---|---|
-| Token je platný | E-mail sa označí ako overený |
-| Token už bol použitý | Informácia, že účet je už overený |
-| Token expiroval | Možnosť poslať nový odkaz |
-| Token je neplatný | Bezpečná všeobecná chyba |
-| Účet je zablokovaný | Overenie sa nevykoná, používateľ dostane ďalší postup |
+| Stav                 | Výsledok                                              |
+| -------------------- | ----------------------------------------------------- |
+| Token je platný      | E-mail sa označí ako overený                          |
+| Token už bol použitý | Informácia, že účet je už overený                     |
+| Token expiroval      | Možnosť poslať nový odkaz                             |
+| Token je neplatný    | Bezpečná všeobecná chyba                              |
+| Účet je zablokovaný  | Overenie sa nevykoná, používateľ dostane ďalší postup |
 
 Ak je používateľ po overení prihlásený, pokračuje na výber tenantu alebo onboarding.
 Inak pokračuje na prihlásenie.
@@ -181,7 +183,7 @@ flowchart TD
     Session -->|nie| Account{"Existuje účet pre<br/>pozvaný e-mail?"}
     Account -->|nie| Register["Vytvoriť účet a heslo"]
     Account -->|áno| Login["Prihlásiť sa"]
-    Register --> Verify["Overiť vlastníctvo e-mailu"]
+    Register --> Verify["Pozývací e-mail už preukázal<br/>kontrolu nad adresou"]
     Login --> EmailMatch
     Verify --> EmailMatch{"Zhoduje sa účet<br/>s pozvaným e-mailom?"}
 
@@ -217,6 +219,12 @@ Nemá zobrazovať interné informácie tenantu pred overením oprávneného e-ma
 - Používateľ je prihlásený pod iným e-mailom: ponúknuť bezpečné odhlásenie.
 - Tenant je pozastavený: členstvo možno podľa politiky prijať, ale tenant neotvoriť.
 
+Aktuálny F2.5 kontrakt vytvára základné aktívne členstvo bez rolí a pracovných
+skupín. Pozvánku zatiaľ vytvára iba `SUPERADMIN`; permission-based tenantové
+pozývanie, roly a skupiny doplnia F3 a F4. API nikdy nevracia plaintext token,
+verejný náhľad aj prijatie ho prijímajú v tele `POST` požiadavky a úspešné
+vytvorenie aj prijatie sa bezpečnostne auditujú.
+
 ## 7. Výber tenantu
 
 AUTH-06 zobrazuje:
@@ -226,7 +234,11 @@ AUTH-06 zobrazuje:
 - rolu alebo stručný typ členstva,
 - vyhľadávanie, ak je tenantov veľa,
 - oddelenú sekciu nedostupných tenantov s dôvodom,
-- možnosť vytvoriť tenant iba v prípade, že to produkt povoľuje.
+- pri nulovom členstve informáciu, že používateľ musí dostať pozvánku alebo
+  kontaktovať podporu.
+
+Bežný používateľ nemá na tejto obrazovke akciu vytvorenia tenantu. `SUPERADMIN`
+vytvára tenant v oddelenej systémovej administrácii.
 
 ```mermaid
 flowchart TD
@@ -243,8 +255,9 @@ flowchart TD
 
 ## 8. Prvé nastavenie tenantu
 
-Onboarding sa odporúča riešiť ako obnoviteľný wizard. Každý dokončený krok sa uloží,
-aby vlastník po prerušení nepokračoval od začiatku.
+Tenant pred onboardingom vytvorí `SUPERADMIN` a prvý vlastník prijme pozvánku.
+Onboarding sa rieši ako obnoviteľný wizard. Každý dokončený krok sa uloží, aby
+vlastník po prerušení nepokračoval od začiatku.
 
 ### 8.1 Kroky wizardu
 
@@ -363,6 +376,11 @@ obnovovať reláciu.
 
 ## 13. E2E scenáre
 
+Automatizovaný Chromium baseline už pokrýva verejnú žiadosť o reset, nastavenie
+hesla, overenie e-mailu a prijatie pozvánky novým používateľom vrátane odstránenia
+tokenu z URL. Backendové PostgreSQL API testy navyše pokrývajú existujúci a
+nesprávny účet. Nasledujúci katalóg zostáva cieľovou sadou celého MVP:
+
 - úspešné prihlásenie používateľa s jedným tenantom,
 - prihlásenie používateľa s viacerými tenantmi,
 - bezpečná `returnUrl`,
@@ -376,4 +394,3 @@ obnovovať reláciu.
 - zrušenie inej relácie,
 - expirácia relácie počas editácie formulára,
 - odhlásenie a vyčistenie tenantovej cache.
-

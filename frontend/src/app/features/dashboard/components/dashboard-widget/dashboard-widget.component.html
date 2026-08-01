@@ -1,0 +1,363 @@
+<article class="widget card border-0 shadow-sm h-100">
+  <header class="widget__header card-header bg-body d-flex align-items-baseline gap-2">
+    <h3 class="h6 mb-0 text-truncate">{{ widget().title }}</h3>
+    @if (widget().source_name) {
+      <span class="small text-body-secondary text-truncate ms-auto">{{
+        widget().source_name
+      }}</span>
+    }
+
+    @if (widget().available && widget().source_reachable) {
+      <!-- Spec §8.1: when the numbers were last true, and a way to ask again.
+           Disabled while a request is in flight — the rate limit is the
+           server's, and there is no reason to walk into it. -->
+      @if (loadedAt(); as at) {
+        <time class="small text-body-secondary" [attr.datetime]="at.toISOString()">
+          {{ at | date: 'shortTime' }}
+        </time>
+      }
+      <button
+        type="button"
+        class="btn btn-sm btn-link p-0 text-decoration-none"
+        [disabled]="loading()"
+        [attr.aria-label]="'dashboard.widget.refresh' | translate"
+        (click)="load()"
+      >
+        ⟳
+      </button>
+    }
+  </header>
+
+  <div class="widget__body card-body">
+    @if (!widget().available) {
+      <p class="text-body-secondary small mb-0">{{ 'dashboard.widget.unknownType' | translate }}</p>
+    } @else if (!widget().source_reachable) {
+      <p class="text-body-secondary small mb-0">
+        {{ 'dashboard.widget.sourceUnreachable' | translate }}
+      </p>
+    } @else if (loading() && data() === null) {
+      <p class="text-body-secondary small mb-0" role="status">
+        {{ 'common.loading' | translate }}
+      </p>
+    } @else if (failure() !== null && data() === null) {
+      <p class="small mb-2">{{ failureKey() | translate }}</p>
+      <button type="button" class="btn btn-sm btn-outline-secondary" (click)="load()">
+        {{ 'common.retry' | translate }}
+      </button>
+    } @else {
+      @if (failure() !== null) {
+        <!--
+          A refresh failed while an answer was already on screen. Blanking it
+          would throw away the last thing known to be true; saying it is out of
+          date keeps it useful and honest (webflow §2, §10).
+        -->
+        <p class="small text-body-secondary mb-2" role="status">
+          {{ 'error.stale' | translate }}
+          <button type="button" class="btn btn-link btn-sm p-0 align-baseline" (click)="load()">
+            {{ 'common.retry' | translate }}
+          </button>
+        </p>
+      }
+
+      @switch (widget().type_key) {
+        @case ('issue_count') {
+          <p class="widget__count mb-1">{{ countValue() ?? 0 }}</p>
+          <div class="d-flex align-items-center gap-2 flex-wrap">
+            @if (toneKey(); as tone) {
+              <span class="badge" [class]="toneClass()">{{ tone | translate }}</span>
+            }
+            @if (description()) {
+              <span class="small text-body-secondary">{{ description() }}</span>
+            }
+          </div>
+        }
+
+        @case ('issue_list') {
+          @if (issues().length === 0) {
+            <p class="text-body-secondary small mb-0">{{ 'dashboard.widget.empty' | translate }}</p>
+          } @else {
+            <div class="table-responsive">
+              <table class="table table-sm align-middle mb-0">
+                <thead>
+                  <tr>
+                    <th scope="col">{{ 'dashboard.widget.column.key' | translate }}</th>
+                    @if (showsColumn('title')) {
+                      <th scope="col">{{ 'dashboard.widget.column.title' | translate }}</th>
+                    }
+                    @if (showsColumn('project')) {
+                      <th scope="col">{{ 'dashboard.widget.column.project' | translate }}</th>
+                    }
+                    @if (showsColumn('status')) {
+                      <th scope="col">{{ 'dashboard.widget.column.status' | translate }}</th>
+                    }
+                    @if (showsColumn('priority')) {
+                      <th scope="col">{{ 'dashboard.widget.column.priority' | translate }}</th>
+                    }
+                    @if (showsColumn('updated')) {
+                      <th scope="col">{{ 'dashboard.widget.column.updated' | translate }}</th>
+                    }
+                  </tr>
+                </thead>
+                <tbody>
+                  @for (issue of issues(); track issue.id) {
+                    <tr>
+                      <td>
+                        <a class="font-monospace small" [routerLink]="['../../issues', issue.key]">
+                          {{ issue.key }}
+                        </a>
+                      </td>
+                      @if (showsColumn('title')) {
+                        <td class="widget__cell-title">{{ issue.title }}</td>
+                      }
+                      @if (showsColumn('project')) {
+                        <td class="small">{{ issue.project.code }}</td>
+                      }
+                      @if (showsColumn('status')) {
+                        <td class="small">{{ issue.status.name }}</td>
+                      }
+                      @if (showsColumn('priority')) {
+                        <td class="small">{{ issue.priority }}</td>
+                      }
+                      @if (showsColumn('updated')) {
+                        <td class="small text-nowrap">
+                          {{ issue.updated_at | date: 'shortDate' }}
+                        </td>
+                      }
+                    </tr>
+                  }
+                </tbody>
+              </table>
+            </div>
+          }
+        }
+
+        @case ('issue_breakdown') {
+          @if (bars().length === 0) {
+            <p class="text-body-secondary small mb-0">{{ 'dashboard.widget.empty' | translate }}</p>
+          } @else if (breakdownAsTable()) {
+            <table class="table table-sm align-middle mb-0">
+              <tbody>
+                @for (bar of bars(); track bar.label) {
+                  <tr>
+                    <th scope="row" class="fw-normal">{{ bar.label }}</th>
+                    <td class="text-end font-monospace">{{ bar.count }}</td>
+                  </tr>
+                }
+              </tbody>
+            </table>
+          } @else if (breakdownAsDonut()) {
+            <div class="widget__donut-layout">
+              <!--
+                Decorative on purpose: the ring repeats what the legend beside it
+                and the hidden table below already say in words, so a reader who
+                cannot see it loses nothing.
+              -->
+              <svg class="widget__donut" viewBox="0 0 42 42" aria-hidden="true">
+                <circle class="widget__donut-track" cx="21" cy="21" r="15.9155" />
+                @for (slice of donutSlices(); track slice.label + slice.count) {
+                  <circle
+                    class="widget__donut-slice"
+                    cx="21"
+                    cy="21"
+                    r="15.9155"
+                    [attr.stroke]="slice.color"
+                    [attr.stroke-dasharray]="slice.dash"
+                    [attr.stroke-dashoffset]="slice.offset"
+                  />
+                }
+              </svg>
+
+              <ul class="widget__donut-legend list-unstyled mb-0">
+                @for (slice of donutSlices(); track slice.label + slice.count) {
+                  <li class="small d-flex align-items-center gap-2">
+                    <span
+                      class="widget__swatch"
+                      aria-hidden="true"
+                      [style.background-color]="slice.color"
+                    ></span>
+                    <span class="text-truncate">
+                      @if (slice.rest) {
+                        {{ 'dashboard.widget.otherBuckets' | translate }}
+                      } @else {
+                        {{ slice.label }}
+                      }
+                    </span>
+                    <span class="ms-auto font-monospace">{{ slice.count }}</span>
+                    <span class="text-body-secondary">{{ slice.percent }}%</span>
+                  </li>
+                }
+              </ul>
+            </div>
+
+            <!--
+              Every bucket, including the ones the ring folded into "other":
+              folding changes the picture, never the data.
+            -->
+            <table class="visually-hidden">
+              <caption>
+                {{
+                  'dashboard.widget.breakdownLabel' | translate
+                }}
+              </caption>
+              <tbody>
+                @for (bar of bars(); track bar.label) {
+                  <tr>
+                    <th scope="row">{{ bar.label }}</th>
+                    <td>{{ bar.count }}</td>
+                  </tr>
+                }
+              </tbody>
+            </table>
+          } @else {
+            <ul class="widget__bars list-unstyled mb-0">
+              @for (bar of bars(); track bar.label) {
+                <li class="widget__bar">
+                  <span class="widget__bar-label small text-truncate">{{ bar.label }}</span>
+                  <span class="widget__bar-track" aria-hidden="true">
+                    <span class="widget__bar-fill" [style.width.%]="bar.share"></span>
+                  </span>
+                  <span class="widget__bar-value small font-monospace">{{ bar.count }}</span>
+                </li>
+              }
+            </ul>
+          }
+        }
+
+        @case ('issue_matrix') {
+          @if (matrixRows().length === 0) {
+            <p class="text-body-secondary small mb-0">{{ 'dashboard.widget.empty' | translate }}</p>
+          } @else {
+            <div class="table-responsive">
+              <table class="table table-sm align-middle mb-0 widget__matrix">
+                <thead>
+                  <tr>
+                    <td></td>
+                    @for (column of matrixColumns(); track column) {
+                      <th scope="col" class="small text-center">{{ column }}</th>
+                    }
+                  </tr>
+                </thead>
+                <tbody>
+                  @for (row of matrixRows(); track row.label) {
+                    <tr>
+                      <th scope="row" class="fw-normal small">{{ row.label }}</th>
+                      @for (cell of row.cells; track cell.label) {
+                        <td
+                          class="text-center font-monospace small"
+                          [style.background-color]="
+                            'color-mix(in srgb, var(--sova-color-chart-series-1) ' +
+                            (matrixPeak() === 0 ? 0 : (cell.count / matrixPeak()) * 60) +
+                            '%, transparent)'
+                          "
+                        >
+                          {{ cell.count }}
+                        </td>
+                      }
+                    </tr>
+                  }
+                </tbody>
+              </table>
+            </div>
+          }
+        }
+
+        @case ('issue_time_series') {
+          @if (series().length === 0) {
+            <p class="text-body-secondary small mb-0">{{ 'dashboard.widget.empty' | translate }}</p>
+          } @else {
+            @if (showLegend()) {
+              <ul class="widget__legend list-unstyled d-flex gap-3 mb-2">
+                @for (entry of series(); track entry.event; let index = $index) {
+                  <li class="small d-flex align-items-center gap-1">
+                    <span
+                      class="widget__swatch"
+                      [class.widget__swatch--second]="index === 1"
+                      aria-hidden="true"
+                    ></span>
+                    {{ entry.labelKey | translate }}
+                  </li>
+                }
+              </ul>
+            }
+
+            @if (seriesAsLine()) {
+              <svg
+                class="widget__chart"
+                viewBox="0 0 100 40"
+                preserveAspectRatio="none"
+                role="img"
+                [attr.aria-label]="'dashboard.widget.chartLabel' | translate"
+              >
+                @for (entry of series(); track entry.event; let index = $index) {
+                  <polyline
+                    class="widget__line"
+                    [class.widget__line--second]="index === 1"
+                    [attr.points]="entry.line"
+                  />
+                }
+              </svg>
+            } @else {
+              <ul class="widget__columns list-unstyled mb-0" aria-hidden="true">
+                @for (row of chartRows(); track row.bucket) {
+                  <li class="widget__column">
+                    @for (value of row.values; track $index) {
+                      <span
+                        class="widget__column-fill"
+                        [class.widget__column-fill--second]="$index === 1"
+                        [style.height.%]="value.share"
+                      ></span>
+                    }
+                  </li>
+                }
+              </ul>
+            }
+
+            <table class="visually-hidden">
+              <caption>
+                {{
+                  'dashboard.widget.chartLabel' | translate
+                }}
+              </caption>
+              <thead>
+                <tr>
+                  <th scope="col">{{ 'dashboard.widget.column.bucket' | translate }}</th>
+                  @for (entry of series(); track entry.event) {
+                    <th scope="col">{{ entry.labelKey | translate }}</th>
+                  }
+                </tr>
+              </thead>
+              <tbody>
+                @for (row of chartRows(); track row.bucket) {
+                  <tr>
+                    <th scope="row">{{ row.bucket | date: 'shortDate' }}</th>
+                    @for (value of row.values; track $index) {
+                      <td>{{ value.count }}</td>
+                    }
+                  </tr>
+                }
+              </tbody>
+            </table>
+
+            <p class="widget__range small text-body-secondary mb-0">
+              {{ firstBucket() | date: 'shortDate' }} – {{ lastBucket() | date: 'shortDate' }}
+            </p>
+            <!--
+              Spec §8.2: the series counts events on the issues the query
+              returns *now*, so it is not a frozen snapshot of the past. The
+              line implies otherwise unless the page says so.
+            -->
+            <p class="small text-body-secondary mb-0">
+              {{ 'dashboard.widget.seriesNote' | translate }}
+            </p>
+          }
+        }
+
+        @default {
+          <p class="text-body-secondary small mb-0">
+            {{ 'dashboard.widget.unknownType' | translate }}
+          </p>
+        }
+      }
+    }
+  </div>
+</article>

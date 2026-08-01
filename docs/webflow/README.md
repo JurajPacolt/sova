@@ -1,21 +1,22 @@
 # SOVA – webflow dokumentácia
 
 Táto časť dokumentácie opisuje informačnú architektúru, navigáciu, obrazovky a
-používateľské toky webovej aplikácie SOVA.
+používateľské toky webovej aplikácie SOVA. Praktický návod viazaný na aktuálne
+implementované MVP je v [používateľskej príručke](../USER_GUIDE.md).
 
 Pojem **webflow** v týchto dokumentoch znamená tok používateľa cez webovú aplikáciu,
 nie službu Webflow.com.
 
 ## Dokumenty
 
-| Dokument | Obsah |
-|---|---|
-| [00 – Informačná architektúra](./00-INFORMACNA-ARCHITEKTURA.md) | Mapa aplikácie, routy, layouty, navigácia a route guards |
-| [01 – Autentifikácia a onboarding](./01-AUTENTIFIKACIA-A-ONBOARDING.md) | Prihlásenie, heslá, pozvánky, výber tenantu a prvé spustenie |
-| [02 – Projekty a úlohy](./02-PROJEKTY-A-ULOHY.md) | Dashboard, projekty, typy úloh, hierarchia, Kanban, detail a workflow úlohy |
-| [03 – Spolupráca](./03-SPOLUPRACA.md) | Komentáre, prílohy, vyhľadávanie, filtre a notifikácie |
-| [04 – Administrácia](./04-ADMINISTRACIA.md) | Tenant admin, projekt admin, SUPERADMIN a impersonácia |
-| [05 – Stavy rozhrania](./05-STAVY-ROZHRANIA.md) | Loading, empty, error, forbidden, konflikt, offline a responzivita |
+| Dokument                                                                | Obsah                                                                       |
+| ----------------------------------------------------------------------- | --------------------------------------------------------------------------- |
+| [00 – Informačná architektúra](./00-INFORMACNA-ARCHITEKTURA.md)         | Mapa aplikácie, routy, layouty, navigácia a route guards                    |
+| [01 – Autentifikácia a onboarding](./01-AUTENTIFIKACIA-A-ONBOARDING.md) | Prihlásenie, heslá, pozvánky, výber tenantu a prvé spustenie                |
+| [02 – Projekty a úlohy](./02-PROJEKTY-A-ULOHY.md)                       | Dashboard, projekty, typy úloh, hierarchia, Kanban, detail a workflow úlohy |
+| [03 – Spolupráca](./03-SPOLUPRACA.md)                                   | Komentáre, prílohy, vyhľadávanie, filtre a notifikácie                      |
+| [04 – Administrácia](./04-ADMINISTRACIA.md)                             | Tenant admin, projekt admin, SUPERADMIN a impersonácia                      |
+| [05 – Stavy rozhrania](./05-STAVY-ROZHRANIA.md)                         | Loading, empty, error, forbidden, konflikt, offline a responzivita          |
 
 Nadradená produktová a technická analýza je v
 [ANALYZA_PROJEKTU.md](../ANALYZA_PROJEKTU.md). Záväzné pravidlá projektovej
@@ -65,7 +66,7 @@ Každá obrazovka je podľa potreby opísaná cez:
 flowchart LR
     Visitor["Neprihlásený návštevník"] --> Login["Prihlásenie"]
     Login --> TenantDecision{"Koľko aktívnych<br/>tenantov má?"}
-    TenantDecision -->|0| NoTenant["Čaká na pozvánku<br/>alebo vytvorí tenant"]
+    TenantDecision -->|0| NoTenant["Čaká na pozvánku<br/>alebo kontaktuje podporu"]
     TenantDecision -->|1| Dashboard["Tenantový dashboard"]
     TenantDecision -->|viac| TenantPicker["Výber tenantu"]
     TenantPicker --> Dashboard

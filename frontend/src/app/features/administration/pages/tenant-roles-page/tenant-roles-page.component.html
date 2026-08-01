@@ -1,0 +1,223 @@
+<app-page-header
+  [eyebrow]="'admin.eyebrow' | translate"
+  [title]="'tenantRoles.title' | translate"
+  [subtitle]="'tenantRoles.subtitle' | translate: { count: roles().length }"
+/>
+
+@if (loadFailure(); as failure) {
+  <app-error-state [error]="failure" (retry)="refresh()" />
+}
+
+@if (loading() && roles().length === 0) {
+  <div class="d-flex align-items-center gap-2 text-body-secondary" role="status">
+    <span class="spinner-border spinner-border-sm" aria-hidden="true"></span>
+    <span>{{ 'common.loading' | translate }}</span>
+  </div>
+}
+
+@if (formMode() === null) {
+  <div class="mb-4">
+    <button class="btn btn-primary" type="button" (click)="openCreate()">
+      {{ 'tenantRoles.create' | translate }}
+    </button>
+  </div>
+} @else {
+  <section class="card border-0 shadow-sm mb-4" aria-labelledby="role-form-title">
+    <div class="card-body">
+      <h2 id="role-form-title" class="h5">
+        {{ (formMode() === 'create' ? 'tenantRoles.create' : 'tenantRoles.edit') | translate }}
+      </h2>
+
+      @if (formError()) {
+        <div class="alert alert-danger" role="alert">
+          {{ 'tenantRoles.formError' | translate }}
+        </div>
+      }
+
+      <form [formGroup]="roleForm" (ngSubmit)="submit()">
+        <div class="row g-3">
+          @if (formMode() === 'create') {
+            <div class="col-12 col-lg-4">
+              <label class="form-label" for="role-code">
+                {{ 'tenantRoles.code' | translate }}
+              </label>
+              <input id="role-code" class="form-control" type="text" formControlName="code" />
+              <p class="text-body-secondary small mb-0 mt-1">
+                {{ 'tenantRoles.codeHelp' | translate }}
+              </p>
+            </div>
+          }
+          <div class="col-12 col-lg-4">
+            <label class="form-label" for="role-name">
+              {{ 'tenantRoles.name' | translate }}
+            </label>
+            <input id="role-name" class="form-control" type="text" formControlName="name" />
+          </div>
+          <div class="col-12" [class.col-lg-4]="formMode() === 'create'">
+            <label class="form-label" for="role-description">
+              {{ 'tenantRoles.description' | translate }}
+            </label>
+            <input
+              id="role-description"
+              class="form-control"
+              type="text"
+              formControlName="description"
+            />
+          </div>
+        </div>
+
+        <h3 class="h6 mt-4">{{ 'tenantRoles.permissions' | translate }}</h3>
+        @for (group of permissionGroups(); track group.scope) {
+          <div class="mb-3">
+            <p class="text-uppercase text-body-secondary small fw-semibold mb-2">
+              {{ group.scope }}
+            </p>
+            <div class="row row-cols-1 row-cols-md-2 g-2">
+              @for (permission of group.permissions; track permission.code) {
+                <div class="col">
+                  <div class="form-check">
+                    <input
+                      class="form-check-input"
+                      type="checkbox"
+                      [id]="'permission-' + permission.code"
+                      [checked]="isSelected(permission.code)"
+                      (change)="togglePermission(permission.code, $any($event.target).checked)"
+                    />
+                    <label class="form-check-label" [for]="'permission-' + permission.code">
+                      {{ permission.label }}
+                      @if (permission.sensitive) {
+                        <span class="badge text-bg-warning ms-1">
+                          {{ 'tenantRoles.sensitive' | translate }}
+                        </span>
+                      }
+                    </label>
+                    <p class="text-body-secondary small mb-0">{{ permission.description }}</p>
+                  </div>
+                </div>
+              }
+            </div>
+          </div>
+        }
+
+        <div class="d-flex gap-2 mt-3">
+          <button class="btn btn-primary" type="submit" [disabled]="submitting()">
+            @if (submitting()) {
+              {{ 'tenantRoles.saving' | translate }}
+            } @else {
+              {{ 'common.confirm' | translate }}
+            }
+          </button>
+          <button
+            class="btn btn-outline-secondary"
+            type="button"
+            [disabled]="submitting()"
+            (click)="cancelForm()"
+          >
+            {{ 'common.cancel' | translate }}
+          </button>
+        </div>
+      </form>
+    </div>
+  </section>
+}
+
+<div class="card border-0 shadow-sm">
+  <div class="card-header bg-transparent">
+    <strong>{{ 'tenantRoles.allRoles' | translate }}</strong>
+  </div>
+
+  <div class="list-group list-group-flush">
+    @for (role of roles(); track role.id) {
+      <article class="list-group-item py-3">
+        <div class="d-flex flex-column flex-md-row justify-content-between gap-3">
+          <div>
+            <div class="d-flex align-items-center gap-2 flex-wrap">
+              <h2 class="h6 mb-0">{{ role.name }}</h2>
+              <code class="small">{{ role.code }}</code>
+              @if (role.is_system) {
+                <span class="badge text-bg-secondary">
+                  {{ 'tenantRoles.systemRole' | translate }}
+                </span>
+              }
+              @if (role.status === 'ARCHIVED') {
+                <span class="badge text-bg-secondary">{{ 'common.archived' | translate }}</span>
+              }
+            </div>
+            @if (role.description) {
+              <p class="text-body-secondary small mb-0 mt-1">{{ role.description }}</p>
+            }
+            <p class="text-body-secondary small mb-0 mt-1">
+              {{ 'tenantRoles.assignmentCount' | translate: { count: role.assignment_count } }}
+              · {{ 'tenantRoles.permissionCount' | translate: { count: role.permissions.length } }}
+            </p>
+          </div>
+
+          @if (role.is_editable) {
+            <div class="d-flex flex-wrap align-items-start gap-2">
+              <button class="btn btn-sm btn-outline-primary" type="button" (click)="openEdit(role)">
+                {{ 'tenantRoles.edit' | translate }}
+              </button>
+              @if (role.status === 'ACTIVE') {
+                <button
+                  class="btn btn-sm btn-outline-danger"
+                  type="button"
+                  [disabled]="archivingRoleId() !== null"
+                  (click)="selectArchive(role)"
+                >
+                  {{ 'tenantRoles.archive' | translate }}
+                </button>
+              }
+            </div>
+          }
+        </div>
+
+        @if (archiveTarget(); as target) {
+          @if (target.id === role.id) {
+            <div class="lifecycle-panel border rounded p-3 mt-3">
+              <p class="mb-2">
+                {{ 'tenantRoles.archiveConfirmation' | translate: { name: target.name } }}
+              </p>
+              @if (target.assignment_count > 0) {
+                <p class="text-warning-emphasis small">
+                  {{
+                    'tenantRoles.archiveAssignedWarning'
+                      | translate: { count: target.assignment_count }
+                  }}
+                </p>
+              }
+              @if (archiveError()) {
+                <div class="alert alert-danger mb-0" role="alert">
+                  {{ 'tenantRoles.archiveError' | translate }}
+                </div>
+              }
+              <div class="d-flex gap-2 mt-3">
+                <button
+                  class="btn btn-sm btn-danger"
+                  type="button"
+                  [disabled]="archivingRoleId() !== null"
+                  (click)="confirmArchive()"
+                >
+                  {{ 'common.confirm' | translate }}
+                </button>
+                <button
+                  class="btn btn-sm btn-outline-secondary"
+                  type="button"
+                  [disabled]="archivingRoleId() !== null"
+                  (click)="cancelArchive()"
+                >
+                  {{ 'common.cancel' | translate }}
+                </button>
+              </div>
+            </div>
+          }
+        }
+      </article>
+    } @empty {
+      @if (!loading() && loadFailure() === null) {
+        <div class="list-group-item text-body-secondary py-4">
+          {{ 'tenantRoles.noRoles' | translate }}
+        </div>
+      }
+    }
+  </div>
+</div>

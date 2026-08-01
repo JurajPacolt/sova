@@ -11,8 +11,7 @@ use Psr\Http\Message\ServerRequestInterface;
 use Psr\Http\Server\MiddlewareInterface;
 use Psr\Http\Server\RequestHandlerInterface;
 use Psr\Log\LoggerInterface;
-use Slim\Exception\HttpException;
-use Sova\Shared\Infrastructure\Configuration\Settings;
+use Sova\Shared\Infrastructure\Http\ProblemDetailsFactory;
 use Throwable;
 
 final readonly class ApiErrorMiddleware implements MiddlewareInterface
@@ -20,7 +19,7 @@ final readonly class ApiErrorMiddleware implements MiddlewareInterface
     public function __construct(
         private LoggerInterface $logger,
         private ResponseFactoryInterface $responseFactory,
-        private Settings $settings,
+        private ProblemDetailsFactory $problemDetailsFactory,
     ) {}
 
     /**
@@ -33,46 +32,34 @@ final readonly class ApiErrorMiddleware implements MiddlewareInterface
         try {
             return $handler->handle($request);
         } catch (Throwable $exception) {
-            $status = 500;
-            $title = 'Internal Server Error';
-            $detail = 'The server could not complete the request.';
-
-            if ($exception instanceof HttpException) {
-                $status = $exception->getCode();
-                $title = $exception->getTitle();
-                $detail = $exception->getDescription();
-            } elseif ($this->settings->bool('app.debug', false)) {
-                $detail = $exception->getMessage();
-            }
-
             $requestIdAttribute = $request->getAttribute(RequestIdMiddleware::ATTRIBUTE);
             $requestId = is_string($requestIdAttribute) ? $requestIdAttribute : '';
+            $problem = $this->problemDetailsFactory->fromThrowable(
+                $exception,
+                $request->getUri()->getPath(),
+                $requestId,
+            );
             $context = [
                 'exception' => $exception,
                 'method' => $request->getMethod(),
                 'path' => $request->getUri()->getPath(),
+                'problem_code' => $problem->code,
                 'request_id' => $requestId,
-                'status' => $status,
+                'status' => $problem->status,
             ];
 
-            if ($status >= 500) {
-                $this->logger->error($title, $context);
+            if ($problem->status >= 500) {
+                $this->logger->error($problem->title, $context);
             } else {
-                $this->logger->warning($title, $context);
+                $this->logger->warning($problem->title, $context);
             }
 
-            $payload = [
-                'type' => 'about:blank',
-                'title' => $title,
-                'status' => $status,
-                'detail' => $detail,
-                'instance' => $request->getUri()->getPath(),
-                'request_id' => $requestId,
-            ];
-
-            $response = $this->responseFactory->createResponse($status);
+            $response = $this->responseFactory->createResponse($problem->status);
             $response->getBody()->write(
-                json_encode($payload, JSON_THROW_ON_ERROR | JSON_UNESCAPED_SLASHES),
+                json_encode(
+                    $problem->toArray(),
+                    JSON_THROW_ON_ERROR | JSON_UNESCAPED_SLASHES,
+                ),
             );
 
             return $response->withHeader(

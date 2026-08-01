@@ -11,9 +11,9 @@
         <div class="card-body">
           <h2 class="h5">{{ section.titleKey | translate }}</h2>
           <p class="text-body-secondary">{{ section.descriptionKey | translate }}</p>
-          <button class="btn btn-sm btn-outline-primary" type="button">
+          <a class="btn btn-sm btn-outline-primary" [routerLink]="section.path">
             {{ 'admin.open' | translate }}
-          </button>
+          </a>
         </div>
       </article>
     </div>

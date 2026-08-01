@@ -8,10 +8,13 @@
     "watch": "ng build --watch --configuration development",
     "test": "ng test --watch=false",
     "test:watch": "ng test",
+    "e2e": "playwright test",
+    "e2e:report": "playwright show-report",
     "typecheck": "tsc --project tsconfig.app.json --noEmit",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
-    "check": "npm run format:check && npm run typecheck && npm run test && npm run build"
+    "check:contrast": "node scripts/check-contrast.mjs",
+    "check": "npm run format:check && npm run typecheck && npm run check:contrast && npm run test && npm run build"
   },
   "private": true,
   "packageManager": "npm@11.18.0",
@@ -34,6 +37,7 @@
     "@angular/build": "^22.0.8",
     "@angular/cli": "^22.0.8",
     "@angular/compiler-cli": "^22.0.0",
+    "@playwright/test": "^1.62.0",
     "jsdom": "^28.0.0",
     "prettier": "^3.8.1",
     "typescript": "~6.0.2",

@@ -1,0 +1,25 @@
+:host {
+  display: block;
+  margin-inline: auto;
+  max-width: 90rem;
+}
+
+.list-group-item {
+  background: var(--sova-color-surface);
+}
+
+.min-width-0 {
+  min-width: 0;
+}
+
+.audit-event-code,
+.audit-id,
+.audit-metadata {
+  overflow-wrap: anywhere;
+}
+
+.audit-metadata {
+  display: block;
+  max-width: 100%;
+  white-space: pre-wrap;
+}

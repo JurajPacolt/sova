@@ -1,0 +1,160 @@
+<div class="btn-group btn-group-sm mb-2" role="group">
+  <button
+    class="btn"
+    type="button"
+    [class.btn-primary]="basicMode()"
+    [class.btn-outline-secondary]="!basicMode()"
+    [attr.aria-pressed]="basicMode()"
+    (click)="toggleMode()"
+  >
+    {{ 'query.mode.basic' | translate }}
+  </button>
+  <button
+    class="btn"
+    type="button"
+    [class.btn-primary]="!basicMode()"
+    [class.btn-outline-secondary]="basicMode()"
+    [attr.aria-pressed]="!basicMode()"
+    (click)="toggleMode()"
+  >
+    {{ 'query.mode.text' | translate }}
+  </button>
+</div>
+
+@if (basicMode()) {
+  <section aria-labelledby="sovaql-basic-title">
+    <h3 class="visually-hidden" id="sovaql-basic-title">{{ 'query.mode.basic' | translate }}</h3>
+
+    @if (basicForm(); as form) {
+      @if (!form.representable) {
+        <!-- Shown read-only rather than simplified: dropping half of the
+             filter and then running it would be far worse. -->
+        <div class="alert alert-info" role="status">
+          {{ 'query.basic.readOnly' | translate }}
+        </div>
+        <pre class="form-control-plaintext font-monospace mb-0">{{ query() }}</pre>
+      } @else if (form.conditions.length === 0) {
+        <p class="text-body-secondary">{{ 'query.basic.empty' | translate }}</p>
+      } @else {
+        <ul class="list-unstyled mb-2">
+          @for (condition of form.conditions; track $index) {
+            <li class="query-condition">
+              <code>{{ conditionText(condition) }}</code>
+              <button
+                class="btn btn-link btn-sm p-0 ms-2"
+                type="button"
+                (click)="removeCondition($index)"
+              >
+                {{ 'query.basic.remove' | translate }}
+              </button>
+            </li>
+          }
+        </ul>
+      }
+
+      @if (form.sort.length > 0) {
+        <p class="form-text mb-2">
+          {{ 'query.basic.sort' | translate }}
+          @for (item of form.sort; track item.field) {
+            <code class="ms-1">{{ item.field }} {{ item.direction }}</code>
+          }
+        </p>
+      }
+    }
+
+    <button class="btn btn-primary" type="button" (click)="submit()">
+      {{ 'issue.list.run' | translate }}
+    </button>
+  </section>
+} @else {
+  <form (ngSubmit)="submit()">
+    <label class="form-label" for="sovaql-query">{{ 'issue.list.queryLabel' | translate }}</label>
+    <div class="row g-2 align-items-start">
+      <div class="col-12 col-lg-9">
+        <textarea
+          class="form-control font-monospace"
+          id="sovaql-query"
+          rows="2"
+          spellcheck="false"
+          autocomplete="off"
+          [ngModel]="query()"
+          [ngModelOptions]="{ standalone: true }"
+          (ngModelChange)="changed($event)"
+          [attr.placeholder]="'issue.list.queryPlaceholder' | translate"
+          [attr.aria-describedby]="'sovaql-query-status'"
+          [attr.aria-invalid]="valid() === false"
+        ></textarea>
+      </div>
+      <div class="col-12 col-lg-3 d-grid">
+        <button class="btn btn-primary" type="submit">
+          {{ 'issue.list.run' | translate }}
+        </button>
+      </div>
+    </div>
+
+    <div class="mt-2" id="sovaql-query-status" aria-live="polite">
+      @if (checking()) {
+        <p class="form-text mb-0">{{ 'query.editor.checking' | translate }}</p>
+      } @else if (problems().length > 0) {
+        <ul class="list-unstyled mb-0">
+          @for (problem of problems(); track problem.code + problem.snippet) {
+            <li class="query-problem">
+              <span class="text-danger-emphasis">{{ problem.messageKey | translate }}</span>
+              @if (problem.snippet !== '') {
+                <code class="ms-1">{{
+                  'query.editor.at' | translate: { snippet: problem.snippet }
+                }}</code>
+              }
+            </li>
+          }
+        </ul>
+      } @else if (valid() === true) {
+        <p class="form-text text-success-emphasis mb-0">{{ 'query.editor.valid' | translate }}</p>
+      } @else {
+        <p class="form-text mb-0">{{ 'issue.list.queryHint' | translate }}</p>
+      }
+    </div>
+  </form>
+}
+
+<button class="btn btn-link btn-sm p-0 mt-2" type="button" (click)="toggleReference()">
+  @if (referenceVisible()) {
+    {{ 'query.editor.referenceHide' | translate }}
+  } @else {
+    {{ 'query.editor.referenceShow' | translate }}
+  }
+</button>
+
+@if (referenceVisible()) {
+  <section class="mt-2" aria-labelledby="sovaql-reference-title">
+    <h3 class="h6" id="sovaql-reference-title">{{ 'query.editor.reference' | translate }}</h3>
+
+    @if (limits(); as active) {
+      <p class="form-text">
+        {{
+          'query.editor.limits'
+            | translate
+              : {
+                  bytes: active.max_query_bytes,
+                  sorts: active.max_sort_fields,
+                  values: active.max_in_values,
+                }
+        }}
+      </p>
+    }
+
+    <ul class="list-unstyled query-reference mb-0">
+      @for (field of fields(); track field.name) {
+        <li>
+          <code>{{ field.name }}</code>
+          <span class="text-body-secondary small">
+            {{ field.operators.join(' ') }}
+            @if (field.sortable) {
+              · {{ 'query.editor.sortable' | translate }}
+            }
+          </span>
+        </li>
+      }
+    </ul>
+  </section>
+}

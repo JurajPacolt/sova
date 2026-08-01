@@ -1,0 +1,25 @@
+@if (loading()) {
+  <p class="text-body-secondary" role="status">{{ 'common.loading' | translate }}</p>
+} @else if (loadFailure(); as failure) {
+  <app-error-state [error]="failure" (retry)="retry()" />
+} @else if (loadError(); as error) {
+  <div class="alert alert-warning" role="alert">{{ error | translate }}</div>
+} @else if (empty()) {
+  <div class="card border-0 shadow-sm">
+    <div class="card-body">
+      <h1 class="h5">{{ 'dashboard.title' | translate }}</h1>
+      <p class="text-body-secondary">{{ 'dashboard.noneAvailable' | translate }}</p>
+
+      @if (mayCreate()) {
+        <button
+          type="button"
+          class="btn btn-primary"
+          [disabled]="restoring()"
+          (click)="restoreTemplate()"
+        >
+          {{ 'dashboard.useTemplate' | translate }}
+        </button>
+      }
+    </div>
+  </div>
+}

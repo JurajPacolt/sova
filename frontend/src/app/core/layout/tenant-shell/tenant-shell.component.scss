@@ -4,51 +4,112 @@
 }
 
 .skip-link {
-  left: 1rem;
+  left: var(--sova-space-4);
   position: fixed;
-  top: 1rem;
+  top: var(--sova-space-4);
   z-index: 1100;
+}
+
+// A column, so the body simply takes what is left. It used to subtract a
+// literal 56px from the viewport, which was wrong whenever the bar wrapped and
+// wrong again whenever the impersonation banner was up.
+.tenant-shell {
+  display: flex;
+  flex-direction: column;
+  min-height: 100dvh;
 }
 
 .tenant-shell__body {
   display: flex;
-  min-height: calc(100dvh - 56px);
+  flex: 1 1 auto;
+}
+
+.impersonation-banner {
+  background: #ffca2c;
+  border-bottom: 2px solid #997404;
+  color: #332701;
 }
 
 .tenant-sidebar {
-  flex: 0 0 16rem;
+  align-self: flex-start;
+  background: var(--sova-color-surface);
+  border-inline-end: 1px solid var(--sova-color-border);
+  display: flex;
+  flex: 0 0 var(--sova-sidebar-width);
+  flex-direction: column;
+  // Stays put while the content scrolls, and scrolls on its own when the
+  // navigation is longer than the viewport.
+  height: calc(100dvh - var(--sova-header-height));
+  overflow-y: auto;
+  position: sticky;
+  top: var(--sova-header-height);
+}
+
+.tenant-sidebar__header {
+  align-items: flex-start;
+  border-bottom: 1px solid var(--sova-color-border);
+  display: flex;
+  gap: var(--sova-space-2);
+  justify-content: space-between;
+  padding: var(--sova-space-3);
+}
+
+.tenant-sidebar__identity {
+  min-width: 0;
+}
+
+.tenant-sidebar__footer {
+  border-top: 1px solid var(--sova-color-border);
+  display: flex;
+  flex-direction: column;
+  gap: var(--sova-space-2);
+  // Pinned to the bottom of the rail rather than trailing the last link.
+  margin-top: auto;
+  padding: var(--sova-space-3);
 }
 
 .tenant-content {
-  background: var(--sova-app-background);
+  background: var(--sova-color-canvas);
   flex: 1 1 auto;
   min-width: 0;
-  padding: 2rem;
-}
-
-.tenant-name {
-  font-size: 0.875rem;
-  letter-spacing: 0.04em;
+  padding: var(--sova-space-8) var(--sova-space-6);
 }
 
 @media (max-width: 991.98px) {
+  // A drawer over the whole viewport height. Anchoring it below the bar meant
+  // carrying the bar's height as a literal, and the number was already stale
+  // before the banner was taken into account.
   .tenant-sidebar {
     bottom: 0;
+    height: auto;
     left: 0;
     position: fixed;
-    top: 56px;
+    top: 0;
     transform: translateX(-100%);
-    transition: transform 160ms ease-in-out;
-    width: min(18rem, 85vw);
-    z-index: 1040;
+    transition:
+      transform var(--sova-motion-base) var(--sova-ease-standard),
+      visibility var(--sova-motion-base) var(--sova-ease-standard);
+    // Off-screen is not closed: the links stayed in the tab order while the
+    // drawer looked shut.
+    visibility: hidden;
+    width: min(20rem, 85vw);
+    z-index: 1045;
   }
 
   .tenant-sidebar--open {
     transform: translateX(0);
+    visibility: visible;
+  }
+
+  .tenant-sidebar__backdrop {
+    background: rgb(2 6 23 / 55%);
+    inset: 0;
+    position: fixed;
+    z-index: 1044;
   }
 
   .tenant-content {
-    padding: 1.25rem;
+    padding: var(--sova-space-6) var(--sova-space-4);
   }
 }
 

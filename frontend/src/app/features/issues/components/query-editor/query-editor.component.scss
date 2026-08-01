@@ -1,0 +1,26 @@
+:host {
+  display: block;
+}
+
+.query-problem {
+  padding-block: 0.15rem;
+}
+
+.query-reference {
+  columns: 2;
+
+  li {
+    break-inside: avoid;
+    padding-block: 0.1rem;
+  }
+}
+
+@media (max-width: 48rem) {
+  .query-reference {
+    columns: 1;
+  }
+}
+
+.query-condition {
+  padding-block: 0.15rem;
+}

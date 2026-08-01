@@ -1,0 +1,12 @@
+<label class="visually-hidden" for="theme-selector">{{ 'theme.selector' | translate }}</label>
+<select
+  id="theme-selector"
+  class="form-select form-select-sm"
+  [attr.aria-label]="'theme.selector' | translate"
+  [value]="theme.preference()"
+  (change)="selectTheme($event)"
+>
+  @for (option of options; track option.preference) {
+    <option [value]="option.preference">{{ option.labelKey | translate }}</option>
+  }
+</select>
